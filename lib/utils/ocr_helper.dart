@@ -43,12 +43,12 @@ class OcrHelper {
       result['date'] = dateMatch.group(0)!;
     }
 
-    // Title
-    final lines = text.split('\n');
-    for (final line in lines) {
-      if (line.trim().length > 3 && RegExp(r'[a-zA-Z]').hasMatch(line)) {
-        result['title'] = line.trim();
-        break;
+    // Title and Note
+    final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.isNotEmpty) {
+      result['title'] = lines[0].trim();
+      if (lines.length > 1) {
+        result['note'] = lines.sublist(1).join(' ').trim();
       }
     }
     

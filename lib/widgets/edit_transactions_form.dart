@@ -32,6 +32,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
   var appvalidator = Appvalidator();
   late TextEditingController amountEditController;
   late TextEditingController titleEditController;
+  late TextEditingController noteEditController;
   late TextEditingController dateController;
   late DateTime _selectedDate;
 
@@ -43,6 +44,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
     super.initState();
     titleEditController = TextEditingController(text: widget.transactionData['title']);
     amountEditController = TextEditingController(text: widget.transactionData['amount'].toString());
+    noteEditController = TextEditingController(text: widget.transactionData['note'] ?? '');
     type = widget.transactionData['type'];
     category = widget.transactionData['category'];
 
@@ -103,6 +105,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
   void dispose() {
     titleEditController.dispose();
     amountEditController.dispose();
+    noteEditController.dispose();
     dateController.dispose();
     super.dispose();
   }
@@ -124,6 +127,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
         "category": category,
         "timestamp": newTimestamp,
         "monthyear": newMonthYear,
+        "note": noteEditController.text,
       };
 
       bool success = await db.updateTransaction(
@@ -218,6 +222,16 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
                   });
                 }
               },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: noteEditController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Ghi Chú',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(

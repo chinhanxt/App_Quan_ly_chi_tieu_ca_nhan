@@ -28,6 +28,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
   var appvalidator = Appvalidator();
   var amountEditController = TextEditingController();
   var titleEditController = TextEditingController();
+  var noteEditController = TextEditingController();
 
   var dateController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
@@ -91,6 +92,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         setState(() {
           titleEditController.text = result['title'] ?? titleEditController.text;
           amountEditController.text = result['amount'] ?? amountEditController.text;
+          noteEditController.text = result['note'] ?? noteEditController.text;
           if (result['date'] != null) {
             try {
               DateTime scannedDate = DateFormat('dd/MM/yyyy').parse(result['date']!);
@@ -206,6 +208,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         "remainingAmount": remainingAmount,
         "monthyear": monthyear,
         "category": category,
+        "note": noteEditController.text,
       };
 
       await FirebaseFirestore.instance
@@ -327,6 +330,16 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
                   });
                 }
               },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: noteEditController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Ghi Chú',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(

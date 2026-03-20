@@ -68,7 +68,7 @@ class RecentTransactionsList extends StatelessWidget {
           itemCount: data.length,
           physics: NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
-            var carData = data[index];
+            var carData = data[index].data();
             var docId = data[index].id;
 
             return TransactionCard(data: carData, docId: docId);

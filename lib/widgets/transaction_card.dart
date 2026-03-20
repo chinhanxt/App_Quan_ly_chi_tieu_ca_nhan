@@ -91,6 +91,10 @@ class TransactionCard extends StatelessWidget {
                     ),
                   ),
                   Text(
+                    "$formattedRemaining VND",
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  Text(
                     formatedDate,
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
@@ -98,11 +102,20 @@ class TransactionCard extends StatelessWidget {
               ),
             ],
           ),
-          subtitle: Text(
-            "$formattedRemaining VND",
-            textAlign: TextAlign.right,
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
+          subtitle: data['note'] != null && data['note'].toString().isNotEmpty
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    "${data['note']}",
+                    style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              : null,
           trailing: PopupMenuButton(
             itemBuilder: (BuildContext context) => [
               PopupMenuItem(
