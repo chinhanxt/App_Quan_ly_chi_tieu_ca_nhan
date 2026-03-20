@@ -3,6 +3,7 @@ import 'package:app/screens/sign_up.dart';
 import 'package:app/screens/forgot_password_otp_screen.dart';
 import 'package:app/services/auth_service.dart';
 import 'package:app/utils/appvalidator.dart';
+import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:flutter/material.dart';
 
 class LoginView extends StatefulWidget {
@@ -35,12 +36,21 @@ class _LoginViewState extends State<LoginView> {
         };
 
 
-    await authService.login(data, context); 
+    bool result = await authService.login(data, context); 
 if (!mounted) return;
    
     setState(() {
           isLoader = false;
         });
+
+    if (result) {
+      CustomAlertDialog.show(
+        context: context,
+        title: "Đăng Nhập Thành Công",
+        message: "Chào mừng bạn đã quay trở lại với ứng dụng!",
+        type: AlertType.success,
+      );
+    }
 
       }
     }

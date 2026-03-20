@@ -5,6 +5,7 @@ import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
@@ -299,7 +300,8 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
           const SizedBox(height: 16),
           TextFormField(
             controller: amountController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(
               labelText: 'Định mức (VND)',              border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.attach_money),

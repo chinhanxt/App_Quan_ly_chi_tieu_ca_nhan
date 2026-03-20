@@ -1,7 +1,9 @@
 import 'package:app/screens/login_screen.dart';
 import 'package:app/services/auth_service.dart';
 import 'package:app/utils/appvalidator.dart';
+import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class SignUpView extends StatefulWidget {
    SignUpView({super.key});
@@ -41,15 +43,24 @@ class _SignUpViewState extends State<SignUpView> {
           'totalCredit': 0,
           'totalDebit': 0,
         };
-    await authService.createUsser(data, context); 
+    bool result = await authService.createUsser(data, context); 
     
     if (!mounted) return;
     setState(() {
           isLoader = false;
         });
-    // Nếu tạo user thành công, AuthGate sẽ tự động chuyển sang Dashboard.
-    // Chúng ta cần pop SignUpView để người dùng thấy Dashboard bên dưới.
-    Navigator.pop(context);
+
+    if (result) {
+      CustomAlertDialog.show(
+        context: context,
+        title: "Đăng Ký Thành Công",
+        message: "Chào mừng bạn! Hãy bắt đầu quản lý tài chính ngay nhé.",
+        type: AlertType.success,
+        onConfirm: () {
+          Navigator.pop(context);
+        },
+      );
+    }
       }
     }
 
@@ -105,6 +116,7 @@ class _SignUpViewState extends State<SignUpView> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     style: TextStyle(color: Colors.white),
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     decoration:  _buildInputDecoration("Số Điện Thoại", Icons.call),

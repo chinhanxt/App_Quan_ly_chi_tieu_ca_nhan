@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../models/saving_goal_model.dart';
@@ -300,7 +301,8 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                 TextField(controller: nameController, decoration: const InputDecoration(labelText: "Tên mục tiêu")),
                 TextField(
                   controller: amountController, 
-                  keyboardType: TextInputType.number, 
+                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: "Số tiền mục tiêu (VND)")
                 ),
                 const SizedBox(height: 16),
@@ -412,7 +414,8 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   children: [
                     TextField(
                       controller: amountController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (value) {
                         setState(() {});
                       },

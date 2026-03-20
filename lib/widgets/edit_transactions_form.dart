@@ -6,6 +6,7 @@ import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class EditTransactionsForm extends StatefulWidget {
@@ -159,7 +160,8 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
               controller: amountEditController,
               autovalidateMode: AutovalidateMode.onUserInteraction,
               validator: appvalidator.isEmptyCheck,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: false),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(labelText: 'Số Lượng (VND)'),
             ),
             TextFormField(

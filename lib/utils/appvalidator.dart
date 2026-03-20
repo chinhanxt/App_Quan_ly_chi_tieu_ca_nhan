@@ -30,10 +30,12 @@ class Appvalidator {
     }
     String? validatePassWord(value){
       if(value!.isEmpty){
-      return 'Vui Lòng Nhập Mật Khẩu';
+        return 'Vui Lòng Nhập Mật Khẩu';
+      }
+      if(value.length < 8){
+        return 'Mật Khẩu Phải Có Ít Nhất 8 Ký Tự';
       }
       return null;
-              
     }
 
     String? isEmptyCheck(value){

@@ -3,6 +3,7 @@ import 'package:app/widgets/transaction_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -184,13 +185,15 @@ class _SearchScreenState extends State<SearchScreen> {
             children: [
               TextField(
                 controller: minController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Từ (Tối thiểu)'),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: maxController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Đến (Tối đa)'),
               ),
             ],

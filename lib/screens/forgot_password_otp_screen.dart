@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mailer/mailer.dart';
@@ -37,7 +38,12 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
 
   Future<void> _sendOTP() async {
     if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng nhập Email")));
+      CustomAlertDialog.show(
+        context: context,
+        title: "Thiếu Thông Tin",
+        message: "Vui lòng nhập Email để nhận mã xác thực.",
+        type: AlertType.warning,
+      );
       return;
     }
 
@@ -70,19 +76,40 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
         _isLoading = false;
         _otpSent = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mã OTP đã được gửi!"), backgroundColor: Colors.blue));
+      CustomAlertDialog.show(
+        context: context,
+        title: "Gửi Mã Thành Công",
+        message: "Mã xác thực (OTP) đã được gửi đến email của bạn. Vui lòng kiểm tra kỹ cả trong hộp thư rác (Spam).",
+        type: AlertType.success,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red));
+      CustomAlertDialog.show(
+        context: context,
+        title: "Gửi Mã Thất Bại",
+        message: "Không thể gửi email lúc này. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.",
+        type: AlertType.error,
+      );
     }
   }
 
   void _verifyOTP() {
     if (_otpController.text == _generatedOTP) {
       setState(() => _otpVerified = true);
+      CustomAlertDialog.show(
+        context: context,
+        title: "Xác Thực Thành Công",
+        message: "Mã xác thực chính xác. Bạn có thể tiến hành lấy lại mật khẩu ngay bây giờ.",
+        type: AlertType.success,
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mã OTP không đúng!"), backgroundColor: Colors.red));
+      CustomAlertDialog.show(
+        context: context,
+        title: "Mã Xác Thực Sai",
+        message: "Mã OTP bạn nhập không chính xác hoặc đã hết hạn. Vui lòng kiểm tra lại.",
+        type: AlertType.error,
+      );
     }
   }
 
@@ -91,23 +118,22 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text);
       if (!mounted) return;
-      showDialog(
+      CustomAlertDialog.show(
         context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text("✅ Đã Gửi Link Reset"),
-          content: const Text("Hệ thống đã gửi một Email chứa Link đặt lại mật khẩu tới bạn.\n\nVui lòng mở Email đó và nhấn vào đường dẫn để chọn mật khẩu mới. Sau đó bạn có thể quay lại đăng nhập."),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text("TÔI ĐÃ HIỂU"),
-            )
-          ],
-        ),
+        title: "Gửi Link Thành Công",
+        message: "Hệ thống đã gửi một liên kết đặt lại mật khẩu đến Email của bạn.\n\nHãy nhấn vào liên kết đó để cập nhật mật khẩu mới.",
+        type: AlertType.success,
+        confirmText: "Đã hiểu",
+        onConfirm: () => Navigator.of(context).popUntil((route) => route.isFirst),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red));
+      CustomAlertDialog.show(
+        context: context,
+        title: "Lỗi Hệ Thống",
+        message: "Đã xảy ra lỗi khi gửi link đặt lại mật khẩu. Vui lòng thử lại sau.",
+        type: AlertType.error,
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
