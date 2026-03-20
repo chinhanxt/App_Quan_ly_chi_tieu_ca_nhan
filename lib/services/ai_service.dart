@@ -75,11 +75,15 @@ class AIService {
     ],
   };
 
-  Map<String, dynamic> _buildErrorResponse(String message) {
+  Map<String, dynamic> _buildErrorResponse(
+    String message, {
+    String? errorCode,
+  }) {
     return <String, dynamic>{
       'status': 'error',
       'success': false,
       'message': message,
+      if (errorCode != null && errorCode.isNotEmpty) 'errorCode': errorCode,
       'transactions': const <Map<String, dynamic>>[],
       'data': const <Map<String, dynamic>>[],
     };
@@ -211,6 +215,7 @@ QUY TAC:
         lowered.contains('rate limit')) {
       return _buildErrorResponse(
         'Mình đang chạm giới hạn lượt gọi AI từ OpenAI. Bạn thử lại sau ít phút nhé.',
+        errorCode: 'rate_limit',
       );
     }
 
@@ -218,18 +223,21 @@ QUY TAC:
       return _buildErrorResponse(
         message ??
             'Nội dung gửi lên chưa hợp lệ. Bạn thử nhập ngắn gọn hơn nhé.',
+        errorCode: 'bad_request',
       );
     }
 
     if (statusCode == 401 || statusCode == 403) {
       return _buildErrorResponse(
         'OpenAI API key không hợp lệ hoặc đã hết quyền truy cập.',
+        errorCode: 'auth',
       );
     }
 
     return _buildErrorResponse(
       message ??
           'AI đang gặp trục trặc khi xử lý yêu cầu. Bạn thử lại sau ít phút nhé.',
+      errorCode: statusCode >= 500 ? 'server_error' : 'unknown',
     );
   }
 
@@ -362,7 +370,7 @@ QUY TAC:
   Map<String, dynamic>? _buildLocalFallbackResponse({
     required String input,
     required List<String> categories,
-    required String failureMessage,
+    required String failureCode,
   }) {
     final amount = _extractSingleAmount(input);
     if (amount == null) return null;
@@ -392,11 +400,13 @@ QUY TAC:
     return <String, dynamic>{
       'status': 'success',
       'success': true,
-      'message':
-          'OpenAI đang bận nên mình tạm bóc tách nhanh 1 giao dịch cho bạn. Bạn kiểm tra lại trước khi lưu nhé!',
+      'message': AIResponseEnhancement.fallbackMessage(
+        reasonCode: failureCode,
+        transactionCount: 1,
+      ),
       'transactions': <Map<String, dynamic>>[transaction],
       'data': <Map<String, dynamic>>[transaction],
-      'fallbackReason': failureMessage,
+      'fallbackReason': failureCode,
     };
   }
 
@@ -518,10 +528,11 @@ QUY TAC:
         statusCode: response.statusCode,
         message: errorMessage,
       );
+      final failureCode = mapped['errorCode']?.toString() ?? 'unknown';
       return _buildLocalFallbackResponse(
             input: input,
             categories: categories,
-            failureMessage: mapped['message']?.toString() ?? '',
+            failureCode: failureCode,
           ) ??
           mapped;
     }
@@ -529,11 +540,12 @@ QUY TAC:
     final fallback = _buildLocalFallbackResponse(
       input: input,
       categories: categories,
-      failureMessage: 'rate-limit',
+      failureCode: 'rate_limit',
     );
     return fallback ??
         _buildErrorResponse(
           'Mình đang chạm giới hạn lượt gọi AI từ OpenAI. Bạn thử lại sau ít phút nhé.',
+          errorCode: 'rate_limit',
         );
   }
 
@@ -564,22 +576,27 @@ QUY TAC:
       return _buildLocalFallbackResponse(
             input: input,
             categories: categories,
-            failureMessage: 'timeout',
+            failureCode: 'timeout',
           ) ??
           _buildErrorResponse(
             'AI phản hồi hơi lâu nên mình chưa xử lý xong. Bạn thử lại giúp mình nhé.',
+            errorCode: 'timeout',
           );
     } on FormatException {
-      return _buildErrorResponse('AI trả về dữ liệu không hợp lệ.');
+      return _buildErrorResponse(
+        'AI trả về dữ liệu không hợp lệ.',
+        errorCode: 'bad_response',
+      );
     } catch (_) {
       final categories = await _getUserCategories();
       return _buildLocalFallbackResponse(
             input: input,
             categories: categories,
-            failureMessage: 'network',
+            failureCode: 'network',
           ) ??
           _buildErrorResponse(
             'Không kết nối được OpenAI. Bạn kiểm tra mạng rồi thử lại nhé.',
+            errorCode: 'network',
           );
     }
   }

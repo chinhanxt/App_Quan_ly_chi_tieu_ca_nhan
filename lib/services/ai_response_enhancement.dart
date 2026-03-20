@@ -3,6 +3,32 @@ import 'package:app/services/transaction_type_inference.dart';
 class AIResponseEnhancement {
   static const int _singleTransactionAlertThreshold = 100000000;
 
+  static String fallbackMessage({
+    required String reasonCode,
+    int transactionCount = 1,
+  }) {
+    final countText = transactionCount == 1
+        ? '1 giao dịch'
+        : '$transactionCount giao dịch';
+
+    switch (reasonCode) {
+      case 'rate_limit':
+        return 'OpenAI đang quá tải hoặc mình chạm giới hạn lượt gọi, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      case 'auth':
+        return 'Mình chưa gọi được OpenAI (API key/quyền truy cập), nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      case 'bad_request':
+        return 'Mình gửi yêu cầu lên OpenAI chưa hợp lệ, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      case 'timeout':
+        return 'OpenAI phản hồi hơi lâu, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      case 'network':
+        return 'Mình chưa kết nối được OpenAI, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      case 'server_error':
+        return 'OpenAI đang gặp trục trặc, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+      default:
+        return 'Mình đang gặp trục trặc khi gọi OpenAI, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+    }
+  }
+
   static Map<String, dynamic>? preflight(String input) {
     final normalized = TransactionTypeInference.normalizeText(input);
     final hasMoneySignal = _hasMoneySignal(input, normalized);

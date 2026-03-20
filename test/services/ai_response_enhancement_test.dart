@@ -72,5 +72,25 @@ void main() {
       expect(result['status'], 'clarification');
       expect(result['success'], false);
     });
+
+    test('fallbackMessage explains rate limit instead of generic busy', () {
+      final message = AIResponseEnhancement.fallbackMessage(
+        reasonCode: 'rate_limit',
+      );
+
+      expect(message, isNot(contains('API key')));
+      expect(
+        message.toLowerCase(),
+        anyOf(contains('quá tải'), contains('giới hạn')),
+      );
+    });
+
+    test('fallbackMessage explains auth issues for invalid API key', () {
+      final message = AIResponseEnhancement.fallbackMessage(
+        reasonCode: 'auth',
+      );
+
+      expect(message.toLowerCase(), anyOf(contains('api key'), contains('quyen truy cap')));
+    });
   });
 }
