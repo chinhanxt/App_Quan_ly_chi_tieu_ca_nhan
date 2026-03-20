@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 
 // Model SystemMessage đã được định nghĩa trong system_settings_screen.dart
@@ -68,7 +69,7 @@ class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
                     width: _currentPage == index ? 24.0 : 8.0,
                     decoration: BoxDecoration(
                       color: _currentPage == index
-                          ? Colors.blue.shade700
+                          ? AppColors.accentStrong
                           : Colors.grey.shade400,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -84,28 +85,37 @@ class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
 
   Color _getBannerColor(String type) {
     switch (type) {
-      case 'success': return Colors.green.withOpacity(0.1);
-      case 'warning': return Colors.orange.withOpacity(0.1);
+      case 'success':
+        return Colors.green.withOpacity(0.1);
+      case 'warning':
+        return Colors.orange.withOpacity(0.1);
       case 'info':
-      default: return Colors.blue.withOpacity(0.1);
+      default:
+        return AppColors.accentSoft;
     }
   }
 
   Color _getBorderColor(String type) {
     switch (type) {
-      case 'success': return Colors.green;
-      case 'warning': return Colors.orange;
+      case 'success':
+        return Colors.green;
+      case 'warning':
+        return Colors.orange;
       case 'info':
-      default: return Colors.blue;
+      default:
+        return AppColors.accentStrong;
     }
   }
 
   IconData _getIcon(String type) {
     switch (type) {
-      case 'success': return Icons.check_circle_outline;
-      case 'warning': return Icons.warning_amber_rounded;
+      case 'success':
+        return Icons.check_circle_outline;
+      case 'warning':
+        return Icons.warning_amber_rounded;
       case 'info':
-      default: return Icons.info_outline;
+      default:
+        return Icons.info_outline;
     }
   }
 
@@ -116,11 +126,17 @@ class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
       decoration: BoxDecoration(
         color: _getBannerColor(message.type),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _getBorderColor(message.type).withOpacity(0.3)),
+        border: Border.all(
+          color: _getBorderColor(message.type).withOpacity(0.3),
+        ),
       ),
       child: Row(
         children: [
-          Icon(_getIcon(message.type), color: _getBorderColor(message.type), size: 20),
+          Icon(
+            _getIcon(message.type),
+            color: _getBorderColor(message.type),
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

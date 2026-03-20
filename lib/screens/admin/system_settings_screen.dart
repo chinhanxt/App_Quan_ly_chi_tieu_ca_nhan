@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/responsive_layout.dart';
@@ -8,7 +9,7 @@ class SystemMessage {
   final String id;
   final String content;
   final String status; // 'active' hoặc 'inactive'
-  final String type;   // 'info', 'warning', 'success'
+  final String type; // 'info', 'warning', 'success'
   final Timestamp createdAt;
 
   SystemMessage({
@@ -72,7 +73,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
           ? null
           : AppBar(
               title: const Text("Gửi Thông Báo Hệ Thống"),
-              backgroundColor: const Color(0xFF1E293B),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
       body: SingleChildScrollView(
@@ -80,7 +81,10 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Quản lý Thông điệp & Thông báo", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              "Quản lý Thông điệp & Thông báo",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             const Text(
               "Các thông điệp có trạng thái 'Active' sẽ được hiển thị trên trang chủ của tất cả người dùng.",
@@ -89,7 +93,10 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
             const SizedBox(height: 24),
             _buildAddMessageCard(),
             const Divider(height: 48),
-            const Text("Danh sách Thông điệp đã gửi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              "Danh sách Thông điệp đã gửi",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             _buildMessagesList(),
             const SizedBox(height: 24),
@@ -105,7 +112,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 },
                 child: const Text("Tạo nhanh thông báo Test"),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -142,8 +149,14 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                   value: _selectedType,
                   items: const [
                     DropdownMenuItem(value: 'info', child: Text('🔵 Tin tức')),
-                    DropdownMenuItem(value: 'success', child: Text('🟢 Thành công')),
-                    DropdownMenuItem(value: 'warning', child: Text('🟠 Cảnh báo')),
+                    DropdownMenuItem(
+                      value: 'success',
+                      child: Text('🟢 Thành công'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'warning',
+                      child: Text('🟠 Cảnh báo'),
+                    ),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -157,9 +170,12 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                   icon: const Icon(Icons.send),
                   label: const Text("Gửi Đi"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[800],
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
                   ),
                 ),
               ],
@@ -172,11 +188,20 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
 
   Widget _buildMessagesList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('system_broadcasts').orderBy('createdAt', descending: true).snapshots(),
+      stream: _firestore
+          .collection('system_broadcasts')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
         if (snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("Chưa có thông điệp nào.", style: TextStyle(color: Colors.grey)));
+          return const Center(
+            child: Text(
+              "Chưa có thông điệp nào.",
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
         }
 
         return ListView.builder(
@@ -184,7 +209,9 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
-            var message = SystemMessage.fromFirestore(snapshot.data!.docs[index]);
+            var message = SystemMessage.fromFirestore(
+              snapshot.data!.docs[index],
+            );
             return _buildMessageTile(message);
           },
         );
@@ -194,28 +221,37 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
 
   Color _getColorForType(String type) {
     switch (type) {
-      case 'success': return Colors.green.shade50;
-      case 'warning': return Colors.orange.shade50;
+      case 'success':
+        return Colors.green.shade50;
+      case 'warning':
+        return Colors.orange.shade50;
       case 'info':
-      default: return Colors.blue.shade50;
+      default:
+        return AppColors.accentSoft;
     }
   }
 
   IconData _getIconForType(String type) {
     switch (type) {
-      case 'success': return Icons.check_circle;
-      case 'warning': return Icons.warning;
+      case 'success':
+        return Icons.check_circle;
+      case 'warning':
+        return Icons.warning;
       case 'info':
-      default: return Icons.info;
+      default:
+        return Icons.info;
     }
   }
-  
+
   Color _getIconColorForType(String type) {
     switch (type) {
-      case 'success': return Colors.green;
-      case 'warning': return Colors.orange;
+      case 'success':
+        return Colors.green;
+      case 'warning':
+        return Colors.orange;
       case 'info':
-      default: return Colors.blue;
+      default:
+        return AppColors.accentStrong;
     }
   }
 
@@ -225,10 +261,15 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
       decoration: BoxDecoration(
         color: _getColorForType(message.type),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getColorForType(message.type).withOpacity(0.5)),
+        border: Border.all(
+          color: _getColorForType(message.type).withOpacity(0.5),
+        ),
       ),
       child: ListTile(
-        leading: Icon(_getIconForType(message.type), color: _getIconColorForType(message.type)),
+        leading: Icon(
+          _getIconForType(message.type),
+          color: _getIconColorForType(message.type),
+        ),
         title: Text(message.content),
         subtitle: Text(
           'Gửi lúc: ${DateFormat('HH:mm - dd/MM/yyyy').format(message.createdAt.toDate())}',
@@ -239,15 +280,19 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
             Switch(
               value: message.status == 'active',
               onChanged: (value) {
-                _firestore.collection('system_broadcasts').doc(message.id).update({
-                  'status': value ? 'active' : 'inactive',
-                });
+                _firestore
+                    .collection('system_broadcasts')
+                    .doc(message.id)
+                    .update({'status': value ? 'active' : 'inactive'});
               },
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
               onPressed: () {
-                _firestore.collection('system_broadcasts').doc(message.id).delete();
+                _firestore
+                    .collection('system_broadcasts')
+                    .doc(message.id)
+                    .delete();
               },
             ),
           ],

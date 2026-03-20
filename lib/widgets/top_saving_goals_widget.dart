@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../utils/app_colors.dart';
 import '../models/saving_goal_model.dart';
 import '../screens/saving_goals_screen.dart';
 import '../screens/saving_goal_detail_screen.dart';
@@ -29,7 +30,9 @@ class TopSavingGoalsWidget extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SavingGoalsScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const SavingGoalsScreen(),
+                    ),
                   );
                 },
                 child: const Text("Xem tất cả"),
@@ -65,11 +68,21 @@ class TopSavingGoalsWidget extends StatelessWidget {
               }
 
               // Lấy dữ liệu và lọc 'active' ngay tại đây để không cần Index phức tạp
-              final allGoals = snapshot.data?.docs.map((doc) => 
-                SavingGoal.fromFirestore(doc.id, doc.data() as Map<String, dynamic>)
-              ).toList() ?? [];
+              final allGoals =
+                  snapshot.data?.docs
+                      .map(
+                        (doc) => SavingGoal.fromFirestore(
+                          doc.id,
+                          doc.data() as Map<String, dynamic>,
+                        ),
+                      )
+                      .toList() ??
+                  [];
 
-              final activeGoals = allGoals.where((goal) => goal.status == 'active').take(3).toList();
+              final activeGoals = allGoals
+                  .where((goal) => goal.status == 'active')
+                  .take(3)
+                  .toList();
 
               if (activeGoals.isEmpty) {
                 return Center(
@@ -91,7 +104,8 @@ class TopSavingGoalsWidget extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SavingGoalDetailScreen(goal: goal),
+                          builder: (context) =>
+                              SavingGoalDetailScreen(goal: goal),
                         ),
                       );
                     },
@@ -103,7 +117,11 @@ class TopSavingGoalsWidget extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
                         ],
                       ),
                       child: Column(
@@ -111,12 +129,18 @@ class TopSavingGoalsWidget extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(_getIconData(goal.icon), size: 20, color: Colors.blue[800]),
+                              Icon(
+                                _getIconData(goal.icon),
+                                size: 20,
+                                color: AppColors.accentStrong,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   goal.name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -125,7 +149,10 @@ class TopSavingGoalsWidget extends StatelessWidget {
                           const Spacer(),
                           Text(
                             "Còn thiếu ${currencyFormat.format(goal.remainingToSave)} VND",
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
                           ),
                           const SizedBox(height: 8),
                           ClipRRect(
@@ -134,13 +161,18 @@ class TopSavingGoalsWidget extends StatelessWidget {
                               value: goal.progress,
                               minHeight: 6,
                               backgroundColor: Colors.grey[100],
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[800]!),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.accentStrong,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             "${(goal.progress * 100).toStringAsFixed(0)}%",
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -157,14 +189,22 @@ class TopSavingGoalsWidget extends StatelessWidget {
 
   IconData _getIconData(String iconName) {
     switch (iconName) {
-      case 'car': return Icons.directions_car;
-      case 'home': return Icons.home;
-      case 'flight': return Icons.flight;
-      case 'phone': return Icons.smartphone;
-      case 'laptop': return Icons.laptop;
-      case 'gift': return Icons.card_giftcard;
-      case 'shopping': return Icons.shopping_bag;
-      default: return Icons.star;
+      case 'car':
+        return Icons.directions_car;
+      case 'home':
+        return Icons.home;
+      case 'flight':
+        return Icons.flight;
+      case 'phone':
+        return Icons.smartphone;
+      case 'laptop':
+        return Icons.laptop;
+      case 'gift':
+        return Icons.card_giftcard;
+      case 'shopping':
+        return Icons.shopping_bag;
+      default:
+        return Icons.star;
     }
   }
 }

@@ -1,3 +1,4 @@
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 
 enum AlertType { success, error, warning, info }
@@ -35,7 +36,7 @@ class CustomAlertDialog {
         break;
       case AlertType.info:
         icon = Icons.info;
-        iconColor = Colors.blue;
+        iconColor = AppColors.accentStrong;
         confirmText ??= 'OK';
         break;
     }
@@ -62,10 +63,7 @@ class CustomAlertDialog {
               ),
             ],
           ),
-          content: Text(
-            message,
-            style: const TextStyle(fontSize: 16),
-          ),
+          content: Text(message, style: const TextStyle(fontSize: 16)),
           actions: [
             if (type == AlertType.warning && onCancel != null)
               TextButton(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app/utils/app_colors.dart';
 import '../../../widgets/responsive_layout.dart';
 import './web/user_management_web.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,7 +27,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Quản lý người dùng"),
-        backgroundColor: Colors.blue[800],
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
@@ -42,7 +43,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               decoration: InputDecoration(
                 hintText: "Tìm kiếm theo email hoặc tên...",
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               ),
               onChanged: (value) {
@@ -54,7 +57,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('users').snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -64,30 +69,42 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 }
 
                 var docs = snapshot.data!.docs.where((doc) {
-                  var email = (doc.data() as Map<String, dynamic>)['email'] ?? "";
+                  var email =
+                      (doc.data() as Map<String, dynamic>)['email'] ?? "";
                   return email.toString().toLowerCase().contains(_searchQuery);
                 }).toList();
 
                 return ListView.separated(
                   itemCount: docs.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     var userData = docs[index].data() as Map<String, dynamic>;
                     String userId = docs[index].id;
                     String email = userData['email'] ?? "N/A";
-                    String name = userData['name'] ?? userData['username'] ?? "User";
+                    String name =
+                        userData['name'] ?? userData['username'] ?? "User";
                     String role = userData['role'] ?? 'user';
                     String status = userData['status'] ?? 'active';
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: role == 'admin' ? Colors.red[100] : Colors.blue[100],
+                        backgroundColor: role == 'admin'
+                            ? Colors.red[100]
+                            : AppColors.accentSoft,
                         child: Icon(
-                          role == 'admin' ? Icons.admin_panel_settings : Icons.person,
-                          color: role == 'admin' ? Colors.red : Colors.blue,
+                          role == 'admin'
+                              ? Icons.admin_panel_settings
+                              : Icons.person,
+                          color: role == 'admin'
+                              ? Colors.red
+                              : AppColors.accentStrong,
                         ),
                       ),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -95,9 +112,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              _buildBadge(role.toUpperCase(), role == 'admin' ? Colors.red : Colors.blue),
+                              _buildBadge(
+                                role.toUpperCase(),
+                                role == 'admin'
+                                    ? Colors.red
+                                    : AppColors.accentStrong,
+                              ),
                               const SizedBox(width: 8),
-                              _buildBadge(status.toUpperCase(), status == 'active' ? Colors.green : Colors.grey),
+                              _buildBadge(
+                                status.toUpperCase(),
+                                status == 'active' ? Colors.green : Colors.grey,
+                              ),
                             ],
                           ),
                         ],
@@ -105,7 +130,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       isThreeLine: true,
                       trailing: IconButton(
                         icon: const Icon(Icons.edit),
-                        onPressed: () => _showEditUserDialog(context, userId, userData),
+                        onPressed: () =>
+                            _showEditUserDialog(context, userId, userData),
                       ),
                     );
                   },
@@ -128,12 +154,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  void _showEditUserDialog(BuildContext context, String userId, Map<String, dynamic> userData) {
+  void _showEditUserDialog(
+    BuildContext context,
+    String userId,
+    Map<String, dynamic> userData,
+  ) {
     String currentRole = userData['role'] ?? 'user';
     String currentStatus = userData['status'] ?? 'active';
 
@@ -154,28 +188,36 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       DropdownMenuItem(value: 'user', child: Text("User")),
                       DropdownMenuItem(value: 'admin', child: Text("Admin")),
                     ],
-                    onChanged: (value) => setDialogState(() => currentRole = value!),
+                    onChanged: (value) =>
+                        setDialogState(() => currentRole = value!),
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: currentStatus,
                     decoration: const InputDecoration(labelText: "Trạng thái"),
                     items: const [
-                      DropdownMenuItem(value: 'active', child: Text("Hoạt động")),
+                      DropdownMenuItem(
+                        value: 'active',
+                        child: Text("Hoạt động"),
+                      ),
                       DropdownMenuItem(value: 'locked', child: Text("Khóa")),
                     ],
-                    onChanged: (value) => setDialogState(() => currentStatus = value!),
+                    onChanged: (value) =>
+                        setDialogState(() => currentStatus = value!),
                   ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Hủy")),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Hủy"),
+                ),
                 ElevatedButton(
                   onPressed: () async {
-                    await FirebaseFirestore.instance.collection('users').doc(userId).update({
-                      'role': currentRole,
-                      'status': currentStatus,
-                    });
+                    await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(userId)
+                        .update({'role': currentRole, 'status': currentStatus});
                     if (!context.mounted) return;
                     Navigator.pop(context);
                   },

@@ -1,3 +1,4 @@
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,9 +29,9 @@ class _MobileAdminRedirectState extends State<MobileAdminRedirect> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Không thể mở trình duyệt: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Không thể mở trình duyệt: $e")));
       }
     }
   }
@@ -38,14 +39,18 @@ class _MobileAdminRedirectState extends State<MobileAdminRedirect> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: AppColors.primaryDark,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.admin_panel_settings, size: 80, color: Color(0xFF6366F1)),
+              const Icon(
+                Icons.admin_panel_settings,
+                size: 80,
+                color: AppColors.accent,
+              ),
               const SizedBox(height: 24),
               const Text(
                 "QUẢN TRỊ VIÊN",
@@ -68,10 +73,15 @@ class _MobileAdminRedirectState extends State<MobileAdminRedirect> {
                 icon: const Icon(Icons.open_in_browser),
                 label: const Text("MỞ TRANG QUẢN TRỊ WEB"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
+                  backgroundColor: AppColors.primaryLight,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -79,7 +89,10 @@ class _MobileAdminRedirectState extends State<MobileAdminRedirect> {
                 onPressed: () => FirebaseAuth.instance.signOut(),
                 child: const Text(
                   "ĐĂNG XUẤT",
-                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

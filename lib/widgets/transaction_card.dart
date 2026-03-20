@@ -15,19 +15,28 @@ class TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    DateTime date = DateTime.fromMillisecondsSinceEpoch(data['timestamp']);
+    // Safely get timestamp with a fallback
+    int timestamp = 0;
+    if (data['timestamp'] != null) {
+      if (data['timestamp'] is int) {
+        timestamp = data['timestamp'];
+      } else {
+        timestamp = int.tryParse(data['timestamp'].toString()) ?? 0;
+      }
+    }
+    
+    DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     String formatedDate = DateFormat('dd/MM/yyyy HH:mm').format(date);
-    // String formatedDate = DateFormat('d MMM hh:mma').format(date);
 
     // THÊM DÒNG NÀY: Khởi tạo formatter chuẩn Việt Nam
     final formatter = NumberFormat.decimalPattern('vi');
 
-    // THÊM 2 DÒNG NÀY: Xử lý format cho amount và remainingAmount
+    // Xử lý format cho amount và remainingAmount an toàn hơn
     final formattedAmount = formatter.format(
-      num.tryParse(data['amount'].toString()) ?? 0,
+      num.tryParse(data['amount']?.toString() ?? '0') ?? 0,
     );
     final formattedRemaining = formatter.format(
-      num.tryParse(data['remainingAmount'].toString()) ?? 0,
+      num.tryParse(data['remainingAmount']?.toString() ?? '0') ?? 0,
     );
 
     return Padding(
@@ -63,7 +72,7 @@ class TransactionCard extends StatelessWidget {
               ),
               child: Center(
                 child: FaIcon(
-                  appIcons.getExpenseCategoryIcons('${data['category']}'),
+                  appIcons.getExpenseCategoryIcons('${data['category'] ?? ''}'),
                   color: data['type'] == 'credit' ? Colors.green : Colors.red,
                 ),
               ),
@@ -74,7 +83,7 @@ class TransactionCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  "${data['title']}",
+                  "${data['title'] ?? 'Không có tiêu đề'}",
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                 ),
               ),
@@ -102,7 +111,7 @@ class TransactionCard extends StatelessWidget {
               ),
             ],
           ),
-          subtitle: data['note'] != null && data['note'].toString().isNotEmpty
+          subtitle: data['note'] != null && data['note'].toString().trim().isNotEmpty
               ? Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(

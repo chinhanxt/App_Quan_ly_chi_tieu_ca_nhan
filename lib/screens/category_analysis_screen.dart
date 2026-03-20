@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +15,11 @@ class CategoryAnalysisScreen extends StatefulWidget {
 
 class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
   late DateTimeRange _selectedDateRange;
-  final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'VND', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(
+    locale: 'vi_VN',
+    symbol: 'VND',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
@@ -44,17 +49,23 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Scaffold(body: Center(child: Text("Lỗi xác thực")));
+    if (user == null)
+      return const Scaffold(body: Center(child: Text("Lỗi xác thực")));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Màu nền xám xanh nhạt hiện đại
+      backgroundColor: const Color(
+        0xFFF8FAFC,
+      ), // Màu nền xám xanh nhạt hiện đại
       appBar: AppBar(
         title: Text("Phân tích: ${widget.categoryName}"),
-        backgroundColor: Colors.blue[900],
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(onPressed: _selectDateRange, icon: const Icon(Icons.date_range)),
+          IconButton(
+            onPressed: _selectDateRange,
+            icon: const Icon(Icons.date_range),
+          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -71,13 +82,15 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
 
           final allDocs = snapshot.data?.docs ?? [];
           final startTime = _selectedDateRange.start.millisecondsSinceEpoch;
-          final endTime = _selectedDateRange.end.add(const Duration(days: 1)).millisecondsSinceEpoch;
+          final endTime = _selectedDateRange.end
+              .add(const Duration(days: 1))
+              .millisecondsSinceEpoch;
 
           final docs = allDocs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return data['category'] == widget.categoryName && 
-                   data['timestamp'] >= startTime && 
-                   data['timestamp'] <= endTime;
+            return data['category'] == widget.categoryName &&
+                data['timestamp'] >= startTime &&
+                data['timestamp'] <= endTime;
           }).toList();
 
           if (docs.isEmpty) return _buildEmptyState();
@@ -93,7 +106,8 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
             dailyData[dateKey] = (dailyData[dateKey] ?? 0) + amount;
           }
 
-          double average = totalAmount / (_selectedDateRange.duration.inDays + 1);
+          double average =
+              totalAmount / (_selectedDateRange.duration.inDays + 1);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
@@ -102,11 +116,25 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
               children: [
                 _buildHeaderInfo(totalAmount, average),
                 const SizedBox(height: 30),
-                const Text("Xu hướng chi tiêu", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                const Text(
+                  "Xu hướng chi tiêu",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _buildModernChart(dailyData),
                 const SizedBox(height: 32),
-                const Text("Lịch sử chi tiết", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                const Text(
+                  "Lịch sử chi tiết",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _buildTransactionList(docs),
               ],
@@ -121,15 +149,35 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.blue[900]!, Colors.blue[700]!], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(
+          colors: [AppColors.primaryLight, AppColors.primary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.24),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Text("Tổng chi tiêu", style: TextStyle(color: Colors.blue[100], fontSize: 14)),
+          const Text(
+            "Tổng chi tiêu",
+            style: TextStyle(color: AppColors.accentSoft, fontSize: 14),
+          ),
           const SizedBox(height: 8),
-          Text(_formatFullVND(total), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+          Text(
+            _formatFullVND(total),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           const Divider(color: Colors.white24),
           const SizedBox(height: 16),
@@ -137,7 +185,10 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _columnInfo("Trung bình/ngày", _formatFullVND(avg)),
-              _columnInfo("Thời gian", "${DateFormat('dd/MM').format(_selectedDateRange.start)} - ${DateFormat('dd/MM').format(_selectedDateRange.end)}"),
+              _columnInfo(
+                "Thời gian",
+                "${DateFormat('dd/MM').format(_selectedDateRange.start)} - ${DateFormat('dd/MM').format(_selectedDateRange.end)}",
+              ),
             ],
           ),
         ],
@@ -148,25 +199,41 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
   Widget _columnInfo(String label, String value) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: Colors.blue[100], fontSize: 11)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.accentSoft, fontSize: 11),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildModernChart(Map<String, double> data) {
-    List<String> sortedKeys = data.keys.toList()..sort((a, b) {
-      // Sắp xếp theo ngày tháng thực tế thay vì chuỗi
-      var partsA = a.split('/');
-      var partsB = b.split('/');
-      var dateA = DateTime(2026, int.parse(partsA[1]), int.parse(partsA[0]));
-      var dateB = DateTime(2026, int.parse(partsB[1]), int.parse(partsB[0]));
-      return dateA.compareTo(dateB);
-    });
+    List<String> sortedKeys = data.keys.toList()
+      ..sort((a, b) {
+        // Sắp xếp theo ngày tháng thực tế thay vì chuỗi
+        var partsA = a.split('/');
+        var partsB = b.split('/');
+        var dateA = DateTime(2026, int.parse(partsA[1]), int.parse(partsA[0]));
+        var dateB = DateTime(2026, int.parse(partsB[1]), int.parse(partsB[0]));
+        return dateA.compareTo(dateB);
+      });
 
-    if (sortedKeys.length > 10) sortedKeys = sortedKeys.sublist(sortedKeys.length - 10);
-    List<FlSpot> spots = sortedKeys.asMap().entries.map((e) => FlSpot(e.key.toDouble(), data[e.value]!)).toList();
+    if (sortedKeys.length > 10)
+      sortedKeys = sortedKeys.sublist(sortedKeys.length - 10);
+    List<FlSpot> spots = sortedKeys
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), data[e.value]!))
+        .toList();
 
     return Container(
       height: 250,
@@ -175,19 +242,32 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: LineChart(
         LineChartData(
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+            getDrawingHorizontalLine: (value) =>
+                FlLine(color: Colors.grey[100]!, strokeWidth: 1),
           ),
           titlesData: FlTitlesData(
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            leftTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
@@ -198,7 +278,14 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
                   if (idx >= 0 && idx < sortedKeys.length && idx % 2 == 0) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(sortedKeys[idx], style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+                      child: Text(
+                        sortedKeys[idx],
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[400],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     );
                   }
                   return const Text('');
@@ -212,22 +299,26 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
               spots: spots,
               isCurved: true,
               curveSmoothness: 0.35,
-              color: Colors.blue[700],
+              color: AppColors.accentStrong,
               barWidth: 4,
               isStrokeCapRound: true,
               dotData: FlDotData(
                 show: true,
-                getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                  radius: 4,
-                  color: Colors.white,
-                  strokeWidth: 3,
-                  strokeColor: Colors.blue[700]!,
-                ),
+                getDotPainter: (spot, percent, barData, index) =>
+                    FlDotCirclePainter(
+                      radius: 4,
+                      color: Colors.white,
+                      strokeWidth: 3,
+                      strokeColor: AppColors.accentStrong,
+                    ),
               ),
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [Colors.blue[700]!.withOpacity(0.2), Colors.blue[700]!.withOpacity(0.0)],
+                  colors: [
+                    AppColors.accentStrong.withOpacity(0.2),
+                    AppColors.accentStrong.withOpacity(0.0),
+                  ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -236,12 +327,16 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (spot) => Colors.blue[900]!,
+              getTooltipColor: (spot) => AppColors.primary,
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   return LineTooltipItem(
                     '${_formatFullVND(spot.y)}\n${sortedKeys[spot.x.toInt()]}',
-                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   );
                 }).toList();
               },
@@ -268,12 +363,31 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
             border: Border.all(color: const Color(0xFFF1F5F9)),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            title: Text(data['title'] ?? "Không tiêu đề", style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B))),
-            subtitle: Text(DateFormat('dd/MM/yyyy HH:mm').format(date), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 4,
+            ),
+            title: Text(
+              data['title'] ?? "Không tiêu đề",
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            subtitle: Text(
+              DateFormat('dd/MM/yyyy HH:mm').format(date),
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
             trailing: Text(
               _formatFullVND((data['amount'] as num).toDouble()),
-              style: TextStyle(fontWeight: FontWeight.bold, color: data['type'] == 'credit' ? const Color(0xFF10B981) : const Color(0xFFEF4444), fontSize: 15),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: data['type'] == 'credit'
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444),
+                fontSize: 15,
+              ),
             ),
           ),
         );
@@ -292,7 +406,10 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
         children: [
           Icon(Icons.analytics_outlined, size: 80, color: Colors.grey[200]),
           const SizedBox(height: 16),
-          Text("Không có dữ liệu phân tích", style: TextStyle(color: Colors.grey[400], fontSize: 16)),
+          Text(
+            "Không có dữ liệu phân tích",
+            style: TextStyle(color: Colors.grey[400], fontSize: 16),
+          ),
         ],
       ),
     );

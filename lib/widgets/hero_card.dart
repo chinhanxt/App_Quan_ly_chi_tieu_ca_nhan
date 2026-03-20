@@ -1,19 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // 1. Import thêm thư viện intl
 
 class HeroCard extends StatelessWidget {
-  HeroCard({super.key, required this.userId});
+  const HeroCard({super.key, required this.userId});
   final String userId;
 
   @override
   Widget build(BuildContext context) {
-    final Stream<DocumentSnapshot> _usersStream = FirebaseFirestore.instance
+    final Stream<DocumentSnapshot> usersStream = FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .snapshots();
     return StreamBuilder<DocumentSnapshot>(
-      stream: _usersStream,
+      stream: usersStream,
       builder:
           (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
             if (snapshot.hasError) {
@@ -56,7 +57,7 @@ class Cards extends StatelessWidget {
     );
 
     return Container(
-      color: Colors.blue.shade900, //màu nền app phía sau
+      decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

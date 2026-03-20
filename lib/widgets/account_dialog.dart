@@ -1,4 +1,5 @@
 import 'package:app/widgets/custom_alert_dialog.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -85,15 +86,12 @@ class _AccountDialogState extends State<AccountDialog> {
       if (user == null) return;
 
       // Update Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({
-            'name': _nameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'phone': _phoneController.text.trim(),
-            'updatedAt': DateTime.now().millisecondsSinceEpoch,
-          }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      }, SetOptions(merge: true));
 
       widget.onProfileUpdated();
       if (mounted) {
@@ -124,17 +122,13 @@ class _AccountDialogState extends State<AccountDialog> {
         child: Container(
           width: 300,
           height: 200,
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: const Center(child: CircularProgressIndicator()),
         ),
       );
     }
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -146,10 +140,7 @@ class _AccountDialogState extends State<AccountDialog> {
               children: [
                 const Text(
                   'Thông Tin Cá Nhân',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -158,11 +149,11 @@ class _AccountDialogState extends State<AccountDialog> {
                 Center(
                   child: CircleAvatar(
                     radius: 40,
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: AppColors.accentSoft,
                     child: Icon(
                       Icons.person,
                       size: 40,
-                      color: Colors.blue.shade700,
+                      color: AppColors.accentStrong,
                     ),
                   ),
                 ),
@@ -198,7 +189,9 @@ class _AccountDialogState extends State<AccountDialog> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Vui lòng nhập email';
                     }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                    if (!RegExp(
+                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                    ).hasMatch(value)) {
                       return 'Email không hợp lệ';
                     }
                     return null;
@@ -229,7 +222,10 @@ class _AccountDialogState extends State<AccountDialog> {
                     ElevatedButton(
                       onPressed: _updateProfile,
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                       ),
                       child: const Text('Cập Nhật'),
                     ),

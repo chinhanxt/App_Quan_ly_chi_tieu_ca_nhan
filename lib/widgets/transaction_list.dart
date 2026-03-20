@@ -45,7 +45,7 @@ class TransactionList extends StatelessWidget {
         return ListView.builder(
           itemCount: data.length,
           itemBuilder: (context, index) {
-            var carData = data[index];
+            var carData = data[index].data();
             var docId = data[index].id;
 
             return TransactionCard(data: carData, docId: docId);

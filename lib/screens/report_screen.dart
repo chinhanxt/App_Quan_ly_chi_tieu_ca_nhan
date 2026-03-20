@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/models/report_models.dart';
 import 'package:app/services/report_service.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/services/pdf_export_service.dart';
 import 'package:app/widgets/chart_widgets.dart';
 import 'package:app/widgets/report_widgets.dart';
@@ -60,7 +61,9 @@ class _ReportScreenState extends State<ReportScreen> {
     if (_reportData!.allTransactions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Không có dữ liệu giao dịch trong tháng này để xuất báo cáo!"),
+          content: Text(
+            "Không có dữ liệu giao dịch trong tháng này để xuất báo cáo!",
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -91,7 +94,7 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(width: 20),
-            Text(message)
+            Text(message),
           ],
         ),
       ),
@@ -118,13 +121,15 @@ class _ReportScreenState extends State<ReportScreen> {
                 final result = await OpenFilex.open(filePath);
                 if (result.type != ResultType.done) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Không thể mở file: ${result.message}")),
+                    SnackBar(
+                      content: Text("Không thể mở file: ${result.message}"),
+                    ),
                   );
                 }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Lỗi khi mở file: $e")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Lỗi khi mở file: $e")));
               }
             },
             child: const Text('XEM'),
@@ -139,7 +144,19 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   void _showErrorDialog(String message) {
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('❌ Lỗi'), content: Text(message), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))]));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('❌ Lỗi'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -147,13 +164,19 @@ class _ReportScreenState extends State<ReportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text('Báo Cáo', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Báo Cáo',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
-          IconButton(onPressed: _exportPdf, icon: const Icon(Icons.picture_as_pdf)),
+          IconButton(
+            onPressed: _exportPdf,
+            icon: const Icon(Icons.picture_as_pdf),
+          ),
         ],
       ),
       body: SafeArea(
@@ -161,9 +184,9 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: _isLoading 
-                ? const Center(child: CircularProgressIndicator())
-                : _reportData == null 
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _reportData == null
                   ? const Center(child: Text("Không có dữ liệu"))
                   : _buildReportContent(),
             ),
@@ -175,7 +198,8 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Widget _buildHeader() {
     String monthYearLabel = DateFormat('MMMM yyyy', 'vi').format(_selectedDate);
-    monthYearLabel = monthYearLabel[0].toUpperCase() + monthYearLabel.substring(1);
+    monthYearLabel =
+        monthYearLabel[0].toUpperCase() + monthYearLabel.substring(1);
 
     return Container(
       color: const Color(0xFF3498DB),
@@ -184,9 +208,18 @@ class _ReportScreenState extends State<ReportScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () {
-              setState(() => _selectedDate = DateTime(_selectedDate.year, _selectedDate.month - 1));
+              setState(
+                () => _selectedDate = DateTime(
+                  _selectedDate.year,
+                  _selectedDate.month - 1,
+                ),
+              );
               _generateReport();
             },
           ),
@@ -194,10 +227,20 @@ class _ReportScreenState extends State<ReportScreen> {
             onTap: () => _selectDate(context),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(25)),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(25),
+              ),
               child: Row(
                 children: [
-                  Text(monthYearLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(
+                    monthYearLabel,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   const Icon(Icons.arrow_drop_down, color: Colors.white),
                 ],
@@ -205,9 +248,18 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () {
-              setState(() => _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + 1));
+              setState(
+                () => _selectedDate = DateTime(
+                  _selectedDate.year,
+                  _selectedDate.month + 1,
+                ),
+              );
               _generateReport();
             },
           ),
@@ -220,7 +272,7 @@ class _ReportScreenState extends State<ReportScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime(2000), 
+      firstDate: DateTime(2000),
       lastDate: DateTime(2100),
       locale: const Locale('vi', 'VN'),
     );
@@ -248,27 +300,40 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Widget _buildComparisonSection(ReportData report) {
-    return Column(children: [
-      ComparisonCard(title: 'Thu nhập', comparison: report.creditComparison),
-      ComparisonCard(title: 'Chi tiêu', comparison: report.debitComparison),
-    ]);
+    return Column(
+      children: [
+        ComparisonCard(title: 'Thu nhập', comparison: report.creditComparison),
+        ComparisonCard(title: 'Chi tiêu', comparison: report.debitComparison),
+      ],
+    );
   }
 
   Widget _buildChartsSection(ReportData report) {
     return Column(
       children: [
-        if (report.debitByCategory.isNotEmpty) CategoryPieChart(categories: report.debitByCategory, title: '🔍 Chi Tiêu Theo Danh Mục'),
-        if (report.creditByCategory.isNotEmpty) CategoryPieChart(categories: report.creditByCategory, title: '🔍 Thu Nhập Theo Danh Mục'),
-        MonthComparisonBarChart(creditComparison: report.creditComparison, debitComparison: report.debitComparison),
+        if (report.debitByCategory.isNotEmpty)
+          CategoryPieChart(
+            categories: report.debitByCategory,
+            title: '🔍 Chi Tiêu Theo Danh Mục',
+          ),
+        if (report.creditByCategory.isNotEmpty)
+          CategoryPieChart(
+            categories: report.creditByCategory,
+            title: '🔍 Thu Nhập Theo Danh Mục',
+          ),
+        MonthComparisonBarChart(
+          creditComparison: report.creditComparison,
+          debitComparison: report.debitComparison,
+        ),
         if (report.debitForecast?.historicalData.isNotEmpty ?? false)
           TrendLineChart(
-            historicalData: report.debitForecast!.historicalData, 
+            historicalData: report.debitForecast!.historicalData,
             type: 'debit',
             selectedDate: _selectedDate,
           ),
         if (report.creditForecast?.historicalData.isNotEmpty ?? false)
           TrendLineChart(
-            historicalData: report.creditForecast!.historicalData, 
+            historicalData: report.creditForecast!.historicalData,
             type: 'credit',
             selectedDate: _selectedDate,
           ),
@@ -277,9 +342,19 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Widget _buildExtremTransactionsSection(ReportData report) {
-    return Column(children: [
-      ExtremTransactionsWidget(largest: report.largestDebit, smallest: report.smallestDebit, type: 'debit'),
-      ExtremTransactionsWidget(largest: report.largestCredit, smallest: report.smallestCredit, type: 'credit'),
-    ]);
+    return Column(
+      children: [
+        ExtremTransactionsWidget(
+          largest: report.largestDebit,
+          smallest: report.smallestDebit,
+          type: 'debit',
+        ),
+        ExtremTransactionsWidget(
+          largest: report.largestCredit,
+          smallest: report.smallestCredit,
+          type: 'credit',
+        ),
+      ],
+    );
   }
 }

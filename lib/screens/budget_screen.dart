@@ -1,5 +1,6 @@
 import 'package:app/models/budget_model.dart';
 import 'package:app/services/db.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/widgets/budget_progress_card.dart';
 import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,7 +20,8 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen> {
   DateTime _selectedMonth = DateTime.now();
 
-  String get currentMonthYear => "${_selectedMonth.month} ${_selectedMonth.year}";
+  String get currentMonthYear =>
+      "${_selectedMonth.month} ${_selectedMonth.year}";
 
   void _previousMonth() {
     setState(() {
@@ -69,16 +71,23 @@ class _BudgetScreenState extends State<BudgetScreen> {
       return const Scaffold(body: Center(child: Text("Vui lòng đăng nhập")));
     }
 
-    String displayMonthYear = DateFormat('MMMM yyyy', 'vi').format(_selectedMonth);
-    displayMonthYear = displayMonthYear[0].toUpperCase() + displayMonthYear.substring(1);
+    String displayMonthYear = DateFormat(
+      'MMMM yyyy',
+      'vi',
+    ).format(_selectedMonth);
+    displayMonthYear =
+        displayMonthYear[0].toUpperCase() + displayMonthYear.substring(1);
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text('Ngân Sách', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Ngân Sách',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: Column(
         children: [
@@ -95,7 +104,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 GestureDetector(
                   onTap: () => _selectDate(context),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -118,13 +130,16 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+                  icon: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                  ),
                   onPressed: _nextMonth,
                 ),
               ],
             ),
           ),
-          
+
           Expanded(
             child: StreamBuilder<List<Budget>>(
               stream: Db().getBudgets(currentMonthYear),
@@ -132,15 +147,19 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 if (budgetSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                
+
                 final budgets = budgetSnapshot.data ?? [];
-                
+
                 if (budgets.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.account_balance_wallet_outlined, size: 64, color: Colors.grey.shade400),
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           "Chưa có ngân sách nào trong tháng này.\nHãy nhấn + để thêm mới.",
@@ -171,7 +190,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       itemCount: budgets.length,
                       itemBuilder: (context, index) {
                         final budget = budgets[index];
-                        
+
                         int spentAmount = 0;
                         for (var tx in transactions) {
                           final data = tx.data() as Map<String, dynamic>;
@@ -196,7 +215,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddBudgetDialog(context),
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
@@ -208,7 +227,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Xóa Ngân Sách'),
-          content: Text('Bạn có chắc chắn muốn xóa ngân sách cho danh mục "${budget.categoryName}" không?'),
+          content: Text(
+            'Bạn có chắc chắn muốn xóa ngân sách cho danh mục "${budget.categoryName}" không?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -245,7 +266,9 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
   void _saveBudget() async {
     if (amountController.text.isEmpty || category == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn danh mục và nhập số tiền!')),
+        const SnackBar(
+          content: Text('Vui lòng chọn danh mục và nhập số tiền!'),
+        ),
       );
       return;
     }
@@ -253,8 +276,10 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
     setState(() => isLoading = true);
 
     try {
-      final int amount = int.parse(amountController.text.replaceAll(',', '').replaceAll('.', ''));
-      
+      final int amount = int.parse(
+        amountController.text.replaceAll(',', '').replaceAll('.', ''),
+      );
+
       final budget = Budget(
         id: const Uuid().v4(),
         categoryName: category!,
@@ -264,7 +289,7 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
       );
 
       await Db().setBudget(budget);
-      
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -273,9 +298,9 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -303,7 +328,8 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
             keyboardType: const TextInputType.numberWithOptions(decimal: false),
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(
-              labelText: 'Định mức (VND)',              border: OutlineInputBorder(),
+              labelText: 'Định mức (VND)',
+              border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.attach_money),
             ),
           ),
@@ -316,9 +342,16 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
         ),
         ElevatedButton(
           onPressed: isLoading ? null : _saveBudget,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
-          child: isLoading 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
               : const Text('Lưu', style: TextStyle(color: Colors.white)),
         ),
       ],

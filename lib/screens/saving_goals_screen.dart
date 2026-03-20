@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -20,19 +21,23 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (userId == null) return const Scaffold(body: Center(child: Text("Vui lòng đăng nhập")));
+    if (userId == null)
+      return const Scaffold(body: Center(child: Text("Vui lòng đăng nhập")));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Mục tiêu Tiết kiệm", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.blue[900],
+        title: const Text(
+          "Mục tiêu Tiết kiệm",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddGoalDialog(context),
-        backgroundColor: Colors.blue[900],
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -46,24 +51,38 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          
-          final goals = snapshot.data?.docs.map((doc) => 
-            SavingGoal.fromFirestore(doc.id, doc.data() as Map<String, dynamic>)
-          ).toList() ?? [];
+
+          final goals =
+              snapshot.data?.docs
+                  .map(
+                    (doc) => SavingGoal.fromFirestore(
+                      doc.id,
+                      doc.data() as Map<String, dynamic>,
+                    ),
+                  )
+                  .toList() ??
+              [];
 
           if (goals.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.savings_outlined, size: 80, color: Colors.grey[300]),
+                  Icon(
+                    Icons.savings_outlined,
+                    size: 80,
+                    color: Colors.grey[300],
+                  ),
                   const SizedBox(height: 16),
-                  Text("Chưa có mục tiêu tiết kiệm nào", style: TextStyle(color: Colors.grey[500])),
+                  Text(
+                    "Chưa có mục tiêu tiết kiệm nào",
+                    style: TextStyle(color: Colors.grey[500]),
+                  ),
                   const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: () => _showAddGoalDialog(context),
                     child: const Text("Tạo mục tiêu đầu tiên"),
-                  )
+                  ),
                 ],
               ),
             );
@@ -111,12 +130,16 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Color(int.parse(goal.color.replaceFirst('#', '0xFF'))).withOpacity(0.1),
+                      color: Color(
+                        int.parse(goal.color.replaceFirst('#', '0xFF')),
+                      ).withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       _getIconData(goal.icon),
-                      color: Color(int.parse(goal.color.replaceFirst('#', '0xFF'))),
+                      color: Color(
+                        int.parse(goal.color.replaceFirst('#', '0xFF')),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -124,12 +147,28 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(goal.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         Text(
-                          isEarlyWithdrawn ? "Rút sớm" : (isWithdrawn ? "Hoàn thành" : (isCompleted ? "Đã đạt mục tiêu" : "Đang thực hiện")),
+                          goal.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          isEarlyWithdrawn
+                              ? "Rút sớm"
+                              : (isWithdrawn
+                                    ? "Hoàn thành"
+                                    : (isCompleted
+                                          ? "Đã đạt mục tiêu"
+                                          : "Đang thực hiện")),
                           style: TextStyle(
-                            fontSize: 12, 
-                            color: isEarlyWithdrawn ? Colors.orange : ((isCompleted || isWithdrawn) ? Colors.green : Colors.grey[600])
+                            fontSize: 12,
+                            color: isEarlyWithdrawn
+                                ? Colors.orange
+                                : ((isCompleted || isWithdrawn)
+                                      ? Colors.green
+                                      : Colors.grey[600]),
                           ),
                         ),
                       ],
@@ -137,16 +176,25 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   ),
                   if (!isWithdrawn && !isCompleted && !isEarlyWithdrawn)
                     IconButton(
-                      icon: const Icon(Icons.add_circle, color: Colors.blue),
+                      icon: const Icon(
+                        Icons.add_circle,
+                        color: AppColors.accentStrong,
+                      ),
                       onPressed: () => _showAddMoneyDialog(goal),
                     ),
                   if (isCompleted && !isWithdrawn && !isEarlyWithdrawn)
-                     ElevatedButton(
+                    ElevatedButton(
                       onPressed: () => _showWithdrawDialog(goal),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
                       child: const Text("Rút tiền"),
                     ),
-                  if (!isCompleted && !isWithdrawn && !isEarlyWithdrawn && goal.currentAmount > 0)
+                  if (!isCompleted &&
+                      !isWithdrawn &&
+                      !isEarlyWithdrawn &&
+                      goal.currentAmount > 0)
                     OutlinedButton(
                       onPressed: () => _showWithdrawDialog(goal),
                       style: OutlinedButton.styleFrom(
@@ -165,8 +213,14 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("${currencyFormat.format(goal.currentAmount)} VND", style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text("${currencyFormat.format(goal.targetAmount)} VND", style: TextStyle(color: Colors.grey[500])),
+                  Text(
+                    "${currencyFormat.format(goal.currentAmount)} VND",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    "${currencyFormat.format(goal.targetAmount)} VND",
+                    style: TextStyle(color: Colors.grey[500]),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -177,7 +231,15 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   minHeight: 10,
                   backgroundColor: Colors.grey[100],
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    (isCompleted || isWithdrawn) ? Colors.green : (isEarlyWithdrawn ? Colors.orange : Color(int.parse(goal.color.replaceFirst('#', '0xFF'))))
+                    (isCompleted || isWithdrawn)
+                        ? Colors.green
+                        : (isEarlyWithdrawn
+                              ? Colors.orange
+                              : Color(
+                                  int.parse(
+                                    goal.color.replaceFirst('#', '0xFF'),
+                                  ),
+                                )),
                   ),
                 ),
               ),
@@ -185,15 +247,26 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
               if (!isCompleted && !isWithdrawn && !isEarlyWithdrawn)
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue),
+                      const Icon(
+                        Icons.lightbulb_outline,
+                        size: 16,
+                        color: AppColors.accentStrong,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           "Cần tiết kiệm ${currencyFormat.format(goal.dailySavingRequired)} VND/ngày để kịp tiến độ (${goal.daysLeft} ngày còn lại)",
-                          style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.accentStrong,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -212,9 +285,14 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text("Không thể xóa"),
-          content: const Text("Mục tiêu này vẫn còn tiền tiết kiệm. Vui lòng rút toàn bộ tiền về ví chính trước khi xóa."),
+          content: const Text(
+            "Mục tiêu này vẫn còn tiền tiết kiệm. Vui lòng rút toàn bộ tiền về ví chính trước khi xóa.",
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Đã hiểu")),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Đã hiểu"),
+            ),
           ],
         ),
       );
@@ -225,9 +303,14 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: const Text("Xác nhận xóa"),
-        content: Text("Bạn có chắc chắn muốn xóa mục tiêu '${goal.name}'? Hành động này không thể hoàn tác."),
+        content: Text(
+          "Bạn có chắc chắn muốn xóa mục tiêu '${goal.name}'? Hành động này không thể hoàn tác.",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text("Hủy")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text("Hủy"),
+          ),
           TextButton(
             onPressed: () async {
               await FirebaseFirestore.instance
@@ -251,32 +334,52 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
 
   IconData _getIconData(String iconName) {
     switch (iconName) {
-      case 'car': return Icons.directions_car;
-      case 'home': return Icons.home;
-      case 'flight': return Icons.flight;
-      case 'phone': return Icons.smartphone;
-      case 'laptop': return Icons.laptop;
-      case 'gift': return Icons.card_giftcard;
-      case 'shopping': return Icons.shopping_bag;
-      default: return Icons.star;
+      case 'car':
+        return Icons.directions_car;
+      case 'home':
+        return Icons.home;
+      case 'flight':
+        return Icons.flight;
+      case 'phone':
+        return Icons.smartphone;
+      case 'laptop':
+        return Icons.laptop;
+      case 'gift':
+        return Icons.card_giftcard;
+      case 'shopping':
+        return Icons.shopping_bag;
+      default:
+        return Icons.star;
     }
   }
 
-  Widget _buildDateShortcut(String label, int days, DateTime selectedDate, Function(DateTime) onSelected) {
+  Widget _buildDateShortcut(
+    String label,
+    int days,
+    DateTime selectedDate,
+    Function(DateTime) onSelected,
+  ) {
     DateTime targetDate = DateTime.now().add(Duration(days: days));
-    bool isSelected = selectedDate.year == targetDate.year && 
-                     selectedDate.month == targetDate.month && 
-                     selectedDate.day == targetDate.day;
+    bool isSelected =
+        selectedDate.year == targetDate.year &&
+        selectedDate.month == targetDate.month &&
+        selectedDate.day == targetDate.day;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
       child: ChoiceChip(
-        label: Text(label, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black)),
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isSelected ? Colors.white : Colors.black,
+          ),
+        ),
         selected: isSelected,
         onSelected: (selected) {
           if (selected) onSelected(targetDate);
         },
-        selectedColor: Colors.blue[900],
+        selectedColor: AppColors.primary,
         backgroundColor: Colors.grey[200],
       ),
     );
@@ -298,12 +401,19 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: "Tên mục tiêu")),
                 TextField(
-                  controller: amountController, 
-                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Tên mục tiêu"),
+                ),
+                TextField(
+                  controller: amountController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: false,
+                  ),
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: "Số tiền mục tiêu (VND)")
+                  decoration: const InputDecoration(
+                    labelText: "Số tiền mục tiêu (VND)",
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
@@ -318,17 +428,38 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                       lastDate: DateTime.now().add(const Duration(days: 3650)),
                       locale: const Locale('vi', 'VN'),
                     );
-                    if (picked != null) setDialogState(() => selectedDate = picked);
+                    if (picked != null)
+                      setDialogState(() => selectedDate = picked);
                   },
                 ),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildDateShortcut("1 tháng", 30, selectedDate, (date) => setDialogState(() => selectedDate = date)),
-                      _buildDateShortcut("3 tháng", 90, selectedDate, (date) => setDialogState(() => selectedDate = date)),
-                      _buildDateShortcut("6 tháng", 180, selectedDate, (date) => setDialogState(() => selectedDate = date)),
-                      _buildDateShortcut("1 năm", 365, selectedDate, (date) => setDialogState(() => selectedDate = date)),
+                      _buildDateShortcut(
+                        "1 tháng",
+                        30,
+                        selectedDate,
+                        (date) => setDialogState(() => selectedDate = date),
+                      ),
+                      _buildDateShortcut(
+                        "3 tháng",
+                        90,
+                        selectedDate,
+                        (date) => setDialogState(() => selectedDate = date),
+                      ),
+                      _buildDateShortcut(
+                        "6 tháng",
+                        180,
+                        selectedDate,
+                        (date) => setDialogState(() => selectedDate = date),
+                      ),
+                      _buildDateShortcut(
+                        "1 năm",
+                        365,
+                        selectedDate,
+                        (date) => setDialogState(() => selectedDate = date),
+                      ),
                     ],
                   ),
                 ),
@@ -336,25 +467,51 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                 const Text("Chọn Icon:"),
                 Wrap(
                   spacing: 10,
-                  children: ['star', 'car', 'home', 'flight', 'phone', 'laptop', 'gift', 'shopping'].map((icon) => 
-                    GestureDetector(
-                      onTap: () => setDialogState(() => selectedIcon = icon),
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: selectedIcon == icon ? Colors.blue : Colors.grey[200],
-                        child: Icon(_getIconData(icon), size: 18, color: selectedIcon == icon ? Colors.white : Colors.grey),
-                      ),
-                    )
-                  ).toList(),
+                  children:
+                      [
+                            'star',
+                            'car',
+                            'home',
+                            'flight',
+                            'phone',
+                            'laptop',
+                            'gift',
+                            'shopping',
+                          ]
+                          .map(
+                            (icon) => GestureDetector(
+                              onTap: () =>
+                                  setDialogState(() => selectedIcon = icon),
+                              child: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: selectedIcon == icon
+                                    ? AppColors.primary
+                                    : Colors.grey[200],
+                                child: Icon(
+                                  _getIconData(icon),
+                                  size: 18,
+                                  color: selectedIcon == icon
+                                      ? Colors.white
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text("Hủy")),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text("Hủy"),
+            ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isEmpty || amountController.text.isEmpty) return;
+                if (nameController.text.isEmpty ||
+                    amountController.text.isEmpty)
+                  return;
                 final newGoal = SavingGoal(
                   id: const Uuid().v4(),
                   name: nameController.text,
@@ -387,22 +544,28 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   void _showAddMoneyDialog(SavingGoal goal) {
     if (userId == null) return;
     final amountController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (dialogContext) => StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(userId).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .snapshots(),
         builder: (context, snapshot) {
           int balance = 0;
           if (snapshot.hasData && snapshot.data!.exists) {
-            balance = (snapshot.data!.data() as Map<String, dynamic>)['remainingAmount'] ?? 0;
+            balance =
+                (snapshot.data!.data()
+                    as Map<String, dynamic>)['remainingAmount'] ??
+                0;
           }
 
           return StatefulBuilder(
             builder: (context, setState) {
               int currentInput = int.tryParse(amountController.text) ?? 0;
               bool isInsufficient = currentInput > balance;
-              
+
               int neededAmount = goal.targetAmount - goal.currentAmount;
               bool isExcess = currentInput > neededAmount && neededAmount > 0;
 
@@ -414,7 +577,9 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   children: [
                     TextField(
                       controller: amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: false,
+                      ),
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (value) {
                         setState(() {});
@@ -422,7 +587,9 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                       decoration: InputDecoration(
                         labelText: "Số tiền muốn nạp (VND)",
                         hintText: "Ví dụ: 500000",
-                        errorText: isInsufficient ? "Số dư không đủ! (Hiện có: ${currencyFormat.format(balance)})" : null,
+                        errorText: isInsufficient
+                            ? "Số dư không đủ! (Hiện có: ${currencyFormat.format(balance)})"
+                            : null,
                       ),
                     ),
                     if (isExcess && !isInsufficient)
@@ -430,7 +597,11 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Text(
                           "Lưu ý: Bạn chỉ cần nạp thêm ${currencyFormat.format(neededAmount)} VND để hoàn thành mục tiêu. Hệ thống sẽ chỉ lấy đủ số tiền này.",
-                          style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     if (!isInsufficient && !isExcess)
@@ -438,86 +609,118 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Text(
                           "Số dư hiện tại: ${currencyFormat.format(balance)} VND",
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                   ],
                 ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Hủy")),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text("Hủy"),
+                  ),
                   ElevatedButton(
-                    onPressed: isInsufficient || currentInput <= 0 ? null : () async {
-                      int inputAmount = currentInput;
-                      final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-                      final goalRef = userRef.collection('saving_goals').doc(goal.id);
-                      
-                      try {
-                        int actualAmountTaken = 0;
-                        bool wasExcessive = false;
+                    onPressed: isInsufficient || currentInput <= 0
+                        ? null
+                        : () async {
+                            int inputAmount = currentInput;
+                            final userRef = FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(userId);
+                            final goalRef = userRef
+                                .collection('saving_goals')
+                                .doc(goal.id);
 
-                        await FirebaseFirestore.instance.runTransaction((transaction) async {
-                          // ĐỌC TRƯỚC
-                          final userDoc = await transaction.get(userRef);
-                          final goalDoc = await transaction.get(goalRef);
+                            try {
+                              int actualAmountTaken = 0;
+                              bool wasExcessive = false;
 
-                          int latestBalance = (userDoc.data()?['remainingAmount'] ?? 0);
-                          int currentAmt = goalDoc.data()?['current_amount'] ?? 0;
-                          int targetAmt = goalDoc.data()?['target_amount'] ?? 0;
-                          
-                          int stillNeeded = targetAmt - currentAmt;
-                          if (stillNeeded <= 0) throw "Mục tiêu đã hoàn thành!";
+                              await FirebaseFirestore.instance.runTransaction((
+                                transaction,
+                              ) async {
+                                // ĐỌC TRƯỚC
+                                final userDoc = await transaction.get(userRef);
+                                final goalDoc = await transaction.get(goalRef);
 
-                          actualAmountTaken = inputAmount;
-                          if (inputAmount > stillNeeded) {
-                            actualAmountTaken = stillNeeded;
-                            wasExcessive = true;
-                          }
+                                int latestBalance =
+                                    (userDoc.data()?['remainingAmount'] ?? 0);
+                                int currentAmt =
+                                    goalDoc.data()?['current_amount'] ?? 0;
+                                int targetAmt =
+                                    goalDoc.data()?['target_amount'] ?? 0;
 
-                          if (latestBalance < actualAmountTaken) {
-                            throw "Số dư không đủ để thực hiện giao dịch!";
-                          }
+                                int stillNeeded = targetAmt - currentAmt;
+                                if (stillNeeded <= 0)
+                                  throw "Mục tiêu đã hoàn thành!";
 
-                          // GHI SAU
-                          // 1. Trừ tiền Balance
-                          transaction.update(userRef, {'remainingAmount': latestBalance - actualAmountTaken});
+                                actualAmountTaken = inputAmount;
+                                if (inputAmount > stillNeeded) {
+                                  actualAmountTaken = stillNeeded;
+                                  wasExcessive = true;
+                                }
 
-                          // 2. Cộng tiền vào Goal
-                          int newCurrent = currentAmt + actualAmountTaken;
-                          String newStatus = newCurrent >= targetAmt ? 'completed' : 'active';
-                          
-                          transaction.update(
-                            goalRef, 
-                            {'current_amount': newCurrent, 'status': newStatus}
-                          );
+                                if (latestBalance < actualAmountTaken) {
+                                  throw "Số dư không đủ để thực hiện giao dịch!";
+                                }
 
-                          // 3. Thêm bản ghi contribution
-                          final contributionRef = goalRef.collection('contributions').doc();
-                          transaction.set(contributionRef, {
-                            'amount': actualAmountTaken,
-                            'date': Timestamp.now(),
-                            'createdAt': Timestamp.now(),
-                          });
-                        });
+                                // GHI SAU
+                                // 1. Trừ tiền Balance
+                                transaction.update(userRef, {
+                                  'remainingAmount':
+                                      latestBalance - actualAmountTaken,
+                                });
 
-                        if (!mounted) return;
-                        Navigator.pop(dialogContext);
-                        
-                        String message = wasExcessive 
-                          ? "Bạn đã nạp dư! Hệ thống chỉ lấy đủ ${currencyFormat.format(actualAmountTaken)} VND để hoàn thành mục tiêu."
-                          : "Đã nạp thành công ${currencyFormat.format(actualAmountTaken)} VND!";
-                          
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(message),
-                            backgroundColor: wasExcessive ? Colors.orange : Colors.green,
-                          )
-                        );
-                      } catch (e) {
-                        if (!mounted) return;
-                        Navigator.pop(dialogContext);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
-                      }
-                    },
+                                // 2. Cộng tiền vào Goal
+                                int newCurrent = currentAmt + actualAmountTaken;
+                                String newStatus = newCurrent >= targetAmt
+                                    ? 'completed'
+                                    : 'active';
+
+                                transaction.update(goalRef, {
+                                  'current_amount': newCurrent,
+                                  'status': newStatus,
+                                });
+
+                                // 3. Thêm bản ghi contribution
+                                final contributionRef = goalRef
+                                    .collection('contributions')
+                                    .doc();
+                                transaction.set(contributionRef, {
+                                  'amount': actualAmountTaken,
+                                  'date': Timestamp.now(),
+                                  'createdAt': Timestamp.now(),
+                                });
+                              });
+
+                              if (!mounted) return;
+                              Navigator.pop(dialogContext);
+
+                              String message = wasExcessive
+                                  ? "Bạn đã nạp dư! Hệ thống chỉ lấy đủ ${currencyFormat.format(actualAmountTaken)} VND để hoàn thành mục tiêu."
+                                  : "Đã nạp thành công ${currencyFormat.format(actualAmountTaken)} VND!";
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(message),
+                                  backgroundColor: wasExcessive
+                                      ? Colors.orange
+                                      : Colors.green,
+                                ),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(e.toString()),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
                     child: const Text("Xác nhận góp"),
                   ),
                 ],
@@ -539,46 +742,71 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Bạn muốn rút toàn bộ ${currencyFormat.format(goal.currentAmount)} VND từ mục tiêu '${goal.name}' về ví chính?"),
+            Text(
+              "Bạn muốn rút toàn bộ ${currencyFormat.format(goal.currentAmount)} VND từ mục tiêu '${goal.name}' về ví chính?",
+            ),
             if (!isCompleted)
               const Padding(
                 padding: EdgeInsets.only(top: 12.0),
                 child: Text(
                   "Lưu ý: Bạn chưa đạt được mục tiêu đề ra. Việc rút tiền sớm sẽ kết thúc mục tiêu này.",
-                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Hủy")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Hủy"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-              
-              await FirebaseFirestore.instance.runTransaction((transaction) async {
+              final userRef = FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId);
+
+              await FirebaseFirestore.instance.runTransaction((
+                transaction,
+              ) async {
                 final userDoc = await transaction.get(userRef);
                 int balance = (userDoc.data()?['remainingAmount'] ?? 0);
 
                 // 1. Cộng tiền về Balance
-                transaction.update(userRef, {'remainingAmount': balance + goal.currentAmount});
+                transaction.update(userRef, {
+                  'remainingAmount': balance + goal.currentAmount,
+                });
 
                 // 2. Cập nhật trạng thái Goal
                 // Phân biệt rút sớm và rút hoàn thành
-                String finalStatus = isCompleted ? 'withdrawn' : 'early_withdrawn';
+                String finalStatus = isCompleted
+                    ? 'withdrawn'
+                    : 'early_withdrawn';
                 transaction.update(
-                  userRef.collection('saving_goals').doc(goal.id), 
-                  {'current_amount': 0, 'status': finalStatus}
+                  userRef.collection('saving_goals').doc(goal.id),
+                  {'current_amount': 0, 'status': finalStatus},
                 );
               });
 
               if (!mounted) return;
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(isCompleted ? "Rút tiền hoàn thành thành công!" : "Rút tiền sớm thành công!"))
+                SnackBar(
+                  content: Text(
+                    isCompleted
+                        ? "Rút tiền hoàn thành thành công!"
+                        : "Rút tiền sớm thành công!",
+                  ),
+                ),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: isCompleted ? Colors.green : Colors.orange),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCompleted ? Colors.green : Colors.orange,
+            ),
             child: const Text("Xác nhận rút"),
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:app/screens/ai_input_screen.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/widgets/add_transactions_form.dart';
 import 'package:app/widgets/hero_card.dart';
 import 'package:app/widgets/system_broadcast_widget.dart';
@@ -20,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final userId = FirebaseAuth.instance.currentUser!.uid;
 
-  _dialoBuilder(BuildContext context) {
+  Future<void> _dialoBuilder(BuildContext context) {
     return showDialog(
       context: context,
       builder: (context) {
@@ -54,7 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 shape: BoxShape.circle,
               ),
               child: Container(
-                constraints: const BoxConstraints(minWidth: 56.0, minHeight: 56.0),
+                constraints: const BoxConstraints(
+                  minWidth: 56.0,
+                  minHeight: 56.0,
+                ),
                 alignment: Alignment.center,
                 child: const Icon(Icons.auto_awesome, color: Colors.white),
               ),
@@ -64,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Nút thêm truyền thống
           FloatingActionButton(
             heroTag: 'add_button',
-            backgroundColor: Colors.blue.shade900,
+            backgroundColor: AppColors.primary,
             onPressed: (() {
               _dialoBuilder(context);
             }),
@@ -73,11 +77,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       appBar: AppBar(
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text("Trang Chủ", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Trang Chủ",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         automaticallyImplyLeading: false, // tắt mũi tên
       ),
       body: SingleChildScrollView(
