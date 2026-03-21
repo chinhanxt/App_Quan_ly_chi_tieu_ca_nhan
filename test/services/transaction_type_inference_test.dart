@@ -77,5 +77,18 @@ void main() {
 
       expect(refined['type'], 'credit');
     });
+
+    test('treats di cho as debit', () {
+      final refined = TransactionTypeInference.refineTransaction(
+        input: 'Di cho 10tr',
+        transaction: <String, dynamic>{
+          'title': 'Di cho',
+          'type': 'credit',
+          'category': 'Mua sam',
+        },
+      );
+
+      expect(refined['type'], 'debit');
+    });
   });
 }

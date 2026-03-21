@@ -25,6 +25,22 @@ void main() {
       expect(result, isNull);
     });
 
+    test('routes simple single transaction to local fast path', () {
+      final result = AIResponseEnhancement.shouldUseLocalFastPath(
+        'Đổ xăng 50k',
+      );
+
+      expect(result, isTrue);
+    });
+
+    test('keeps multi transaction input on AI path', () {
+      final result = AIResponseEnhancement.shouldUseLocalFastPath(
+        'Ăn sáng 30k và được hoàn tiền 10k',
+      );
+
+      expect(result, isFalse);
+    });
+
     test('normalizes extended schema into legacy fields', () {
       final result = AIResponseEnhancement.normalizeSchema(<String, dynamic>{
         'status': 'success',
@@ -37,6 +53,7 @@ void main() {
       expect(result['success'], true);
       expect((result['transactions'] as List).length, 1);
       expect((result['data'] as List).length, 1);
+      expect(result['message'], isNot('OK'));
     });
 
     test('treats explicit success false as error', () {
@@ -78,19 +95,33 @@ void main() {
         reasonCode: 'rate_limit',
       );
 
-      expect(message, isNot(contains('API key')));
+      expect(message.toLowerCase(), isNot(contains('openai')));
+      expect(message.toLowerCase(), contains('giao dịch'));
+    });
+
+    test('failureMessage explains auth issues when request truly fails', () {
+      final message = AIResponseEnhancement.failureMessage(reasonCode: 'auth');
+
       expect(
         message.toLowerCase(),
-        anyOf(contains('quá tải'), contains('giới hạn')),
+        anyOf(contains('thử lại'), contains('chưa')),
       );
     });
 
-    test('fallbackMessage explains auth issues for invalid API key', () {
+    test('fallbackMessage for local success stays friendly and generic', () {
       final message = AIResponseEnhancement.fallbackMessage(
-        reasonCode: 'auth',
+        reasonCode: 'local_fast_path',
       );
 
-      expect(message.toLowerCase(), anyOf(contains('api key'), contains('quyen truy cap')));
+      expect(message.toLowerCase(), isNot(contains('không cần gọi ai')));
+      expect(message.toLowerCase(), contains('giao dịch'));
+    });
+
+    test('successMessage uses playful success copy', () {
+      final message = AIResponseEnhancement.successMessage(1);
+
+      expect(message.toLowerCase(), contains('giao dịch'));
+      expect(message.toLowerCase(), anyOf(contains('lưu'), contains('sổ')));
     });
   });
 }

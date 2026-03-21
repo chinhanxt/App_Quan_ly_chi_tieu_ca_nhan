@@ -24,6 +24,8 @@ class TransactionTypeInference {
     'ban do': 4,
     'lai ngan hang': 6,
     'co tuc': 6,
+    'di cho': -6,
+    'sieu thi': -5,
     'mua': -4,
     'an sang': -6,
     'an trua': -6,

@@ -2,31 +2,86 @@ import 'package:app/services/transaction_type_inference.dart';
 
 class AIResponseEnhancement {
   static const int _singleTransactionAlertThreshold = 100000000;
+  static const List<String> _singleSuccessMessages = <String>[
+    'Xong đẹp rồi, mình ghi lại 1 giao dịch cho bạn. Xem qua rồi lưu nhé!',
+    'Mình chốt sổ gọn gàng 1 giao dịch rồi nha. Ngó lại một nhịp rồi lưu thôi!',
+    'Đã bắt được 1 giao dịch ngon lành. Chuẩn thì mình lưu sổ tiếp nhé!',
+  ];
+  static const List<String> _multiSuccessMessages = <String>[
+    'Mình tách ra {count} giao dịch gọn ghẽ rồi đó. Bạn xem lại giúp mình nha!',
+    'Sổ đã được ghi {count} món rõ ràng rồi. Kiểm tra ổn là lưu thôi!',
+    'Mình bóc tách được {count} giao dịch rồi nè. Bạn duyệt qua trước khi chốt nhé!',
+  ];
+  static const List<String> _failureMessages = <String>[
+    'Mình chưa xử lý trọn vẹn được lần này. Bạn thử lại giúp mình sau một chút nhé!',
+    'Ca này mình chưa ghi sổ được gọn như mong muốn. Bạn thử lại giúp mình nha!',
+    'Mình đang hơi khựng một nhịp nên chưa xử lý xong. Bạn thử lại lát nữa nhé!',
+  ];
+
+  static final RegExp _amountPattern = RegExp(
+    r'(\d[\d\.,]*)(?:\s*)(k|ngan|nghin|tr|trieu|cu|m|lit|ve)?',
+    caseSensitive: false,
+  );
+  static final RegExp _likelyMultiTransactionPattern = RegExp(
+    r'(^| )(roi|r roi|sau do|xong|va|voi|,|;)( |$)',
+    caseSensitive: false,
+  );
+  static final RegExp _ambiguityPattern = RegExp(
+    r'(^| )(hay|hoac|tam|tam tam|khoang|gan|hon|up to)( |$)|[?~]',
+    caseSensitive: false,
+  );
 
   static String fallbackMessage({
     required String reasonCode,
     int transactionCount = 1,
   }) {
-    final countText = transactionCount == 1
-        ? '1 giao dịch'
-        : '$transactionCount giao dịch';
+    return successMessage(transactionCount);
+  }
 
+  static String successMessage(int transactionCount) {
+    if (transactionCount <= 1) {
+      return _pickFromPool(_singleSuccessMessages, seed: transactionCount);
+    }
+
+    final template = _pickFromPool(
+      _multiSuccessMessages,
+      seed: transactionCount,
+    );
+    return template.replaceAll('{count}', '$transactionCount');
+  }
+
+  static String failureMessage({
+    required String reasonCode,
+    String? fallback,
+  }) {
     switch (reasonCode) {
       case 'rate_limit':
-        return 'OpenAI đang quá tải hoặc mình chạm giới hạn lượt gọi, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
-      case 'auth':
-        return 'Mình chưa gọi được OpenAI (API key/quyền truy cập), nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
-      case 'bad_request':
-        return 'Mình gửi yêu cầu lên OpenAI chưa hợp lệ, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
-      case 'timeout':
-        return 'OpenAI phản hồi hơi lâu, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+        return 'Mình đang chạm giới hạn xử lý một chút, bạn thử lại sau ít phút nhé!';
       case 'network':
-        return 'Mình chưa kết nối được OpenAI, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
-      case 'server_error':
-        return 'OpenAI đang gặp trục trặc, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+        return 'Mình đang hụt kết nối nên chưa xử lý xong. Bạn thử lại giúp mình sau một chút nhé!';
+      case 'timeout':
+        return 'Mình xử lý hơi lâu quá một nhịp nên chưa kịp xong. Bạn thử lại giúp mình nhé!';
       default:
-        return 'Mình đang gặp trục trặc khi gọi OpenAI, nên mình tạm bóc tách nhanh $countText từ nội dung bạn nhập. Bạn kiểm tra lại trước khi lưu nhé!';
+        return fallback?.trim().isNotEmpty == true
+            ? fallback!
+            : _pickFromPool(_failureMessages, seed: reasonCode.length);
     }
+  }
+
+  static bool shouldUseLocalFastPath(String input) {
+    final normalized = TransactionTypeInference.normalizeText(input);
+    if (normalized.isEmpty) return false;
+
+    final amountMatches = _amountPattern.allMatches(input).length;
+    if (amountMatches != 1) return false;
+
+    if (_ambiguityPattern.hasMatch(normalized)) return false;
+    if (_likelyMultiTransactionPattern.hasMatch(normalized)) return false;
+
+    if (!_hasFinanceAction(normalized)) return false;
+    if (normalized.split(' ').length > 12) return false;
+
+    return true;
   }
 
   static Map<String, dynamic>? preflight(String input) {
@@ -79,7 +134,9 @@ class AIResponseEnhancement {
       status = 'error';
     }
 
-    final message = result['message']?.toString().trim().isNotEmpty == true
+    final message = status == 'success'
+        ? successMessage(transactions.length)
+        : result['message']?.toString().trim().isNotEmpty == true
         ? result['message'].toString()
         : _defaultMessage(status, transactions.length);
 
@@ -130,9 +187,7 @@ class AIResponseEnhancement {
       }
     }
 
-    final message = normalized['message']?.toString().trim().isNotEmpty == true
-        ? normalized['message'].toString()
-        : _defaultMessage('success', transactions.length);
+    final message = successMessage(transactions.length);
 
     return <String, dynamic>{
       ...normalized,
@@ -220,6 +275,9 @@ class AIResponseEnhancement {
       'mua',
       'do xang',
       'xang',
+      'di cho',
+      'cho',
+      'sieu thi',
       'mat',
       'tra',
       'dong',
@@ -253,13 +311,11 @@ class AIResponseEnhancement {
   static String _defaultMessage(String status, int transactionCount) {
     switch (status) {
       case 'success':
-        return transactionCount > 1
-            ? 'Da tach duoc $transactionCount giao dich. Ban xem lai giup minh nhe!'
-            : 'Da ghi nhan xong. Ban xem lai giao dich giup minh nhe!';
+        return successMessage(transactionCount);
       case 'clarification':
         return 'Minh can them mot chut thong tin de ghi dung giao dich cho ban.';
       default:
-        return 'Co loi xay ra khi xu ly AI. Ban thu lai giup minh nhe!';
+        return failureMessage(reasonCode: 'unknown');
     }
   }
 
@@ -283,5 +339,11 @@ class AIResponseEnhancement {
       if (regex.hasMatch(text)) return true;
     }
     return false;
+  }
+
+  static String _pickFromPool(List<String> messages, {required int seed}) {
+    if (messages.isEmpty) return '';
+    final index = seed.abs() % messages.length;
+    return messages[index];
   }
 }

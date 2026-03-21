@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:app/services/ai_config.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/transaction_datetime_inference.dart';
+import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:app/services/transaction_type_inference.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -79,10 +80,16 @@ class AIService {
     String message, {
     String? errorCode,
   }) {
+    final friendlyMessage = errorCode == null
+        ? message
+        : AIResponseEnhancement.failureMessage(
+            reasonCode: errorCode,
+            fallback: message,
+          );
     return <String, dynamic>{
       'status': 'error',
       'success': false,
-      'message': message,
+      'message': friendlyMessage,
       if (errorCode != null && errorCode.isNotEmpty) 'errorCode': errorCode,
       'transactions': const <Map<String, dynamic>>[],
       'data': const <Map<String, dynamic>>[],
@@ -367,18 +374,73 @@ QUY TAC:
     );
   }
 
-  Map<String, dynamic>? _buildLocalFallbackResponse({
+  Future<String?> _resolveLocalType(String input) async {
+    final lexicon = await TransactionPhraseLexicon.load();
+    return lexicon.inferType(input) ??
+        TransactionTypeInference.inferType(input: input);
+  }
+
+  Future<({String category, String iconName, bool isNewCategory})>
+  _resolveLocalCategory(String input, List<String> categories) async {
+    final lexicon = await TransactionPhraseLexicon.load();
+    final bestSection = lexicon.bestCategorySection(input);
+    if (bestSection != null) {
+      final mapped = switch (bestSection) {
+        'AN_UONG' => (
+          category: 'Ăn uống',
+          iconName: 'utensils',
+          isNewCategory: false,
+        ),
+        'HOA_DON' => (
+          category: 'Hóa đơn',
+          iconName: 'bolt',
+          isNewCategory: true,
+        ),
+        'GIAI_TRI' => (
+          category: 'Giải trí',
+          iconName: 'gamepad',
+          isNewCategory: true,
+        ),
+        'NHA_O' => (category: 'Nhà ở', iconName: 'house', isNewCategory: true),
+        'Y_TE' => (
+          category: 'Sức khỏe',
+          iconName: 'heartPulse',
+          isNewCategory: true,
+        ),
+        'HOC_TAP' => (
+          category: 'Giáo dục',
+          iconName: 'graduationCap',
+          isNewCategory: true,
+        ),
+        'TAI_CHINH' => (
+          category: 'Tài chính',
+          iconName: 'buildingColumns',
+          isNewCategory: true,
+        ),
+        'KHAC' => (category: 'Khác', iconName: 'ellipsis', isNewCategory: true),
+        _ => null,
+      };
+
+      if (mapped != null) {
+        return mapped;
+      }
+    }
+
+    return _resolveCategory(input, categories);
+  }
+
+  Future<Map<String, dynamic>?> _buildLocalFallbackResponse({
     required String input,
     required List<String> categories,
     required String failureCode,
-  }) {
+  }) async {
     final amount = _extractSingleAmount(input);
     if (amount == null) return null;
 
-    final inferredType = TransactionTypeInference.inferType(input: input);
+    final inferredType = await _resolveLocalType(input);
     if (inferredType == null) return null;
 
-    final resolvedCategory = _resolveCategory(input, categories);
+    final resolvedCategory = await _resolveLocalCategory(input, categories);
     final now = TransactionDateTimeInference.resolveDateTime(
       input: input,
       transaction: const <String, dynamic>{},
@@ -529,7 +591,7 @@ QUY TAC:
         message: errorMessage,
       );
       final failureCode = mapped['errorCode']?.toString() ?? 'unknown';
-      return _buildLocalFallbackResponse(
+      return await _buildLocalFallbackResponse(
             input: input,
             categories: categories,
             failureCode: failureCode,
@@ -537,7 +599,7 @@ QUY TAC:
           mapped;
     }
 
-    final fallback = _buildLocalFallbackResponse(
+    final fallback = await _buildLocalFallbackResponse(
       input: input,
       categories: categories,
       failureCode: 'rate_limit',
@@ -557,6 +619,18 @@ QUY TAC:
       }
 
       final categories = await _getUserCategories();
+      final localFastPath = AIResponseEnhancement.shouldUseLocalFastPath(input);
+      if (localFastPath) {
+        final localResponse = await _buildLocalFallbackResponse(
+          input: input,
+          categories: categories,
+          failureCode: 'local_fast_path',
+        );
+        if (localResponse != null) {
+          return localResponse;
+        }
+      }
+
       final rawData = await _requestOpenAI(
         input: input,
         categories: categories,
@@ -573,7 +647,7 @@ QUY TAC:
       return AIResponseEnhancement.postProcess(dated, input: input);
     } on TimeoutException {
       final categories = await _getUserCategories();
-      return _buildLocalFallbackResponse(
+      return await _buildLocalFallbackResponse(
             input: input,
             categories: categories,
             failureCode: 'timeout',
@@ -589,7 +663,7 @@ QUY TAC:
       );
     } catch (_) {
       final categories = await _getUserCategories();
-      return _buildLocalFallbackResponse(
+      return await _buildLocalFallbackResponse(
             input: input,
             categories: categories,
             failureCode: 'network',
