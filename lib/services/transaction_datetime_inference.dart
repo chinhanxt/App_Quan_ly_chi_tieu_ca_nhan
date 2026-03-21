@@ -44,6 +44,11 @@ class TransactionDateTimeInference {
       'date': DateFormat('dd/MM/yyyy').format(resolved),
       'time': DateFormat('HH:mm').format(resolved),
       'dateTime': DateFormat('dd/MM/yyyy HH:mm').format(resolved),
+      '_explicitFutureReference': _hasExplicitFutureReference(
+        input: input,
+        transactionDateTime: resolved,
+        now: now ?? DateTime.now(),
+      ),
     };
   }
 
@@ -103,7 +108,11 @@ class TransactionDateTimeInference {
                   : int.parse(rawYear));
         final parsed = _safeDate(year, month, day);
         if (parsed != null) {
-          return _DateResolution(parsed);
+          return _DateResolution(
+            parsed,
+            isExplicit: true,
+            isFutureReference: parsed.isAfter(today),
+          );
         }
       }
     }
@@ -123,17 +132,27 @@ class TransactionDateTimeInference {
                   : int.parse(rawYear));
         final parsed = _safeDate(year, month, day);
         if (parsed != null) {
-          return _DateResolution(parsed);
+          return _DateResolution(
+            parsed,
+            isExplicit: true,
+            isFutureReference: parsed.isAfter(today),
+          );
         }
       }
     }
 
     if (_containsAny(normalized, <String>['hom kia'])) {
-      return _DateResolution(today.subtract(const Duration(days: 2)));
+      return _DateResolution(
+        today.subtract(const Duration(days: 2)),
+        isExplicit: true,
+      );
     }
 
     if (_containsAny(normalized, <String>['hom qua', 'toi qua', 'dem qua'])) {
-      return _DateResolution(today.subtract(const Duration(days: 1)));
+      return _DateResolution(
+        today.subtract(const Duration(days: 1)),
+        isExplicit: true,
+      );
     }
 
     if (_containsAny(normalized, <String>[
@@ -144,15 +163,23 @@ class TransactionDateTimeInference {
       'toi nay',
       'dem nay',
     ])) {
-      return _DateResolution(today);
+      return _DateResolution(today, isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['ngay mai', 'mai'])) {
-      return _DateResolution(today.add(const Duration(days: 1)));
+      return _DateResolution(
+        today.add(const Duration(days: 1)),
+        isExplicit: true,
+        isFutureReference: true,
+      );
     }
 
     if (_containsAny(normalized, <String>['ngay kia', 'mai mot'])) {
-      return _DateResolution(today.add(const Duration(days: 2)));
+      return _DateResolution(
+        today.add(const Duration(days: 2)),
+        isExplicit: true,
+        isFutureReference: true,
+      );
     }
 
     final weekday = _extractWeekday(normalized);
@@ -166,6 +193,16 @@ class TransactionDateTimeInference {
           nextWeek: isNextWeek,
           previousWeek: isPreviousWeek,
         ),
+        isExplicit: true,
+        isFutureReference:
+            isNextWeek ||
+            (!isPreviousWeek &&
+                _resolveWeekday(
+                  targetWeekday: weekday,
+                  now: today,
+                  nextWeek: isNextWeek,
+                  previousWeek: isPreviousWeek,
+                ).isAfter(today)),
       );
     }
 
@@ -211,27 +248,27 @@ class TransactionDateTimeInference {
     }
 
     if (_containsAny(normalized, <String>['rang sang', 'sang som'])) {
-      return const _TimeResolution(value: _TimeOfDay(6, 0));
+      return const _TimeResolution(value: _TimeOfDay(6, 0), isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['sang', 'an sang'])) {
-      return const _TimeResolution(value: _TimeOfDay(8, 0));
+      return const _TimeResolution(value: _TimeOfDay(8, 0), isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['trua'])) {
-      return const _TimeResolution(value: _TimeOfDay(12, 0));
+      return const _TimeResolution(value: _TimeOfDay(12, 0), isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['chieu'])) {
-      return const _TimeResolution(value: _TimeOfDay(15, 0));
+      return const _TimeResolution(value: _TimeOfDay(15, 0), isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['toi'])) {
-      return const _TimeResolution(value: _TimeOfDay(19, 0));
+      return const _TimeResolution(value: _TimeOfDay(19, 0), isExplicit: true);
     }
 
     if (_containsAny(normalized, <String>['dem', 'khuya'])) {
-      return const _TimeResolution(value: _TimeOfDay(22, 0));
+      return const _TimeResolution(value: _TimeOfDay(22, 0), isExplicit: true);
     }
 
     return const _TimeResolution(value: null, shouldUseCurrentTime: true);
@@ -425,21 +462,42 @@ class TransactionDateTimeInference {
     if (value == null) return null;
     return _TimeOfDay(value.hour, value.minute);
   }
+
+  static bool _hasExplicitFutureReference({
+    required String input,
+    required DateTime transactionDateTime,
+    required DateTime now,
+  }) {
+    final resolution = _inferDateFromInput(input, now);
+    if (!resolution.isFutureReference) {
+      return false;
+    }
+
+    return transactionDateTime.isAfter(now);
+  }
 }
 
 class _DateResolution {
   final DateTime? value;
+  final bool isExplicit;
+  final bool isFutureReference;
 
-  const _DateResolution(this.value);
+  const _DateResolution(
+    this.value, {
+    this.isExplicit = false,
+    this.isFutureReference = false,
+  });
 }
 
 class _TimeResolution {
   final _TimeOfDay? value;
   final bool shouldUseCurrentTime;
+  final bool isExplicit;
 
   const _TimeResolution({
     required this.value,
     this.shouldUseCurrentTime = false,
+    this.isExplicit = false,
   });
 }
 

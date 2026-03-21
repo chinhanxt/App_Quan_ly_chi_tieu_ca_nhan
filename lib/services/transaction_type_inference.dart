@@ -2,6 +2,8 @@ class TransactionTypeInference {
   static const Map<String, int> _phraseScores = <String, int>{
     'duoc tang': 6,
     'duoc cho': 6,
+    'me cho': 7,
+    'bo cho': 7,
     'duoc bieu': 6,
     'duoc mung': 6,
     'nhan luong': 6,
@@ -10,6 +12,10 @@ class TransactionTypeInference {
     'duoc thuong': 5,
     'thu no': 6,
     'duoc tra no': 7,
+    'me tra': 6,
+    'bo tra': 6,
+    'doi duoc': 6,
+    'duoc cong': 5,
     'hoan tien': 6,
     'duoc hoan tien': 7,
     'refund': 6,
@@ -32,14 +38,29 @@ class TransactionTypeInference {
     'an toi': -6,
     'uong cafe': -6,
     'uong ca phe': -6,
+    'cafe': -4,
+    'ca phe': -4,
+    'tra sua': -5,
+    'grab': -5,
+    'ship': -4,
+    'gui xe': -5,
+    'internet': -4,
+    'wifi': -4,
+    'host web': -5,
     'do xang': -6,
     'tra no': -6,
+    'cho vay': -6,
+    'bi tru': -5,
     'dong tien': -5,
     'nop tien': -5,
     'thanh toan': -5,
     'tra tien': -5,
+    'tien dien': -5,
+    'tien nuoc': -5,
+    'tien nha': -5,
     'chuyen khoan cho': -6,
     'chuyen khoan tien': -5,
+    'chuyen khoan': -4,
     'nap tien': -5,
     'rut tien': -4,
     'tang me': -6,
@@ -54,9 +75,6 @@ class TransactionTypeInference {
     'cho vo': -6,
     'cho chong': -6,
     'cho con': -6,
-    'tien nha': -5,
-    'tien dien': -5,
-    'tien nuoc': -5,
     'tien mang': -5,
     'hoc phi': -6,
     'vien phi': -6,
@@ -71,16 +89,25 @@ class TransactionTypeInference {
     'refund': 3,
     'cashback': 3,
     'lai': 2,
+    'cho': 2,
+    'cong': 2,
     'mua': -3,
     'an': -2,
     'uong': -2,
+    'cafe': -2,
+    'grab': -3,
+    'ship': -2,
+    'internet': -2,
+    'wifi': -2,
+    'xang': -2,
+    'gui': -2,
     'tra': -2,
     'dong': -2,
     'nop': -2,
     'nap': -2,
     'tang': -2,
-    'cho': -1,
     'phi': -2,
+    'tru': -2,
   };
 
   static const Map<String, String> _typeAliases = <String, String>{
@@ -244,6 +271,38 @@ class TransactionTypeInference {
     });
 
     normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    const aliasReplacements = <String, String>{
+      'cf': 'cafe',
+      'cfe': 'cafe',
+      'ca phe': 'cafe',
+      'ts': 'tra sua',
+      'tra sua': 'tra sua',
+      'bhx': 'bach hoa xanh',
+      'coop': 'sieu thi',
+      'sthi': 'sieu thi',
+      'ck': 'chuyen khoan',
+      'banking': 'chuyen khoan',
+      'net': 'internet',
+      'pass': 'ban',
+      'dt': 'dien thoai',
+      'me cho': 'me cho',
+      'bo cho': 'bo cho',
+      'me tra': 'me tra',
+      'bo tra': 'bo tra',
+      'doi duoc': 'doi duoc',
+      'duoc cong': 'duoc cong',
+      'bi tru': 'bi tru',
+    };
+
+    aliasReplacements.forEach((from, to) {
+      normalized = normalized.replaceAllMapped(
+        RegExp('(^| )${RegExp.escape(from)}(?= |\\\$)'),
+        (match) => '${match.group(1) ?? ''}$to',
+      );
+    });
+
     normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
     return normalized;
   }

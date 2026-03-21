@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/quick_template.dart';
+import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,6 +47,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   final Set<String> _savingMessageIds = <String>{};
 
   late AnimationController _pulseController;
+  late Future<List<Map<String, dynamic>>> _transactionCategoryOptionsFuture;
 
   bool _isProcessing = false;
   bool _isRestoringHistory = true;
@@ -56,6 +58,7 @@ class _AIInputScreenState extends State<AIInputScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    _transactionCategoryOptionsFuture = _loadTransactionCategoryOptions();
     _restoreChatHistory();
     _loadQuickTemplates();
   }
@@ -239,6 +242,88 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
+  List<Map<String, dynamic>> _buildAvailableCategories({
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> globalDocs =
+        const <QueryDocumentSnapshot<Map<String, dynamic>>>[],
+    Map<String, dynamic>? userData,
+    String? selectedCategory,
+  }) {
+    final seenNames = <String>{};
+    final categories = <Map<String, dynamic>>[];
+
+    void addCategory(Map<String, dynamic> item) {
+      final name = item['name']?.toString().trim() ?? '';
+      if (name.isEmpty) return;
+      final normalized = name.toLowerCase();
+      if (!seenNames.add(normalized)) return;
+
+      categories.add(<String, dynamic>{
+        'name': name,
+        'iconName': item['iconName']?.toString() ??
+            (item['type']?.toString() == 'credit'
+                ? 'moneyBillWave'
+                : 'cartShopping'),
+      });
+    }
+
+    for (final doc in globalDocs) {
+      addCategory(doc.data());
+    }
+
+    for (final item in (userData?['customCategories'] as List<dynamic>? ??
+        <dynamic>[])) {
+      if (item is Map) {
+        addCategory(Map<String, dynamic>.from(item));
+      }
+    }
+
+    if (categories.isEmpty) {
+      for (final item in appIcons.defaultCategories) {
+        addCategory(item);
+      }
+    }
+
+    final current = selectedCategory?.trim() ?? '';
+    if (current.isNotEmpty && !seenNames.contains(current.toLowerCase())) {
+      addCategory(<String, dynamic>{'name': current});
+    }
+
+    return categories;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTransactionCategoryOptions() async {
+    Map<String, dynamic>? userData;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> globalCategoryDocs =
+        const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+    try {
+      final userDocRef = _userDocRef();
+      final results = await Future.wait<dynamic>([
+        if (userDocRef != null) userDocRef.get(),
+        FirebaseFirestore.instance
+            .collection('categories')
+            .orderBy('createdAt')
+            .get(),
+      ]);
+
+      if (userDocRef != null && results.isNotEmpty) {
+        userData = (results.first as DocumentSnapshot<Map<String, dynamic>>)
+            .data();
+      }
+
+      globalCategoryDocs =
+          (results.last as QuerySnapshot<Map<String, dynamic>>).docs;
+    } catch (_) {
+      userData = null;
+      globalCategoryDocs = const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    }
+
+    return _buildAvailableCategories(
+      globalDocs: globalCategoryDocs,
+      userData: userData,
+    );
+  }
+
   String _resolveTemplateIconName(
     String category, {
     required String type,
@@ -418,8 +503,11 @@ class _AIInputScreenState extends State<AIInputScreen>
           AIChatMessage(
             id: _uuid.v4(),
             sender: AIChatSender.ai,
-            text:
-                "Kết nối AI đang hơi chập chờn. Bạn thử gửi lại giúp mình nhé!",
+            text: AIResponseEnhancement.failureMessage(
+              reasonCode: 'network',
+              fallback:
+                  'Kết nối đang hơi chập chờn nên mình chưa xử lý trọn vẹn được. Bạn thử gửi lại giúp mình nhé!',
+            ),
             timestamp: DateTime.now(),
             status: 'error',
           ),
@@ -469,8 +557,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     final aiMessage = AIChatMessage(
       id: _uuid.v4(),
       sender: AIChatSender.ai,
-      text:
-          "Mình đã dựng sẵn card từ mục Chọn nhanh. Bạn kiểm tra lại rồi bấm lưu là xong.",
+      text: AIResponseEnhancement.quickTemplateMessage(),
       timestamp: now,
       status: 'success',
       transactions: <Map<String, dynamic>>[
@@ -504,14 +591,28 @@ class _AIInputScreenState extends State<AIInputScreen>
     QuickTemplate? initialTemplate,
   }) async {
     Map<String, dynamic>? userData;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> globalCategoryDocs =
+        const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     try {
       final userDocRef = _userDocRef();
-      if (userDocRef != null) {
-        final snapshot = await userDocRef.get();
-        userData = snapshot.data();
+      final results = await Future.wait<dynamic>([
+        if (userDocRef != null) userDocRef.get(),
+        FirebaseFirestore.instance
+            .collection('categories')
+            .orderBy('createdAt')
+            .get(),
+      ]);
+
+      if (userDocRef != null && results.isNotEmpty) {
+        userData = (results.first as DocumentSnapshot<Map<String, dynamic>>)
+            .data();
       }
+
+      globalCategoryDocs =
+          (results.last as QuerySnapshot<Map<String, dynamic>>).docs;
     } catch (_) {
       userData = null;
+      globalCategoryDocs = const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     }
 
     if (!mounted) return null;
@@ -532,6 +633,17 @@ class _AIInputScreenState extends State<AIInputScreen>
       text: initialTemplate?.note ?? '',
     );
     var selectedType = initialTemplate?.type ?? 'debit';
+    final availableCategories = _buildAvailableCategories(
+      globalDocs: globalCategoryDocs,
+      userData: userData,
+      selectedCategory: initialTemplate?.category,
+    );
+    var selectedCategory = categoryController.text.trim().isNotEmpty
+        ? categoryController.text.trim()
+        : (availableCategories.isNotEmpty
+            ? availableCategories.first['name'] as String
+            : '');
+    categoryController.text = selectedCategory;
 
     final result = await showModalBottomSheet<QuickTemplate>(
       context: context,
@@ -652,10 +764,17 @@ class _AIInputScreenState extends State<AIInputScreen>
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _buildQuickTemplateField(
-                        controller: categoryController,
+                      _buildQuickTemplateDropdown(
                         label: 'Danh mục',
-                        hint: 'Ví dụ: Ăn uống',
+                        value: selectedCategory.isEmpty ? null : selectedCategory,
+                        categories: availableCategories,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setSheetState(() {
+                            selectedCategory = value;
+                            categoryController.text = value;
+                          });
+                        },
                       ),
                       const SizedBox(height: 12),
                       _buildQuickTemplateField(
@@ -1008,11 +1127,11 @@ class _AIInputScreenState extends State<AIInputScreen>
         ? result['message'].toString()
         : result['success'] == true
         ? transactions.length > 1
-              ? "Mình đã tách được ${transactions.length} giao dịch. Bạn xem lại rồi bấm xác nhận để lưu nhé!"
-              : "Mình đã bóc tách được 1 giao dịch. Bạn xem lại rồi bấm xác nhận để lưu nhé!"
+              ? AIResponseEnhancement.successMessage(transactions.length)
+              : AIResponseEnhancement.successMessage(1)
         : status == 'error'
-        ? "AI đang gặp trục trặc nhỏ. Bạn thử lại giúp mình sau nhé!"
-        : "Mình cần thêm một chút thông tin để ghi đúng giao dịch cho bạn.";
+        ? AIResponseEnhancement.failureMessage(reasonCode: 'unknown')
+        : AIResponseEnhancement.defaultClarificationMessage();
 
     return AIChatMessage(
       id: _uuid.v4(),
@@ -1066,6 +1185,23 @@ class _AIInputScreenState extends State<AIInputScreen>
     if (message.transactions.isEmpty || message.isSaved) return;
     if (_savingMessageIds.contains(message.id)) return;
 
+    for (final tx in message.transactions) {
+      if (tx['isNewCategory'] == true &&
+          (tx['confirmCreateCategory'] ?? true) == false) {
+        final fallbackCategory = tx['fallbackCategory']?.toString().trim() ?? '';
+        if (fallbackCategory.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bạn chọn giúp mình một danh mục có sẵn trước khi lưu giao dịch này nhé.',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() {
       _savingMessageIds.add(message.id);
     });
@@ -1097,16 +1233,26 @@ class _AIInputScreenState extends State<AIInputScreen>
           final int amount = tx['amount'];
           final String type = tx['type'];
           final String id = _uuid.v4();
+          final bool shouldCreateCategory =
+              tx['isNewCategory'] == true &&
+              (tx['confirmCreateCategory'] ?? true);
+          final String categoryToSave = shouldCreateCategory
+              ? tx['category']?.toString() ?? 'Khác'
+              : (tx['fallbackCategory']?.toString().trim().isNotEmpty == true
+                    ? tx['fallbackCategory'].toString().trim()
+                    : tx['category']?.toString() ?? 'Khác');
+          final String iconToSave = shouldCreateCategory
+              ? tx['suggestedIcon']?.toString() ?? 'cartShopping'
+              : tx['fallbackIconName']?.toString() ?? 'cartShopping';
 
-          if (tx['isNewCategory'] == true &&
-              (tx['confirmCreateCategory'] ?? true)) {
+          if (shouldCreateCategory) {
             final exists = customCategories.any(
-              (category) => category['name'] == tx['category'],
+              (category) => category['name'] == categoryToSave,
             );
             if (!exists) {
               customCategories.add({
-                'name': tx['category'],
-                'iconName': tx['suggestedIcon'],
+                'name': categoryToSave,
+                'iconName': iconToSave,
               });
             }
           }
@@ -1141,7 +1287,7 @@ class _AIInputScreenState extends State<AIInputScreen>
             "totalDebit": totalDebit,
             "remainingAmount": remainingAmount,
             "monthyear": "${txDate.month} ${txDate.year}",
-            "category": tx['category'],
+            "category": categoryToSave,
             "note": tx['note'],
           });
         }
@@ -1167,8 +1313,9 @@ class _AIInputScreenState extends State<AIInputScreen>
             AIChatMessage(
               id: _uuid.v4(),
               sender: AIChatSender.ai,
-              text:
-                  "Mình đã lưu ${message.transactions.length} giao dịch cho bạn rồi. Có gì bạn cứ nhắn tiếp nhé!",
+              text: AIResponseEnhancement.saveSuccessMessage(
+                message.transactions.length,
+              ),
               timestamp: DateTime.now(),
               status: 'success',
             ),
@@ -1326,6 +1473,74 @@ class _AIInputScreenState extends State<AIInputScreen>
                 horizontal: 14,
                 vertical: 14,
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickTemplateDropdown({
+    required String label,
+    required String? value,
+    required List<Map<String, dynamic>> categories,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.74),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              dropdownColor: const Color(0xFF3C315C),
+              iconEnabledColor: Colors.white.withValues(alpha: 0.8),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              hint: Text(
+                'Chọn danh mục',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+              ),
+              items: categories.map((item) {
+                final name = item['name']?.toString() ?? '';
+                final iconName = item['iconName']?.toString() ?? '';
+                final iconData = appIcons.getIconData(iconName);
+                return DropdownMenuItem<String>(
+                  value: name,
+                  child: Row(
+                    children: [
+                      Icon(
+                        iconData,
+                        size: 16,
+                        color: Colors.white.withValues(alpha: 0.88),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
             ),
           ),
         ),
@@ -1687,6 +1902,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     Map<String, dynamic> tx,
   ) {
     final bool isNewCat = tx['isNewCategory'] == true;
+    final bool createNewCategory = tx['confirmCreateCategory'] ?? true;
     final bool isCredit = tx['type'] == 'credit';
     final accent = isCredit ? const Color(0xFF7EE787) : const Color(0xFFFF8A8A);
     final amountColor = isCredit
@@ -1852,37 +2068,172 @@ class _AIInputScreenState extends State<AIInputScreen>
                       color: Colors.white.withValues(alpha: 0.12),
                     ),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          "Tạo danh mục mới?",
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "Tạo danh mục mới?",
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: createNewCategory,
+                            onChanged: message.isSaved
+                                ? null
+                                : (value) {
+                                    _updateTransactionField(
+                                      messageId: message.id,
+                                      transactionIndex: index,
+                                      field: 'confirmCreateCategory',
+                                      value: value,
+                                    );
+                                  },
+                            activeThumbColor: _accentBlue,
+                            activeTrackColor: _accentCyan.withValues(
+                              alpha: 0.35,
+                            ),
+                            inactiveThumbColor: Colors.white.withValues(
+                              alpha: 0.9,
+                            ),
+                            inactiveTrackColor: Colors.white.withValues(
+                              alpha: 0.16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!createNewCategory) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          "Chọn danh mục có sẵn để lưu giao dịch này",
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-                      Switch(
-                        value: tx['confirmCreateCategory'] ?? true,
-                        onChanged: message.isSaved
-                            ? null
-                            : (value) {
-                                _updateTransactionField(
-                                  messageId: message.id,
-                                  transactionIndex: index,
-                                  field: 'confirmCreateCategory',
-                                  value: value,
-                                );
-                              },
-                        activeThumbColor: _accentBlue,
-                        activeTrackColor: _accentCyan.withValues(alpha: 0.35),
-                        inactiveThumbColor: Colors.white.withValues(alpha: 0.9),
-                        inactiveTrackColor: Colors.white.withValues(
-                          alpha: 0.16,
+                        const SizedBox(height: 8),
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _transactionCategoryOptionsFuture,
+                          builder: (context, snapshot) {
+                            final categoryOptions = snapshot.data ?? const [];
+                            final fallbackCategory = tx['fallbackCategory']
+                                ?.toString()
+                                .trim();
+                            final selectedValue =
+                                fallbackCategory != null &&
+                                    fallbackCategory.isNotEmpty &&
+                                    categoryOptions.any(
+                                      (item) =>
+                                          item['name'] == fallbackCategory,
+                                    )
+                                ? fallbackCategory
+                                : null;
+
+                            if (!snapshot.hasData) {
+                              return const LinearProgressIndicator(
+                                minHeight: 2,
+                              );
+                            }
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedValue,
+                                  isExpanded: true,
+                                  dropdownColor: const Color(0xFF3C315C),
+                                  iconEnabledColor: Colors.white,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                  hint: Text(
+                                    'Chọn danh mục có sẵn',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                    ),
+                                  ),
+                                  items: categoryOptions.map((item) {
+                                    final iconName =
+                                        item['iconName']?.toString() ??
+                                        'cartShopping';
+                                    final name =
+                                        item['name']?.toString() ?? 'Khác';
+                                    return DropdownMenuItem<String>(
+                                      value: name,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            appIcons.getIconData(iconName),
+                                            size: 16,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.88,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              name,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: message.isSaved
+                                      ? null
+                                      : (value) {
+                                          if (value == null) return;
+                                          final selectedCategory =
+                                              categoryOptions.firstWhere(
+                                                (item) => item['name'] == value,
+                                                orElse: () =>
+                                                    <String, dynamic>{
+                                                      'name': value,
+                                                      'iconName':
+                                                          'cartShopping',
+                                                    },
+                                              );
+                                          _updateTransactionField(
+                                            messageId: message.id,
+                                            transactionIndex: index,
+                                            field: 'fallbackCategory',
+                                            value: value,
+                                          );
+                                          _updateTransactionField(
+                                            messageId: message.id,
+                                            transactionIndex: index,
+                                            field: 'fallbackIconName',
+                                            value:
+                                                selectedCategory['iconName'] ??
+                                                'cartShopping',
+                                          );
+                                        },
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

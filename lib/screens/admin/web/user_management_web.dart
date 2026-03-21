@@ -62,10 +62,10 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
         users.sort((a, b) {
           final field = _getColumnField(_sortColumnIndex);
           final dynamic aValue = (field == 'createdAt') 
-              ? ((a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate()?.millisecondsSinceEpoch ?? 0
+              ? (((a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0)
               : ((a.data() as Map<String, dynamic>)[field]?.toString().toLowerCase() ?? "");
           final dynamic bValue = (field == 'createdAt') 
-              ? ((b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate()?.millisecondsSinceEpoch ?? 0
+              ? (((b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0)
               : ((b.data() as Map<String, dynamic>)[field]?.toString().toLowerCase() ?? "");
 
           if (aValue is String && bValue is String) {

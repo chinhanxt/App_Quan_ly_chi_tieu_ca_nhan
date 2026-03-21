@@ -1,4 +1,5 @@
 import 'package:app/utils/icon_list.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,10 @@ class CategoryList extends StatefulWidget {
 }
 
 class _CategoryListState extends State<CategoryList> {
+  static const Color _selectedCategoryColor = Color(0xFF5EAA74);
+  static const Color _unselectedCategoryFill = Color(0xFFE9F1EA);
+  static const Color _unselectedCategoryText = Color(0xFF4F8C79);
+
   String currentCategory = "Tất cả";
   List<Map<String, dynamic>> categoryList = [];
 
@@ -20,7 +25,7 @@ class _CategoryListState extends State<CategoryList> {
   final appIcons = AppIcons();
   final addCat = {"name": "Tất cả", "icon": FontAwesomeIcons.cartPlus};
 
-  scrollToSelectedCategory() {
+  void scrollToSelectedCategory() {
     final selectedCategoryIndex = categoryList.indexWhere(
       (cat) => cat['name'] == currentCategory,
     );
@@ -123,9 +128,14 @@ class _CategoryListState extends State<CategoryList> {
                       padding: const EdgeInsets.only(left: 10, right: 10),
                       decoration: BoxDecoration(
                         color: currentCategory == data['name']
-                            ? Colors.green
-                            : Colors.blue.withOpacity(0.1),
+                            ? _selectedCategoryColor
+                            : _unselectedCategoryFill,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: currentCategory == data['name']
+                              ? _selectedCategoryColor
+                              : AppColors.accentSoft,
+                        ),
                       ),
                       child: Center(
                         child: Row(
@@ -135,7 +145,7 @@ class _CategoryListState extends State<CategoryList> {
                               size: 15,
                               color: currentCategory == data['name']
                                   ? Colors.white
-                                  : Colors.blue,
+                                  : _unselectedCategoryText,
                             ),
                             const SizedBox(width: 10),
                             Text(
@@ -143,7 +153,7 @@ class _CategoryListState extends State<CategoryList> {
                               style: TextStyle(
                                 color: currentCategory == data['name']
                                     ? Colors.white
-                                    : Colors.blue,
+                                    : _unselectedCategoryText,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

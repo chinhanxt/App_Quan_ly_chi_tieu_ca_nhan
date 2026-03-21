@@ -103,7 +103,7 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       }
     } catch (e) {
-      print("Lỗi tải giao dịch: $e");
+      debugPrint("Lỗi tải giao dịch: $e");
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -146,8 +146,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
         if (_startDate != null && txDate.isBefore(_startDate!)) return false;
         if (_endDate != null &&
-            txDate.isAfter(_endDate!.add(const Duration(days: 1))))
+            txDate.isAfter(_endDate!.add(const Duration(days: 1)))) {
           return false; // bao gồm cả ngày kết thúc
+        }
       }
 
       // 5. Lọc Số tiền
@@ -265,7 +266,7 @@ class _SearchScreenState extends State<SearchScreen> {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'Tìm theo tên, ghi chú...',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
             border: InputBorder.none,
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(

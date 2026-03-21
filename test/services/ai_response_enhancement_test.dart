@@ -16,7 +16,7 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!['status'], 'clarification');
-      expect(result['message'], contains('chua noi so tien'));
+      expect(result['message'], contains('số tiền'));
     });
 
     test('preflight allows do xang with amount to reach AI', () {
@@ -88,6 +88,57 @@ void main() {
 
       expect(result['status'], 'clarification');
       expect(result['success'], false);
+    });
+
+    test('postProcess flags future transaction with playful clarification', () {
+      final result = AIResponseEnhancement.postProcess(
+        <String, dynamic>{
+          'success': true,
+          'transactions': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'title': 'An sang',
+              'amount': 10000,
+              'dateTime': '23/03/2026 08:00',
+              '_explicitFutureReference': true,
+            },
+          ],
+        },
+        input: 'mai an sang 10k',
+        now: DateTime(2026, 3, 22, 10, 0),
+      );
+
+      expect(result['status'], 'clarification');
+      expect(result['success'], false);
+      expect(result['message'].toString().toLowerCase(), contains('tương lai'));
+      expect((result['transactions'] as List), isEmpty);
+    });
+
+    test('default clarification message uses Vietnamese diacritics', () {
+      final message = AIResponseEnhancement.defaultClarificationMessage();
+
+      expect(message, contains('Mình'));
+      expect(message, contains('giao dịch'));
+    });
+
+    test('quick template message stays in Vietnamese with diacritics', () {
+      final message = AIResponseEnhancement.quickTemplateMessage();
+
+      expect(message, contains('Chọn nhanh'));
+      expect(message, contains('lưu'));
+    });
+
+    test('save success message includes transaction count', () {
+      final message = AIResponseEnhancement.saveSuccessMessage(3);
+
+      expect(message, contains('3'));
+      expect(message, anyOf(contains('giao dịch'), contains('vào sổ')));
+    });
+
+    test('large amount typo message keeps playful Vietnamese tone', () {
+      final message = AIResponseEnhancement.largeAmountMessage(typoHint: true);
+
+      expect(message, anyOf(contains('Vietlott'), contains('số 0')));
+      expect(message, isNot(contains('0 nao khong')));
     });
 
     test('fallbackMessage explains rate limit instead of generic busy', () {

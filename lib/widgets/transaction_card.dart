@@ -45,11 +45,10 @@ class TransactionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-
           boxShadow: [
             BoxShadow(
-              offset: Offset(0, 10),
-              color: Colors.grey.withOpacity(0.09),
+              offset: const Offset(0, 10),
+              color: Colors.grey.withValues(alpha: 0.09),
               blurRadius: 10.0,
               spreadRadius: 4.0,
             ),
@@ -57,8 +56,8 @@ class TransactionCard extends StatelessWidget {
         ),
         child: ListTile(
           minVerticalPadding: 10,
-          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          leading: Container(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          leading: SizedBox(
             width: 70,
             height: 100,
             child: Container(
@@ -67,8 +66,8 @@ class TransactionCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
                 color: data['type'] == 'credit'
-                    ? Colors.green.withOpacity(0.2)
-                    : Colors.red.withOpacity(0.2),
+                    ? Colors.green.withValues(alpha: 0.2)
+                    : Colors.red.withValues(alpha: 0.2),
               ),
               child: Center(
                 child: FaIcon(
@@ -128,24 +127,24 @@ class TransactionCard extends StatelessWidget {
           trailing: PopupMenuButton(
             itemBuilder: (BuildContext context) => [
               PopupMenuItem(
+                value: 'edit',
                 child: Row(
                   children: [
-                    Icon(Icons.edit, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Text('Sửa'),
+                    const Icon(Icons.edit, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    const Text('Sửa'),
                   ],
                 ),
-                value: 'edit',
               ),
               PopupMenuItem(
+                value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Xóa'),
+                    const Icon(Icons.delete, color: Colors.red),
+                    const SizedBox(width: 8),
+                    const Text('Xóa'),
                   ],
                 ),
-                value: 'delete',
               ),
             ],
             onSelected: (value) {
@@ -197,8 +196,7 @@ class TransactionCard extends StatelessWidget {
                 if (success) {
                   // Không cần làm gì, StreamBuilder sẽ tự cập nhật
                 } else {
-                  // Có thể hiển thị thông báo lỗi nếu cần
-                  print("Delete failed");
+                  debugPrint("Delete failed");
                 }
               },
               child: Text("Xóa", style: TextStyle(color: Colors.red)),

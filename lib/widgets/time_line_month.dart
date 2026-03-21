@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app/utils/app_colors.dart';
 
 class TimeLineMonth extends StatefulWidget {
   const TimeLineMonth({super.key, required this.onChanges});
@@ -9,6 +10,10 @@ class TimeLineMonth extends StatefulWidget {
 }
 
 class _TimeLineMonthState extends State<TimeLineMonth> {
+  static const Color _selectedMonthColor = Color(0xFF5EAA74);
+  static const Color _unselectedMonthFill = Color(0xFFF0EAE3);
+  static const Color _unselectedMonthText = Color(0xFF6E756F);
+
   String currentMonth = " ";
   List<String> months = [];
 
@@ -28,7 +33,7 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
     });
   }
 
-  scrollToSelectedMonth() {
+  void scrollToSelectedMonth() {
     final selectedMonthIndex = months.indexOf(currentMonth);
     if (selectedMonthIndex != -1 && scrollController.hasClients) {
       // Tính toán để item được chọn nằm ở giữa màn hình
@@ -54,6 +59,7 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
   Widget build(BuildContext context) {
     return Container(
       height: 40,
+      margin: const EdgeInsets.fromLTRB(8, 10, 8, 2),
       child: ListView.builder(
         controller: scrollController,
         itemCount: months.length,
@@ -73,9 +79,14 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
               margin: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: currentMonth == months[index]
-                    ? Colors.green
-                    : Colors.red.withOpacity(0.1),
+                    ? _selectedMonthColor
+                    : _unselectedMonthFill,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: currentMonth == months[index]
+                      ? _selectedMonthColor
+                      : AppColors.surfaceMuted,
+                ),
               ),
               child: Center(
                 child: Text(
@@ -84,7 +95,10 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
                   style: TextStyle(
                     color: currentMonth == months[index]
                         ? Colors.white
-                        : Colors.red,
+                        : _unselectedMonthText,
+                    fontWeight: currentMonth == months[index]
+                        ? FontWeight.w700
+                        : FontWeight.w600,
                   ),
                 ),
               ),

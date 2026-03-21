@@ -20,9 +20,12 @@ AN_UONG: di_cho an_sang
     test('loads phrases from bundled data asset', () async {
       final lexicon = await TransactionPhraseLexicon.load();
 
-      expect(lexicon.inferType('Di cho 10tr'), 'debit');
+      expect(lexicon.inferType('Mua ao 200k'), 'debit');
       expect(lexicon.inferType('Luong ve 15 trieu'), 'credit');
       expect(lexicon.bestCategorySection('Dong tien dien 500k'), 'HOA_DON');
+      expect(lexicon.bestPrioritySection('grab 50k'), 'DI_LAI');
+      expect(lexicon.hasFutureIntent('định mua giày 2tr'), isTrue);
+      expect(lexicon.hasPendingDebtIntent('chưa trả tiền điện 600k'), isTrue);
     });
   });
 }

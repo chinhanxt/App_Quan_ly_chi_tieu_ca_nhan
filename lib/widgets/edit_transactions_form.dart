@@ -97,7 +97,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
         category = categoryName;
       });
     } catch (e) {
-      print("Lỗi thêm danh mục: $e");
+      debugPrint("Lỗi thêm danh mục: $e");
     }
   }
 
@@ -210,7 +210,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
               ],
             ),
             DropdownButtonFormField(
-              value: type,
+              initialValue: type,
               items: const [
                 DropdownMenuItem(value: 'credit', child: Text('Thu Nhập')),
                 DropdownMenuItem(value: 'debit', child: Text('Chi Tiêu')),
@@ -218,7 +218,7 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
               onChanged: (value) {
                 if (value != null) {
                   setState(() {
-                    type = value as String;
+                    type = value;
                   });
                 }
               },

@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import '../models/budget_model.dart';
 
 class Db {
-  CollectionReference users = FirebaseFirestore.instance.collection('users');
+  final CollectionReference<Map<String, dynamic>> users =
+      FirebaseFirestore.instance.collection('users');
 
   // ==========================================
   // BUDGET SERVICES
@@ -23,7 +24,7 @@ class Db {
           .doc(budget.id)
           .set(budget.toMap());
     } catch (error) {
-      print("Error setting budget: $error");
+      debugPrint("Error setting budget: $error");
       rethrow;
     }
   }
@@ -51,7 +52,7 @@ class Db {
 
       await users.doc(userId).collection('budgets').doc(budgetId).delete();
     } catch (error) {
-      print("Error deleting budget: $error");
+      debugPrint("Error deleting budget: $error");
       rethrow;
     }
   }
@@ -60,7 +61,7 @@ class Db {
   // USER & TRANSACTION SERVICES
   // ==========================================
 
-  Future<void> addUser(data, context) async {
+  Future<void> addUser(Map<String, dynamic> data) async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
       
@@ -70,22 +71,17 @@ class Db {
       data['createdAt'] = FieldValue.serverTimestamp();
       
       await users.doc(userId).set(data);
-      print("User Added");
+      debugPrint("User Added");
     } catch (error) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text("Đăng Ký Thất Bại"),
-            content: Text(error.toString()),
-          );
-        },
-      );
+      rethrow;
     }
   }
 
   // Hàm xóa giao dịch
-  Future<bool> deleteTransaction(String transactionId, dynamic transactionData) async {
+  Future<bool> deleteTransaction(
+    String transactionId,
+    Map<String, dynamic> transactionData,
+  ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
@@ -134,7 +130,7 @@ class Db {
 
       return true;
     } catch (e) {
-      print("Delete error: $e");
+      debugPrint("Delete error: $e");
       return false;
     }
   }
@@ -142,8 +138,8 @@ class Db {
   // Hàm cập nhật giao dịch
   Future<bool> updateTransaction(
     String transactionId,
-    dynamic oldTransactionData,
-    dynamic newTransactionData,
+    Map<String, dynamic> oldTransactionData,
+    Map<String, dynamic> newTransactionData,
   ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -218,7 +214,7 @@ class Db {
 
       return true;
     } catch (e) {
-      print("Update error: $e");
+      debugPrint("Update error: $e");
       return false;
     }
   }

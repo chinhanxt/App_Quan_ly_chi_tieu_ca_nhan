@@ -1,7 +1,7 @@
-/// Report Service - Logic tính toán thống kê và phân tích
-import 'dart:math' as math;
+// Report Service - Logic tính toán thống kê và phân tích
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:app/models/report_models.dart';
 
 class ReportService {
@@ -35,7 +35,7 @@ class ReportService {
       transactions.sort((a, b) => b.date.compareTo(a.date));
       return transactions;
     } catch (e) {
-      print('Error getting transactions: $e');
+      debugPrint('Error getting transactions: $e');
       return [];
     }
   }
@@ -48,8 +48,14 @@ class ReportService {
     final currentFiltered = currentMonth.where((t) => t.type == type).toList();
     final previousFiltered = previousMonth.where((t) => t.type == type).toList();
 
-    final currentAmount = currentFiltered.fold<int>(0, (sum, t) => sum + t.amount);
-    final previousAmount = previousFiltered.fold<int>(0, (sum, t) => sum + t.amount);
+    final currentAmount = currentFiltered.fold<int>(
+      0,
+      (runningTotal, transaction) => runningTotal + transaction.amount,
+    );
+    final previousAmount = previousFiltered.fold<int>(
+      0,
+      (runningTotal, transaction) => runningTotal + transaction.amount,
+    );
 
     final difference = currentAmount - previousAmount;
     final percentageChange = previousAmount == 0 ? 0.0 : (difference / previousAmount) * 100;
@@ -87,10 +93,16 @@ class ReportService {
       groupedByCategory[transaction.category]!.add(transaction);
     }
 
-    final totalAmount = filtered.fold<int>(0, (sum, t) => sum + t.amount);
+    final totalAmount = filtered.fold<int>(
+      0,
+      (runningTotal, transaction) => runningTotal + transaction.amount,
+    );
     final breakdowns = <CategoryBreakdown>[];
     groupedByCategory.forEach((category, transactions) {
-      final categoryTotal = transactions.fold<int>(0, (sum, t) => sum + t.amount);
+      final categoryTotal = transactions.fold<int>(
+        0,
+        (runningTotal, transaction) => runningTotal + transaction.amount,
+      );
       final percentage = (categoryTotal / totalAmount) * 100;
 
       breakdowns.add(CategoryBreakdown(
@@ -109,18 +121,34 @@ class ReportService {
 
   ExtremTransaction? findLargestTransaction(List<TransactionDetail> transactions) {
     if (transactions.isEmpty) return null;
-    TransactionDetail largest = transactions.reduce((a, b) => a.amount > b.amount ? a : b);
-    final totalAmount = transactions.fold<int>(0, (sum, t) => sum + t.amount);
-    return ExtremTransaction(transaction: largest, percentage: (largest.amount / totalAmount) * 100);
+    final TransactionDetail largest = transactions.reduce(
+      (a, b) => a.amount > b.amount ? a : b,
+    );
+    final totalAmount = transactions.fold<int>(
+      0,
+      (runningTotal, transaction) => runningTotal + transaction.amount,
+    );
+    return ExtremTransaction(
+      transaction: largest,
+      percentage: (largest.amount / totalAmount) * 100,
+    );
   }
 
   ExtremTransaction? findSmallestTransaction(List<TransactionDetail> transactions) {
     if (transactions.isEmpty) return null;
     final validTransactions = transactions.where((t) => t.amount > 0).toList();
     if (validTransactions.isEmpty) return null;
-    TransactionDetail smallest = validTransactions.reduce((a, b) => a.amount < b.amount ? a : b);
-    final totalAmount = validTransactions.fold<int>(0, (sum, t) => sum + t.amount);
-    return ExtremTransaction(transaction: smallest, percentage: (smallest.amount / totalAmount) * 100);
+    final TransactionDetail smallest = validTransactions.reduce(
+      (a, b) => a.amount < b.amount ? a : b,
+    );
+    final totalAmount = validTransactions.fold<int>(
+      0,
+      (runningTotal, transaction) => runningTotal + transaction.amount,
+    );
+    return ExtremTransaction(
+      transaction: smallest,
+      percentage: (smallest.amount / totalAmount) * 100,
+    );
   }
 
   /// [CẬP NHẬT] Dự báo và xử lý dữ liệu lịch sử liên tục
@@ -140,7 +168,10 @@ class ReportService {
       
       final monthTotal = filtered
           .where((t) => '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}' == monthKey)
-          .fold<int>(0, (sum, t) => sum + t.amount);
+          .fold<int>(
+            0,
+            (runningTotal, transaction) => runningTotal + transaction.amount,
+          );
           
       monthlyTotals.add(monthTotal);
     }
@@ -159,10 +190,20 @@ class ReportService {
       }
       predictedAmount = (weightedSum / weightSum).round();
     } else {
-      predictedAmount = (monthlyTotals.fold<int>(0, (sum, t) => sum + t) / monthlyTotals.length).round();
+      predictedAmount = (monthlyTotals.fold<int>(
+                0,
+                (runningTotal, total) => runningTotal + total,
+              ) /
+              monthlyTotals.length)
+          .round();
     }
 
-    final simpleAverage = (monthlyTotals.fold<int>(0, (sum, t) => sum + t) / monthlyTotals.length).round();
+    final simpleAverage = (monthlyTotals.fold<int>(
+              0,
+              (runningTotal, total) => runningTotal + total,
+            ) /
+            monthlyTotals.length)
+        .round();
     final growthRate = simpleAverage == 0 ? 0.0 : ((predictedAmount - simpleAverage) / simpleAverage) * 100;
 
     return ForecastData(
@@ -192,8 +233,18 @@ class ReportService {
     final previousMonthTransactions = await getTransactionsByDateRange(previousMonthStart, previousMonthEnd);
     final observationTransactions = await getTransactionsByDateRange(observationStart, currentMonthEnd);
 
-    final totalCredit = currentMonthTransactions.where((t) => t.type == 'credit').fold<int>(0, (sum, t) => sum + t.amount);
-    final totalDebit = currentMonthTransactions.where((t) => t.type == 'debit').fold<int>(0, (sum, t) => sum + t.amount);
+    final totalCredit = currentMonthTransactions
+        .where((t) => t.type == 'credit')
+        .fold<int>(
+          0,
+          (runningTotal, transaction) => runningTotal + transaction.amount,
+        );
+    final totalDebit = currentMonthTransactions
+        .where((t) => t.type == 'debit')
+        .fold<int>(
+          0,
+          (runningTotal, transaction) => runningTotal + transaction.amount,
+        );
 
     final creditComparison = compareWithPreviousMonth(currentMonthTransactions, previousMonthTransactions, 'credit');
     final debitComparison = compareWithPreviousMonth(currentMonthTransactions, previousMonthTransactions, 'debit');

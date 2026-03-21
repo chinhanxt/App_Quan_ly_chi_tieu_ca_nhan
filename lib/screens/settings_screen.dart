@@ -3,7 +3,6 @@ import 'package:app/widgets/account_dialog.dart';
 import 'package:app/widgets/category_management_dialog.dart';
 import 'package:app/providers/settings_provider.dart';
 import 'package:app/services/auth_service.dart';
-import 'package:app/screens/change_password_otp_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

@@ -1,11 +1,10 @@
 import 'package:app/services/db.dart';
 import 'package:app/widgets/custom_alert_dialog.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class AuthService {
-  var db = Db();
+  final Db db = Db();
 
   String _getErrorMessage(dynamic e) {
     if (e is FirebaseAuthException) {
@@ -47,30 +46,39 @@ class AuthService {
     );
   }
 
-  Future<bool> createUsser(data, context) async {
+  Future<bool> createUsser(
+    Map<String, dynamic> data,
+    BuildContext context,
+  ) async {
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: data['email'],
         password: data['password'],
       );
 
       data['id'] = userCredential.user!.uid; 
-      await db.addUser(data, context);
+      await db.addUser(data);
       return true;
     } catch (e) {
+      if (!context.mounted) return false;
       _showError(context, "Đăng Ký Thất Bại", e);
       return false;
     }
   }
 
-  Future<bool> login(data, context) async {
+  Future<bool> login(
+    Map<String, dynamic> data,
+    BuildContext context,
+  ) async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: data['email'],
         password: data['password'],
       );
+      if (!context.mounted) return false;
       return true;
     } catch (e) {
+      if (!context.mounted) return false;
       _showError(context, "Đăng Nhập Thất Bại", e);
       return false;
     }

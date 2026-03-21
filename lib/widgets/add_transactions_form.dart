@@ -147,7 +147,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         category = categoryName;
       });
     } catch (e) {
-      print("Lỗi: $e");
+      debugPrint("Lỗi: $e");
     }
   }
 
@@ -318,7 +318,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
               ],
             ),
             DropdownButtonFormField(
-              value: 'credit',
+              initialValue: type,
               items: const [
                 DropdownMenuItem(value: 'credit', child: Text('Thu Nhập')),
                 DropdownMenuItem(value: 'debit', child: Text('Chi Tiêu')),
