@@ -36,9 +36,26 @@ class TransactionPhraseLexicon {
   final Map<String, String> prioritySections;
 
   static Future<TransactionPhraseLexicon>? _cachedFuture;
+  static String? _sessionOverrideRaw;
 
   static Future<TransactionPhraseLexicon> load() {
+    final overrideRaw = _sessionOverrideRaw;
+    if (overrideRaw != null) {
+      return Future<TransactionPhraseLexicon>.value(parseRaw(overrideRaw));
+    }
     return _cachedFuture ??= _loadInternal();
+  }
+
+  static void invalidateCache() {
+    _cachedFuture = null;
+  }
+
+  static void setSessionOverride(String raw) {
+    _sessionOverrideRaw = raw;
+  }
+
+  static void clearSessionOverride() {
+    _sessionOverrideRaw = null;
   }
 
   static Future<TransactionPhraseLexicon> _loadInternal() async {
