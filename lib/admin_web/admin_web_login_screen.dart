@@ -1,6 +1,7 @@
 import 'package:app/admin_web/admin_web_repository.dart';
 import 'package:app/screens/sign_up.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class AdminWebLoginScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _AdminWebLoginScreenState extends State<AdminWebLoginScreen> {
   bool _submitting = false;
   bool _obscure = true;
   String? _error;
+  final RegExp _emailRegExp = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
 
   @override
   void dispose() {
@@ -47,7 +49,7 @@ class _AdminWebLoginScreenState extends State<AdminWebLoginScreen> {
       );
     } catch (error) {
       setState(() {
-        _error = error.toString();
+        _error = _mapUiError(error);
       });
     } finally {
       if (mounted) {
@@ -56,6 +58,28 @@ class _AdminWebLoginScreenState extends State<AdminWebLoginScreen> {
         });
       }
     }
+  }
+
+  String _mapUiError(Object error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'invalid-email':
+          return 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.';
+        case 'user-not-found':
+          return 'Email này chưa được đăng ký tài khoản.';
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Email hoặc mật khẩu chưa chính xác. Vui lòng thử lại.';
+        case 'user-disabled':
+          return 'Tài khoản này đã bị khóa. Vui lòng liên hệ quản trị viên.';
+        case 'too-many-requests':
+          return 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau ít phút.';
+        case 'network-request-failed':
+          return 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.';
+      }
+    }
+
+    return 'Không thể đăng nhập lúc này. Vui lòng thử lại sau.';
   }
 
   @override
@@ -176,8 +200,12 @@ class _AdminWebLoginScreenState extends State<AdminWebLoginScreen> {
                                   prefixIcon: Icon(Icons.mail_outline_rounded),
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Nhập email';
+                                  final trimmedValue = value?.trim() ?? '';
+                                  if (trimmedValue.isEmpty) {
+                                    return 'Vui lòng nhập email để tiếp tục.';
+                                  }
+                                  if (!_emailRegExp.hasMatch(trimmedValue)) {
+                                    return 'Email chưa đúng định dạng. Ví dụ: ten@domain.com.';
                                   }
                                   return null;
                                 },
@@ -205,8 +233,8 @@ class _AdminWebLoginScreenState extends State<AdminWebLoginScreen> {
                                   ),
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Nhập mật khẩu';
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Vui lòng nhập mật khẩu để tiếp tục.';
                                   }
                                   return null;
                                 },

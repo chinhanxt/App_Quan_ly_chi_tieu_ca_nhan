@@ -86,7 +86,7 @@ class _SignUpViewState extends State<SignUpView> {
         CustomAlertDialog.show(
           context: context,
           title: "Đăng Ký Thành Công",
-          message: "Chào mừng bạn! Hãy bắt đầu quản lý tài chính ngay nhé.",
+          message: "Tài khoản của bạn đã được tạo thành công.",
           type: AlertType.success,
           onConfirm: () {
             Navigator.pop(context);
@@ -111,8 +111,7 @@ class _SignUpViewState extends State<SignUpView> {
   Widget build(BuildContext context) {
     return AuthScaffold(
       title: "Tạo tài khoản mới",
-      subtitle:
-          "Bắt đầu với không gian tài chính mới, tối giản hơn nhưng vẫn nổi bật và dễ dùng.",
+      subtitle: "Tạo tài khoản để bắt đầu sử dụng ứng dụng quản lý thu chi.",
       headerIcon: Icons.person_add_alt_1_rounded,
       canPop: true,
       form: Form(

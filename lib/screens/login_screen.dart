@@ -4,7 +4,6 @@ import 'package:app/services/auth_service.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/widgets/app_chrome.dart';
-import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:flutter/material.dart';
 
 class LoginView extends StatefulWidget {
@@ -35,21 +34,12 @@ class _LoginViewState extends State<LoginView> {
         "password": _passWordController.text,
       };
 
-      bool result = await authService.login(data, context);
+      await authService.login(data, context);
       if (!mounted) return;
 
       setState(() {
         isLoader = false;
       });
-
-      if (result) {
-        CustomAlertDialog.show(
-          context: context,
-          title: "Đăng Nhập Thành Công",
-          message: "Chào mừng bạn đã quay trở lại với ứng dụng!",
-          type: AlertType.success,
-        );
-      }
     }
   }
 
@@ -66,8 +56,7 @@ class _LoginViewState extends State<LoginView> {
   Widget build(BuildContext context) {
     return AuthScaffold(
       title: "Đăng nhập tài khoản",
-      subtitle:
-          "Quản lý thu chi trong giao diện mới hiện đại, gọn gàng và dễ nhìn hơn.",
+      subtitle: "Đăng nhập để quản lý thu chi và theo dõi tài khoản của bạn.",
       headerIcon: Icons.account_balance_wallet_rounded,
       form: Form(
         key: _formKey,

@@ -2,6 +2,7 @@ import 'package:app/screens/admin/admin_dashboard.dart';
 import 'package:app/screens/admin/mobile_admin_redirect.dart';
 import 'package:app/screens/dashboard.dart';
 import 'package:app/screens/login_screen.dart';
+import 'package:app/screens/system_access_blocked_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -22,46 +23,80 @@ class AuthGate extends StatelessWidget {
           return LoginView();
         }
 
-        // Dùng StreamBuilder để lắng nghe vai trò người dùng real-time
-        return StreamBuilder<DocumentSnapshot>(
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
+              .collection('system_configs')
+              .doc('app_controls')
               .snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
+          builder: (context, appControlSnapshot) {
+            if (appControlSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            if (userSnapshot.hasData && userSnapshot.data!.exists) {
-              final data = userSnapshot.data!.data() as Map<String, dynamic>?;
-              
-              if (data != null) {
-                String role = data['role'] ?? 'user';
-                String status = data['status'] ?? 'active';
+            final canReadAppControls =
+                appControlSnapshot.error is! FirebaseException ||
+                (appControlSnapshot.error as FirebaseException).code !=
+                    'permission-denied';
+            final appControls = canReadAppControls
+                ? appControlSnapshot.data?.data() ?? const <String, dynamic>{}
+                : const <String, dynamic>{};
+            final maintenanceMode =
+                canReadAppControls && appControls['maintenanceMode'] == true;
 
-                if (status == 'locked') {
-                  // Đăng xuất ngay lập tức nếu tài khoản bị khóa
-                  Future.microtask(() => FirebaseAuth.instance.signOut());
-                  return LoginView();
-                }
-
-                if (role == 'admin') {
-                  // Nếu là Web thì cho vào Dashboard Admin
-                  if (kIsWeb) {
-                    return const AdminDashboard();
-                  } else {
-                    // Nếu là Mobile thì đưa tới màn hình điều hướng sang Web
-                    return const MobileAdminRedirect();
-                  }
-                }
-              }
+            if (maintenanceMode) {
+              return SystemAccessBlockedScreen(
+                title: 'Hệ thống đang bảo trì',
+                message: 'Vui lòng thử lại sau khi quá trình bảo trì hoàn tất.',
+                actionLabel: 'Đăng xuất',
+                onAction: () => FirebaseAuth.instance.signOut(),
+              );
             }
 
-            // Mặc định vào Dashboard người dùng
-            return const Dashboard();
+            // Dùng StreamBuilder để lắng nghe vai trò người dùng real-time
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .snapshots(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                  final data = userSnapshot.data!.data();
+
+                  if (data != null) {
+                    final role = data['role']?.toString() ?? 'user';
+                    final status = data['status']?.toString() ?? 'active';
+
+                    if (status == 'locked') {
+                      return SystemAccessBlockedScreen(
+                        title: 'Tài khoản đã bị khóa',
+                        message:
+                            'Tài khoản của bạn hiện không thể truy cập. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.',
+                        actionLabel: 'Đăng xuất',
+                        onAction: () => FirebaseAuth.instance.signOut(),
+                      );
+                    }
+
+                    if (role == 'admin') {
+                      if (kIsWeb) {
+                        return const AdminDashboard();
+                      } else {
+                        return const MobileAdminRedirect();
+                      }
+                    }
+                  }
+                }
+
+                return const Dashboard();
+              },
+            );
           },
         );
       },

@@ -2,6 +2,7 @@ import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/account_dialog.dart';
 import 'package:app/widgets/category_management_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/providers/settings_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -168,11 +169,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showContactDialog() {
-    CustomAlertDialog.show(
+    showDialog<void>(
       context: context,
-      title: 'Liên Hệ Hỗ Trợ',
-      message: 'Email: support@expensetracker.com\nPhone: 0123-456-789',
-      type: AlertType.info,
+      builder: (dialogContext) {
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('system_configs')
+              .doc('contact_info')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(Icons.info, color: Color(0xFF0F766E), size: 28),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Liên Hệ Hỗ Trợ',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                content: SizedBox(
+                  height: 56,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+
+            final data = snapshot.data?.data() ?? const <String, dynamic>{};
+            final email = data['email']?.toString().trim() ?? '';
+            final phone = data['phone']?.toString().trim() ?? '';
+            final address = data['address']?.toString().trim() ?? '';
+            final facebook = data['facebook']?.toString().trim() ?? '';
+
+            final lines = <String>[
+              'Email: ${email.isNotEmpty ? email : 'Chưa cập nhật'}',
+              'Phone: ${phone.isNotEmpty ? phone : 'Chưa cập nhật'}',
+              'Address: ${address.isNotEmpty ? address : 'Chưa cập nhật'}',
+              'Link: ${facebook.isNotEmpty ? facebook : 'Chưa cập nhật'}',
+            ];
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.info, color: Color(0xFF0F766E), size: 28),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Liên Hệ Hỗ Trợ',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Text(
+                lines.join('\n'),
+                style: const TextStyle(fontSize: 16),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
