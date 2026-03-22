@@ -121,21 +121,29 @@ class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
 
   Widget _buildMessageBanner(SystemMessage message) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _getBannerColor(message.type),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: _getBorderColor(message.type).withOpacity(0.3),
+          color: _getBorderColor(message.type).withValues(alpha: 0.25),
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            _getIcon(message.type),
-            color: _getBorderColor(message.type),
-            size: 20,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _getBorderColor(message.type).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              _getIcon(message.type),
+              color: _getBorderColor(message.type),
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

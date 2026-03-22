@@ -1,4 +1,5 @@
 import 'package:app/widgets/transaction_card.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,21 +9,17 @@ class TransactionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Text(
-                "Giao Dịch Gần Đây",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              ),
-            ],
+    return AppPanel(
+      child: Column(
+        children: [
+          const AppSectionTitle(
+            title: "Giao dịch gần đây",
+            subtitle: "Cập nhật nhanh các biến động mới nhất trong ví của bạn.",
           ),
-        ),
-        RecentTransactionsList(),
-      ],
+          const SizedBox(height: 10),
+          RecentTransactionsList(),
+        ],
+      ),
     );
   }
 }
@@ -56,11 +53,16 @@ class RecentTransactionsList extends StatelessWidget {
       builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.hasError) {
           return const Text('Có lỗi xảy ra');
-        
         } else if (snapshot.connectionState == ConnectionState.waiting) {
-          return Text("Đang tải...");
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          );
         } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('Không có giao dịch '));
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Text('Chưa có giao dịch nào gần đây.'),
+          );
         }
         var data = snapshot.data!.docs;
         return ListView.builder(

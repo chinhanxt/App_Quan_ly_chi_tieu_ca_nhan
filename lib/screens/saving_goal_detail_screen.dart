@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -62,16 +63,15 @@ class _SavingGoalDetailScreenState extends State<SavingGoalDetailScreen> {
       int.parse(widget.goal.color.replaceFirst('#', '0xFF')),
     );
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+    return AppScaffold(
       appBar: AppBar(
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
         title: Text(
           widget.goal.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
       ),
       floatingActionButton:
           (widget.goal.status != 'withdrawn' &&
@@ -110,7 +110,7 @@ class _SavingGoalDetailScreenState extends State<SavingGoalDetailScreen> {
               },
             )
           : null,
-      body: StreamBuilder<DocumentSnapshot>(
+      child: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
@@ -147,16 +147,27 @@ class _SavingGoalDetailScreenState extends State<SavingGoalDetailScreen> {
               }
 
               return SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 110),
                 child: Column(
                   children: [
                     _buildHeader(goalColor, currentAmount),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.06),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.08),
+                              blurRadius: 16,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                        elevation: 0,
                         child: Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: TableCalendar(
@@ -213,7 +224,7 @@ class _SavingGoalDetailScreenState extends State<SavingGoalDetailScreen> {
                             },
                             calendarStyle: CalendarStyle(
                               todayDecoration: BoxDecoration(
-                                color: goalColor.withOpacity(0.3),
+                                color: goalColor.withValues(alpha: 0.3),
                                 shape: BoxShape.circle,
                               ),
                               selectedDecoration: BoxDecoration(

@@ -1,3 +1,4 @@
+import 'package:app/utils/app_colors.dart';
 import 'package:app/models/budget_model.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -35,10 +36,24 @@ class BudgetProgressCard extends StatelessWidget {
         ? 'Vượt ${currencyFormat.format(spentAmount - budget.limitAmount)}'
         : 'Còn ${currencyFormat.format(budget.limitAmount - spentAmount)}';
 
-    return Card(
-      elevation: 2,
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, progressColor.withValues(alpha: 0.05)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

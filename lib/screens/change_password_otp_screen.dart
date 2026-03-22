@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mailer/mailer.dart';
@@ -22,6 +23,14 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
   bool _otpSent = false;
   bool _otpVerified = false;
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _otpController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   // Hàm tạo mã 6 số ngẫu nhiên
   String _generateRandomOTP() {
@@ -166,24 +175,15 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF252634),
-      appBar: AppBar(
-        title: const Text("Đổi Mật Khẩu OTP"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+    return AuthScaffold(
+      title: "Đổi mật khẩu",
+      subtitle:
+          "Xác thực chủ sở hữu qua OTP trước khi đặt mật khẩu mới cho tài khoản.",
+      headerIcon: Icons.security_rounded,
+      canPop: true,
+      form: SingleChildScrollView(
         child: Column(
           children: [
-            const Icon(Icons.security, size: 80, color: Color(0xFFFF5C04)),
-            const SizedBox(height: 24),
-
             if (!_otpSent) ...[
               const Text(
                 "Xác thực chủ sở hữu qua mã OTP 6 số gửi tới Email để đổi mật khẩu.",
@@ -249,13 +249,13 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
                 },
                 icon: const Icon(
                   Icons.refresh,
-                  color: Color(0xFFFF5C04),
+                  color: AppColors.gold,
                   size: 18,
                 ),
                 label: const Text(
                   "ĐĂNG NHẬP LẠI NGAY",
                   style: TextStyle(
-                    color: Color(0xFFFF5C04),
+                    color: AppColors.gold,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -265,7 +265,7 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
             if (_isLoading)
               const Padding(
                 padding: EdgeInsets.only(top: 20),
-                child: CircularProgressIndicator(color: Color(0xFFFF5C04)),
+                child: CircularProgressIndicator(color: AppColors.gold),
               ),
           ],
         ),
@@ -288,11 +288,19 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white60),
-        prefixIcon: Icon(icon, color: const Color(0xFFFF5C04)),
-        fillColor: const Color(0xAA494A59),
+        prefixIcon: Icon(icon, color: AppColors.gold),
+        fillColor: Colors.white.withValues(alpha: 0.12),
         filled: true,
         counterStyle: const TextStyle(color: Colors.white30),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -304,18 +312,15 @@ class _ChangePasswordOTPScreenState extends State<ChangePasswordOTPScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFF5C04),
+          backgroundColor: AppColors.gold,
+          foregroundColor: AppColors.primaryDark,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(18),
           ),
         ),
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );

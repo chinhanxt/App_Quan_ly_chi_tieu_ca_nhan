@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,13 +12,14 @@ class ForgotPasswordOTPScreen extends StatefulWidget {
   const ForgotPasswordOTPScreen({super.key, this.initialEmail});
 
   @override
-  State<ForgotPasswordOTPScreen> createState() => _ForgotPasswordOTPScreenState();
+  State<ForgotPasswordOTPScreen> createState() =>
+      _ForgotPasswordOTPScreenState();
 }
 
 class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
   final _emailController = TextEditingController();
   final _otpController = TextEditingController();
-  
+
   String? _generatedOTP;
   bool _otpSent = false;
   bool _otpVerified = false;
@@ -28,6 +31,13 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
     if (widget.initialEmail != null) {
       _emailController.text = widget.initialEmail!;
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _otpController.dispose();
+    super.dispose();
   }
 
   String _generateRandomOTP() {
@@ -55,7 +65,8 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       ..from = Address("nhangamer500@gmail.com", 'Quản Lý Thu Chi')
       ..recipients.add(_emailController.text)
       ..subject = 'Xác thực khôi phục mật khẩu: $_generatedOTP'
-      ..html = """
+      ..html =
+          """
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 10px;">
           <h2 style="color: #FF5C04; text-align: center;">Xác Minh Danh Tính</h2>
           <p>Chào bạn,</p>
@@ -79,7 +90,8 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       CustomAlertDialog.show(
         context: context,
         title: "Gửi Mã Thành Công",
-        message: "Mã xác thực (OTP) đã được gửi đến email của bạn. Vui lòng kiểm tra kỹ cả trong hộp thư rác (Spam).",
+        message:
+            "Mã xác thực (OTP) đã được gửi đến email của bạn. Vui lòng kiểm tra kỹ cả trong hộp thư rác (Spam).",
         type: AlertType.success,
       );
     } catch (e) {
@@ -88,7 +100,8 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       CustomAlertDialog.show(
         context: context,
         title: "Gửi Mã Thất Bại",
-        message: "Không thể gửi email lúc này. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.",
+        message:
+            "Không thể gửi email lúc này. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.",
         type: AlertType.error,
       );
     }
@@ -100,14 +113,16 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       CustomAlertDialog.show(
         context: context,
         title: "Xác Thực Thành Công",
-        message: "Mã xác thực chính xác. Bạn có thể tiến hành lấy lại mật khẩu ngay bây giờ.",
+        message:
+            "Mã xác thực chính xác. Bạn có thể tiến hành lấy lại mật khẩu ngay bây giờ.",
         type: AlertType.success,
       );
     } else {
       CustomAlertDialog.show(
         context: context,
         title: "Mã Xác Thực Sai",
-        message: "Mã OTP bạn nhập không chính xác hoặc đã hết hạn. Vui lòng kiểm tra lại.",
+        message:
+            "Mã OTP bạn nhập không chính xác hoặc đã hết hạn. Vui lòng kiểm tra lại.",
         type: AlertType.error,
       );
     }
@@ -116,22 +131,27 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
   Future<void> _sendFinalResetLink() async {
     setState(() => _isLoading = true);
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text);
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text,
+      );
       if (!mounted) return;
       CustomAlertDialog.show(
         context: context,
         title: "Gửi Link Thành Công",
-        message: "Hệ thống đã gửi một liên kết đặt lại mật khẩu đến Email của bạn.\n\nHãy nhấn vào liên kết đó để cập nhật mật khẩu mới.",
+        message:
+            "Hệ thống đã gửi một liên kết đặt lại mật khẩu đến Email của bạn.\n\nHãy nhấn vào liên kết đó để cập nhật mật khẩu mới.",
         type: AlertType.success,
         confirmText: "Đã hiểu",
-        onConfirm: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        onConfirm: () =>
+            Navigator.of(context).popUntil((route) => route.isFirst),
       );
     } catch (e) {
       if (!mounted) return;
       CustomAlertDialog.show(
         context: context,
         title: "Lỗi Hệ Thống",
-        message: "Đã xảy ra lỗi khi gửi link đặt lại mật khẩu. Vui lòng thử lại sau.",
+        message:
+            "Đã xảy ra lỗi khi gửi link đặt lại mật khẩu. Vui lòng thử lại sau.",
         type: AlertType.error,
       );
     } finally {
@@ -141,33 +161,58 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF252634),
-      appBar: AppBar(title: const Text("Khôi Phục Mật Khẩu"), backgroundColor: Colors.transparent, elevation: 0),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+    return AuthScaffold(
+      title: "Khôi phục mật khẩu",
+      subtitle:
+          "Xác thực nhanh bằng OTP rồi nhận link đổi mật khẩu chính thức từ hệ thống.",
+      headerIcon: Icons.shield_outlined,
+      canPop: true,
+      form: SingleChildScrollView(
         child: Column(
           children: [
-            const Icon(Icons.shield_outlined, size: 80, color: Color(0xFFFF5C04)),
-            const SizedBox(height: 24),
-            
             if (!_otpSent) ...[
-              const Text("Nhập Email tài khoản cần khôi phục:", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const Text(
+                "Nhập email tài khoản cần khôi phục.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
               const SizedBox(height: 24),
               _buildTextField(_emailController, "Email", Icons.email),
               const SizedBox(height: 32),
               _buildActionButton("GỬI MÃ XÁC THỰC", _sendOTP),
             ] else if (!_otpVerified) ...[
-              Text("Nhập mã 6 số đã gửi tới:\n${_emailController.text}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              Text(
+                "Nhập mã 6 số đã gửi tới:\n${_emailController.text}",
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 24),
-              _buildTextField(_otpController, "Mã OTP 6 số", Icons.numbers, maxLength: 6),
+              _buildTextField(
+                _otpController,
+                "Mã OTP 6 số",
+                Icons.numbers,
+                maxLength: 6,
+              ),
               const SizedBox(height: 24),
               _buildActionButton("XÁC THỰC MÃ", _verifyOTP),
-              TextButton(onPressed: _sendOTP, child: const Text("Gửi lại mã", style: TextStyle(color: Colors.white54)))
+              TextButton(
+                onPressed: _sendOTP,
+                child: const Text(
+                  "Gửi lại mã",
+                  style: TextStyle(color: Colors.white54),
+                ),
+              ),
             ] else ...[
-              const Icon(Icons.verified_user, size: 60, color: Colors.green),
+              const Icon(Icons.verified_user, size: 60, color: Colors.white),
               const SizedBox(height: 16),
-              const Text("Xác Thực Thành Công!", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                "Xác thực thành công!",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
               const Text(
                 "Để đảm bảo bảo mật theo tiêu chuẩn Google, vui lòng nhấn nút dưới đây để nhận Link đặt lại mật khẩu chính thức.",
@@ -175,17 +220,29 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
                 style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 32),
-              _buildActionButton("NHẬN LINK ĐẶT LẠI MẬT KHẨU", _sendFinalResetLink),
+              _buildActionButton(
+                "NHẬN LINK ĐẶT LẠI MẬT KHẨU",
+                _sendFinalResetLink,
+              ),
             ],
-            
-            if (_isLoading) const Padding(padding: EdgeInsets.only(top: 20), child: CircularProgressIndicator(color: Color(0xFFFF5C04))),
+
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 20),
+                child: CircularProgressIndicator(color: AppColors.gold),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {int? maxLength}) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    int? maxLength,
+  }) {
     return TextFormField(
       controller: controller,
       maxLength: maxLength,
@@ -193,10 +250,18 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white60),
-        prefixIcon: Icon(icon, color: const Color(0xFFFF5C04)),
-        fillColor: const Color(0xAA494A59),
+        prefixIcon: Icon(icon, color: AppColors.gold),
+        fillColor: Colors.white.withValues(alpha: 0.12),
         filled: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -207,8 +272,21 @@ class _ForgotPasswordOTPScreenState extends State<ForgotPasswordOTPScreen> {
       height: 55,
       child: ElevatedButton(
         onPressed: _isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C04), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-        child: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.gold,
+          foregroundColor: AppColors.primaryDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
       ),
     );
   }

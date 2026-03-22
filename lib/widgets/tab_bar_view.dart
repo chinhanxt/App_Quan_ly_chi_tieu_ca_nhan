@@ -1,3 +1,4 @@
+import 'package:app/utils/app_colors.dart';
 import 'package:app/widgets/transaction_list.dart';
 import 'package:flutter/material.dart';
 
@@ -19,7 +20,17 @@ class TypeTabBar extends StatelessWidget {
       child: Column(
         children: [
           TabBar(
-            tabs: [
+            indicator: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            labelColor: Colors.white,
+            unselectedLabelColor: AppColors.textMuted,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            tabs: const [
               Tab(text: "Thu Nhập"),
               Tab(text: "Chi Tiêu"),
             ],
@@ -43,4 +54,5 @@ class TypeTabBar extends StatelessWidget {
         ],
       ),
     );
-  }}
+  }
+}

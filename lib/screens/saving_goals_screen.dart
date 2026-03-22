@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -19,82 +20,153 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   final userId = FirebaseAuth.instance.currentUser?.uid;
   final currencyFormat = NumberFormat.decimalPattern('vi_VN');
 
+  List<SavingGoal> _parseGoals(QuerySnapshot snapshot) {
+    final goals = <SavingGoal>[];
+    for (final doc in snapshot.docs) {
+      try {
+        goals.add(
+          SavingGoal.fromFirestore(doc.id, doc.data() as Map<String, dynamic>),
+        );
+      } catch (e) {
+        debugPrint('Bo qua saving goal loi ${doc.id}: $e');
+      }
+    }
+    goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return goals;
+  }
+
+  Color _resolveGoalColor(String? rawColor) {
+    final normalized = (rawColor ?? '').trim();
+    if (normalized.isEmpty) {
+      return AppColors.accentStrong;
+    }
+    try {
+      if (normalized.startsWith('#')) {
+        return Color(int.parse(normalized.replaceFirst('#', '0xFF')));
+      }
+      if (normalized.startsWith('0x')) {
+        return Color(int.parse(normalized));
+      }
+      final numeric = int.tryParse(normalized);
+      if (numeric != null) {
+        return Color(numeric);
+      }
+      if (normalized.startsWith('Color(') && normalized.endsWith(')')) {
+        final inner = normalized.substring(6, normalized.length - 1);
+        final value = int.tryParse(inner);
+        if (value != null) {
+          return Color(value);
+        }
+      }
+    } catch (_) {
+      return AppColors.accentStrong;
+    }
+    return AppColors.accentStrong;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (userId == null)
+    if (userId == null) {
       return const Scaffold(body: Center(child: Text("Vui lòng đăng nhập")));
+    }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          "Mục tiêu Tiết kiệm",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+    return AppScaffold(
+      appBar: AppBar(title: const Text("Mục tiêu tiết kiệm")),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddGoalDialog(context),
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: StreamBuilder<QuerySnapshot>(
+      child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
             .collection('saving_goals')
-            .orderBy('created_at', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          final goals = snapshot.hasData
+              ? _parseGoals(snapshot.data!)
+              : <SavingGoal>[];
 
-          final goals =
-              snapshot.data?.docs
-                  .map(
-                    (doc) => SavingGoal.fromFirestore(
-                      doc.id,
-                      doc.data() as Map<String, dynamic>,
-                    ),
-                  )
-                  .toList() ??
-              [];
-
-          if (goals.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.savings_outlined,
-                    size: 80,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Chưa có mục tiêu tiết kiệm nào",
-                    style: TextStyle(color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () => _showAddGoalDialog(context),
-                    child: const Text("Tạo mục tiêu đầu tiên"),
-                  ),
-                ],
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            children: [
+              const AppHeroHeader(
+                title: "Tiết kiệm có mục tiêu",
+                subtitle:
+                    "Theo dõi tiến độ, nạp thêm tiền và quản lý từng cột mốc trong cùng một giao diện mới.",
               ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: goals.length,
-            itemBuilder: (context, index) {
-              final goal = goals[index];
-              return _buildGoalCard(goal);
-            },
+              const SizedBox(height: 14),
+              if (snapshot.hasError)
+                AppPanel(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: Colors.redAccent,
+                        size: 34,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "Không tải được mục tiêu",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "${snapshot.error}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (snapshot.connectionState == ConnectionState.waiting)
+                const Padding(
+                  padding: EdgeInsets.only(top: 48),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (goals.isEmpty)
+                const AppPanel(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.savings_outlined,
+                        size: 34,
+                        color: AppColors.primary,
+                      ),
+                      SizedBox(height: 14),
+                      Text(
+                        "Chưa có mục tiêu tiết kiệm",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        "Tạo mục tiêu đầu tiên để bắt đầu hành trình tích luỹ rõ ràng hơn.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...goals.map(_buildGoalCard),
+            ],
           );
         },
       ),
@@ -102,9 +174,18 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   }
 
   Widget _buildGoalCard(SavingGoal goal) {
-    bool isCompleted = goal.status == 'completed';
-    bool isWithdrawn = goal.status == 'withdrawn';
-    bool isEarlyWithdrawn = goal.status == 'early_withdrawn';
+    final isCompleted = goal.status == 'completed';
+    final isWithdrawn = goal.status == 'withdrawn';
+    final isEarlyWithdrawn = goal.status == 'early_withdrawn';
+    final goalColor = _resolveGoalColor(goal.color);
+    final statusLabel = isEarlyWithdrawn
+        ? "Rút sớm"
+        : (isWithdrawn
+              ? "Hoàn thành"
+              : (isCompleted ? "Đã đạt mục tiêu" : "Đang thực hiện"));
+    final statusColor = isEarlyWithdrawn
+        ? Colors.orange
+        : ((isCompleted || isWithdrawn) ? Colors.green : AppColors.textMuted);
 
     return InkWell(
       onTap: () {
@@ -115,165 +196,181 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
           ),
         );
       },
-      child: Card(
+      child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 0,
-        borderOnForeground: true,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Color(
-                        int.parse(goal.color.replaceFirst('#', '0xFF')),
-                      ).withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _getIconData(goal.icon),
-                      color: Color(
-                        int.parse(goal.color.replaceFirst('#', '0xFF')),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          goal.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          isEarlyWithdrawn
-                              ? "Rút sớm"
-                              : (isWithdrawn
-                                    ? "Hoàn thành"
-                                    : (isCompleted
-                                          ? "Đã đạt mục tiêu"
-                                          : "Đang thực hiện")),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isEarlyWithdrawn
-                                ? Colors.orange
-                                : ((isCompleted || isWithdrawn)
-                                      ? Colors.green
-                                      : Colors.grey[600]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!isWithdrawn && !isCompleted && !isEarlyWithdrawn)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.add_circle,
-                        color: AppColors.accentStrong,
-                      ),
-                      onPressed: () => _showAddMoneyDialog(goal),
-                    ),
-                  if (isCompleted && !isWithdrawn && !isEarlyWithdrawn)
-                    ElevatedButton(
-                      onPressed: () => _showWithdrawDialog(goal),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text("Rút tiền"),
-                    ),
-                  if (!isCompleted &&
-                      !isWithdrawn &&
-                      !isEarlyWithdrawn &&
-                      goal.currentAmount > 0)
-                    OutlinedButton(
-                      onPressed: () => _showWithdrawDialog(goal),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange,
-                        side: const BorderSide(color: Colors.orange),
-                      ),
-                      child: const Text("Rút sớm"),
-                    ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _deleteGoal(goal),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "${currencyFormat.format(goal.currentAmount)} VND",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    "${currencyFormat.format(goal.targetAmount)} VND",
-                    style: TextStyle(color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: goal.progress,
-                  minHeight: 10,
-                  backgroundColor: Colors.grey[100],
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    (isCompleted || isWithdrawn)
-                        ? Colors.green
-                        : (isEarlyWithdrawn
-                              ? Colors.orange
-                              : Color(
-                                  int.parse(
-                                    goal.color.replaceFirst('#', '0xFF'),
-                                  ),
-                                )),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (!isCompleted && !isWithdrawn && !isEarlyWithdrawn)
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, goalColor.withValues(alpha: 0.05)],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.accentSoft,
-                    borderRadius: BorderRadius.circular(12),
+                    color: goalColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Row(
+                  child: Icon(_getIconData(goal.icon), color: goalColor),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.lightbulb_outline,
-                        size: 16,
-                        color: AppColors.accentStrong,
+                      Text(
+                        goal.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Cần tiết kiệm ${currencyFormat.format(goal.dailySavingRequired)} VND/ngày để kịp tiến độ (${goal.daysLeft} ngày còn lại)",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.accentStrong,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-            ],
-          ),
+                IconButton(
+                  tooltip: "Xóa mục tiêu",
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => _deleteGoal(goal),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (!isWithdrawn && !isCompleted && !isEarlyWithdrawn)
+                  FilledButton.icon(
+                    onPressed: () => _showAddMoneyDialog(goal),
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      size: 18,
+                    ),
+                    label: const Text("Thêm tiền"),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accentStrong,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                if (isCompleted && !isWithdrawn && !isEarlyWithdrawn)
+                  FilledButton(
+                    onPressed: () => _showWithdrawDialog(goal),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text("Rút tiền"),
+                  ),
+                if (!isCompleted &&
+                    !isWithdrawn &&
+                    !isEarlyWithdrawn &&
+                    goal.currentAmount > 0)
+                  OutlinedButton(
+                    onPressed: () => _showWithdrawDialog(goal),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text("Rút sớm"),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "${currencyFormat.format(goal.currentAmount)} VND",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  "${currencyFormat.format(goal.targetAmount)} VND",
+                  style: TextStyle(color: Colors.grey[500]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: goal.progress,
+                minHeight: 10,
+                backgroundColor: Colors.grey[100],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  (isCompleted || isWithdrawn)
+                      ? Colors.green
+                      : (isEarlyWithdrawn ? Colors.orange : goalColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (!isCompleted && !isWithdrawn && !isEarlyWithdrawn)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.lightbulb_outline,
+                      size: 16,
+                      color: AppColors.accentStrong,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Cần tiết kiệm ${currencyFormat.format(goal.dailySavingRequired)} VND/ngày để kịp tiến độ (${goal.daysLeft} ngày còn lại)",
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.accentStrong,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );

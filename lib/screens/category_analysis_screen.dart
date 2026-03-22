@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -52,15 +53,9 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
     if (user == null)
       return const Scaffold(body: Center(child: Text("Lỗi xác thực")));
 
-    return Scaffold(
-      backgroundColor: const Color(
-        0xFFF8FAFC,
-      ), // Màu nền xám xanh nhạt hiện đại
+    return AppScaffold(
       appBar: AppBar(
         title: Text("Phân tích: ${widget.categoryName}"),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
         actions: [
           IconButton(
             onPressed: _selectDateRange,
@@ -68,7 +63,7 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
+      child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -110,32 +105,36 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
               totalAmount / (_selectedDateRange.duration.inDays + 1);
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                AppHeroHeader(
+                  title: widget.categoryName,
+                  subtitle:
+                      "Phân tích xu hướng chi tiêu theo danh mục trong khoảng thời gian đang chọn.",
+                  trailing: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.analytics_outlined,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 _buildHeaderInfo(totalAmount, average),
-                const SizedBox(height: 30),
-                const Text(
-                  "Xu hướng chi tiêu",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                const AppSectionTitle(title: "Xu hướng chi tiêu"),
+                const SizedBox(height: 12),
                 _buildModernChart(dailyData),
-                const SizedBox(height: 32),
-                const Text(
-                  "Lịch sử chi tiết",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                const AppSectionTitle(title: "Lịch sử chi tiết"),
+                const SizedBox(height: 12),
                 _buildTransactionList(docs),
               ],
             ),
@@ -149,17 +148,13 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primaryLight, AppColors.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.24),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: AppColors.primary.withValues(alpha: 0.20),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -241,12 +236,13 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
       padding: const EdgeInsets.fromLTRB(10, 24, 24, 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.06)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -316,8 +312,8 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
                 show: true,
                 gradient: LinearGradient(
                   colors: [
-                    AppColors.accentStrong.withOpacity(0.2),
-                    AppColors.accentStrong.withOpacity(0.0),
+                    AppColors.accentStrong.withValues(alpha: 0.2),
+                    AppColors.accentStrong.withValues(alpha: 0.0),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -358,9 +354,15 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF1F5F9)),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, Color(0xFFF5FAF7)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.06),
+            ),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
@@ -400,18 +402,10 @@ class _CategoryAnalysisScreenState extends State<CategoryAnalysisScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.analytics_outlined, size: 80, color: Colors.grey[200]),
-          const SizedBox(height: 16),
-          Text(
-            "Không có dữ liệu phân tích",
-            style: TextStyle(color: Colors.grey[400], fontSize: 16),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.analytics_outlined,
+      title: "Không có dữ liệu phân tích",
+      message: "Chưa có giao dịch phù hợp trong khoảng thời gian đã chọn.",
     );
   }
 }

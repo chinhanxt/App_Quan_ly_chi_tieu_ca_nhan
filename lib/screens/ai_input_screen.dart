@@ -5,11 +5,14 @@ import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/quick_template.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
+import 'package:app/utils/ocr_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -23,11 +26,11 @@ class AIInputScreen extends StatefulWidget {
 
 class _AIInputScreenState extends State<AIInputScreen>
     with SingleTickerProviderStateMixin {
-  static const Color _accentBlue = Color(0xFF67A6FF);
-  static const Color _accentCyan = Color(0xFF5DEBFF);
-  static const Color _accentViolet = Color(0xFF8A72FF);
-  static const Color _accentPink = Color(0xFFD77DFF);
-  static const Color _surfaceInk = Color(0xFFF5F7FF);
+  static const Color _accentBlue = Color(0xFF68B69E);
+  static const Color _accentCyan = Color(0xFF8AD6C0);
+  static const Color _accentViolet = Color(0xFF5D8F86);
+  static const Color _accentPink = Color(0xFFD6B872);
+  static const Color _surfaceInk = Color(0xFFF7FAF7);
   static const List<Color> _suggestionAccents = <Color>[
     _accentBlue,
     _accentCyan,
@@ -259,7 +262,8 @@ class _AIInputScreenState extends State<AIInputScreen>
 
       categories.add(<String, dynamic>{
         'name': name,
-        'iconName': item['iconName']?.toString() ??
+        'iconName':
+            item['iconName']?.toString() ??
             (item['type']?.toString() == 'credit'
                 ? 'moneyBillWave'
                 : 'cartShopping'),
@@ -270,8 +274,8 @@ class _AIInputScreenState extends State<AIInputScreen>
       addCategory(doc.data());
     }
 
-    for (final item in (userData?['customCategories'] as List<dynamic>? ??
-        <dynamic>[])) {
+    for (final item
+        in (userData?['customCategories'] as List<dynamic>? ?? <dynamic>[])) {
       if (item is Map) {
         addCategory(Map<String, dynamic>.from(item));
       }
@@ -315,7 +319,8 @@ class _AIInputScreenState extends State<AIInputScreen>
           (results.last as QuerySnapshot<Map<String, dynamic>>).docs;
     } catch (_) {
       userData = null;
-      globalCategoryDocs = const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      globalCategoryDocs =
+          const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     }
 
     return _buildAvailableCategories(
@@ -461,6 +466,228 @@ class _AIInputScreenState extends State<AIInputScreen>
         _scrollController.jumpTo(target);
       }
     });
+  }
+
+  String _detectTransactionType(String text) {
+    final normalized = text.toLowerCase();
+    const creditHints = <String>[
+      'lương',
+      'thưởng',
+      'thu',
+      'hoàn tiền',
+      'hoàn',
+      'nhận',
+      'tiền về',
+      'được hoàn tiền',
+    ];
+    for (final hint in creditHints) {
+      if (normalized.contains(hint)) {
+        return 'credit';
+      }
+    }
+    return 'debit';
+  }
+
+  String _detectCategory(String text, String type) {
+    final normalized = text.toLowerCase();
+    if (type == 'credit') {
+      return 'Lương';
+    }
+    if (normalized.contains('xăng') ||
+        normalized.contains('grab') ||
+        normalized.contains('taxi') ||
+        normalized.contains('xe')) {
+      return 'Di chuyển';
+    }
+    if (normalized.contains('ăn') ||
+        normalized.contains('bún') ||
+        normalized.contains('phở') ||
+        normalized.contains('cafe') ||
+        normalized.contains('trà')) {
+      return 'Ăn uống';
+    }
+    if (normalized.contains('shopee') ||
+        normalized.contains('mua') ||
+        normalized.contains('siêu thị')) {
+      return 'Mua sắm';
+    }
+    return 'Khác';
+  }
+
+  DateTime _parseOcrDate(String? rawDate) {
+    if (rawDate == null || rawDate.trim().isEmpty) {
+      return DateTime.now();
+    }
+    final normalized = rawDate.replaceAll('-', '/').trim();
+    try {
+      return DateFormat('dd/MM/yyyy').parseStrict(normalized);
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  Future<void> _scanTransactionFromImage(ImageSource source) async {
+    if (_isProcessing) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final result = await OcrHelper.scanImage(source);
+      if (!mounted) {
+        return;
+      }
+
+      if (result.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không đọc được nội dung từ ảnh.')),
+        );
+        return;
+      }
+
+      final now = DateTime.now();
+      final title = (result['title'] ?? 'Giao dịch từ ảnh').trim();
+      final note = (result['note'] ?? 'Đã nhập từ ảnh').trim();
+      final amount = int.tryParse(result['amount'] ?? '') ?? 0;
+      final transactionDate = _parseOcrDate(result['date']);
+      final type = _detectTransactionType('$title $note');
+      final category = _detectCategory('$title $note', type);
+      final iconName = category == 'Lương'
+          ? 'moneyBillWave'
+          : category == 'Di chuyển'
+          ? 'car'
+          : category == 'Ăn uống'
+          ? 'utensils'
+          : category == 'Mua sắm'
+          ? 'cartShopping'
+          : 'ellipsis';
+
+      final userMessage = AIChatMessage(
+        id: _uuid.v4(),
+        sender: AIChatSender.user,
+        text: source == ImageSource.camera
+            ? 'Nhập giao dịch bằng ảnh chụp'
+            : 'Nhập giao dịch bằng ảnh từ thư viện',
+        timestamp: now,
+        status: 'user',
+      );
+
+      final aiMessage = AIChatMessage(
+        id: _uuid.v4(),
+        sender: AIChatSender.ai,
+        text:
+            'Mình đã đọc thông tin từ ảnh và tạo sẵn một giao dịch nháp để bạn kiểm tra rồi lưu.',
+        timestamp: now,
+        status: 'success',
+        transactions: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'title': title,
+            'amount': amount,
+            'type': type,
+            'category': category,
+            'note': note,
+            'date': DateFormat('dd/MM/yyyy').format(transactionDate),
+            'time': DateFormat('HH:mm').format(now),
+            'dateTime': DateFormat('dd/MM/yyyy HH:mm').format(now),
+            'isNewCategory': false,
+            'confirmCreateCategory': false,
+            'suggestedIcon': iconName,
+            'fallbackCategory': category,
+            'fallbackIconName': iconName,
+          },
+        ],
+      );
+
+      setState(() {
+        _messages
+          ..add(userMessage)
+          ..add(aiMessage);
+      });
+      await _persistChatHistory();
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể nhập giao dịch từ ảnh: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  void _showImageImportOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded),
+                title: const Text('Chụp ảnh giao dịch'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _scanTransactionFromImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Chọn ảnh từ thư viện'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _scanTransactionFromImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _clearConversation() async {
+    final shouldClear = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Xóa cuộc trò chuyện'),
+          content: const Text(
+            'Bạn có chắc muốn xóa toàn bộ nội dung trò chuyện hiện tại không?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Xóa'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldClear != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _messages.clear();
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey());
   }
 
   Future<void> _submitInput({String? preset}) async {
@@ -612,7 +839,8 @@ class _AIInputScreenState extends State<AIInputScreen>
           (results.last as QuerySnapshot<Map<String, dynamic>>).docs;
     } catch (_) {
       userData = null;
-      globalCategoryDocs = const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      globalCategoryDocs =
+          const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     }
 
     if (!mounted) return null;
@@ -641,8 +869,8 @@ class _AIInputScreenState extends State<AIInputScreen>
     var selectedCategory = categoryController.text.trim().isNotEmpty
         ? categoryController.text.trim()
         : (availableCategories.isNotEmpty
-            ? availableCategories.first['name'] as String
-            : '');
+              ? availableCategories.first['name'] as String
+              : '');
     categoryController.text = selectedCategory;
 
     final result = await showModalBottomSheet<QuickTemplate>(
@@ -766,7 +994,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                       const SizedBox(height: 12),
                       _buildQuickTemplateDropdown(
                         label: 'Danh mục',
-                        value: selectedCategory.isEmpty ? null : selectedCategory,
+                        value: selectedCategory.isEmpty
+                            ? null
+                            : selectedCategory,
                         categories: availableCategories,
                         onChanged: (value) {
                           if (value == null) return;
@@ -1188,7 +1418,8 @@ class _AIInputScreenState extends State<AIInputScreen>
     for (final tx in message.transactions) {
       if (tx['isNewCategory'] == true &&
           (tx['confirmCreateCategory'] ?? true) == false) {
-        final fallbackCategory = tx['fallbackCategory']?.toString().trim() ?? '';
+        final fallbackCategory =
+            tx['fallbackCategory']?.toString().trim() ?? '';
         if (fallbackCategory.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1455,19 +1686,23 @@ class _AIInputScreenState extends State<AIInputScreen>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: const Color(0xFFFFFCF7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
           ),
           child: TextField(
             controller: controller,
             keyboardType: keyboardType,
             inputFormatters: inputFormatters,
             maxLines: maxLines,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: AppColors.primary,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+              hintStyle: const TextStyle(color: AppColors.textMuted),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
@@ -1500,21 +1735,25 @@ class _AIInputScreenState extends State<AIInputScreen>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: const Color(0xFFFFFCF7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-              dropdownColor: const Color(0xFF3C315C),
-              iconEnabledColor: Colors.white.withValues(alpha: 0.8),
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              dropdownColor: const Color(0xFFFFFCF7),
+              iconEnabledColor: AppColors.textPrimary,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
               hint: Text(
                 'Chọn danh mục',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                style: const TextStyle(color: AppColors.textMuted),
               ),
               items: categories.map((item) {
                 final name = item['name']?.toString() ?? '';
@@ -1524,17 +1763,10 @@ class _AIInputScreenState extends State<AIInputScreen>
                   value: name,
                   child: Row(
                     children: [
-                      Icon(
-                        iconData,
-                        size: 16,
-                        color: Colors.white.withValues(alpha: 0.88),
-                      ),
+                      Icon(iconData, size: 16, color: AppColors.textPrimary),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(name, overflow: TextOverflow.ellipsis),
                       ),
                     ],
                   ),
@@ -1642,7 +1874,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Trợ lý AI",
+                        "Trợ lý thông minh",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -2206,12 +2438,10 @@ class _AIInputScreenState extends State<AIInputScreen>
                                           final selectedCategory =
                                               categoryOptions.firstWhere(
                                                 (item) => item['name'] == value,
-                                                orElse: () =>
-                                                    <String, dynamic>{
-                                                      'name': value,
-                                                      'iconName':
-                                                          'cartShopping',
-                                                    },
+                                                orElse: () => <String, dynamic>{
+                                                  'name': value,
+                                                  'iconName': 'cartShopping',
+                                                },
                                               );
                                           _updateTransactionField(
                                             messageId: message.id,
@@ -2418,6 +2648,42 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             ),
             GestureDetector(
+              onTap: _isProcessing ? null : _showImageImportOptions,
+              child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Nhập ảnh",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            GestureDetector(
               onTap: _openQuickTemplateManager,
               child: Container(
                 width: 28,
@@ -2566,7 +2832,7 @@ class _AIInputScreenState extends State<AIInputScreen>
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.09),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -2581,24 +2847,28 @@ class _AIInputScreenState extends State<AIInputScreen>
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
+                          color: AppColors.primaryDark.withValues(alpha: 0.74),
                           borderRadius: BorderRadius.circular(22),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: Colors.white.withValues(alpha: 0.12),
                           ),
                         ),
                         child: TextField(
                           controller: _inputController,
                           minLines: 1,
                           maxLines: 4,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                           textInputAction: TextInputAction.send,
                           onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => _submitInput(),
                           decoration: InputDecoration(
+                            filled: false,
                             hintText: "Nhắn khoản thu/chi của bạn...",
                             hintStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.45),
+                              color: Colors.white.withValues(alpha: 0.62),
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
@@ -2617,9 +2887,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                         onPressed: canSend ? _submitInput : null,
                         style: ElevatedButton.styleFrom(
                           padding: EdgeInsets.zero,
-                          backgroundColor: const Color(0xFF0F5BD8),
+                          backgroundColor: AppColors.gold,
                           disabledBackgroundColor: Colors.white.withValues(
-                            alpha: 0.12,
+                            alpha: 0.16,
                           ),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -2642,7 +2912,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1C0638),
+      backgroundColor: const Color(0xFF102320),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -2653,6 +2923,12 @@ class _AIInputScreenState extends State<AIInputScreen>
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            color: Colors.white,
+            tooltip: 'Xóa cuộc trò chuyện',
+            onPressed: _messages.isEmpty ? null : _clearConversation,
+          ),
           IconButton(
             icon: const Icon(Icons.help_outline_rounded),
             color: Colors.white,
@@ -2673,7 +2949,7 @@ class _AIInputScreenState extends State<AIInputScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF2348B8), Color(0xFF40168A), Color(0xFF21042F)],
+            colors: [Color(0xFF163A33), Color(0xFF1E4D42), Color(0xFF18453C)],
           ),
         ),
         child: Stack(
@@ -2686,7 +2962,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                 height: 180,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF6D6CFF).withValues(alpha: 0.18),
+                  color: AppColors.gold.withValues(alpha: 0.12),
                 ),
               ),
             ),
@@ -2698,7 +2974,19 @@ class _AIInputScreenState extends State<AIInputScreen>
                 height: 220,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF13B9FF).withValues(alpha: 0.14),
+                  color: AppColors.accentStrong.withValues(alpha: 0.18),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -80,
+              right: -30,
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.accent.withValues(alpha: 0.16),
                 ),
               ),
             ),
@@ -2711,6 +2999,24 @@ class _AIInputScreenState extends State<AIInputScreen>
                     colors: [
                       Colors.white.withValues(alpha: 0.06),
                       Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 220,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      AppColors.accentStrong.withValues(alpha: 0.16),
                     ],
                   ),
                 ),

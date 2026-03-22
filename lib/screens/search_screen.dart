@@ -1,4 +1,5 @@
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/transaction_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -203,20 +204,36 @@ class _SearchScreenState extends State<SearchScreen> {
             children: [
               TextField(
                 controller: minController,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+                cursorColor: AppColors.primary,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: false,
                 ),
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Từ (Tối thiểu)'),
+                decoration: const InputDecoration(
+                  labelText: 'Từ (Tối thiểu)',
+                  fillColor: Color(0xFFFFF9F1),
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: maxController,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+                cursorColor: AppColors.primary,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: false,
                 ),
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Đến (Tối đa)'),
+                decoration: const InputDecoration(
+                  labelText: 'Đến (Tối đa)',
+                  fillColor: Color(0xFFFFF9F1),
+                ),
               ),
             ],
           ),
@@ -255,148 +272,158 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final filtered = _filteredTransactions;
 
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Tìm theo tên, ghi chú...',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-            border: InputBorder.none,
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.white),
-                    onPressed: () {
-                      _searchController.clear();
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        title: const Text('Tìm kiếm giao dịch'),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: AppHeroHeader(
+              title: "Tìm giao dịch",
+              subtitle:
+                  "Lọc nhanh theo từ khóa, danh mục, thời gian và khoảng tiền trong cùng một chỗ.",
+              trailing: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.manage_search_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AppPanel(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    cursorColor: AppColors.primary,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo tên, ghi chú hoặc danh mục...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      fillColor: Color(0xFFFFF9F1),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = "";
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (val) {
                       setState(() {
-                        _searchQuery = "";
+                        _searchQuery = val;
                       });
                     },
-                  )
-                : null,
-          ),
-          onChanged: (val) {
-            setState(() {
-              _searchQuery = val;
-            });
-          },
-        ),
-      ),
-      body: Column(
-        children: [
-          // Filter Chips Scrollable Bar
-          Container(
-            color: AppColors.accentSoft,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // Lọc Loại
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      label: Text('Loại: $_selectedType'),
-                      avatar: const Icon(Icons.swap_horiz, size: 16),
-                      onPressed: () {
-                        setState(() {
-                          if (_selectedType == 'Tất cả') {
-                            _selectedType = 'Thu Nhập';
-                          } else if (_selectedType == 'Thu Nhập') {
-                            _selectedType = 'Chi Tiêu';
-                          } else {
-                            _selectedType = 'Tất cả';
-                          }
-                        });
-                      },
-                      backgroundColor: _selectedType != 'Tất cả'
-                          ? AppColors.accentSoft
-                          : Colors.white,
-                    ),
                   ),
-
-                  // Lọc Danh mục
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      label: Text('Danh mục: $_selectedCategory'),
-                      avatar: const Icon(Icons.category, size: 16),
-                      onPressed: () {
-                        showModalBottomSheet(
-                          context: context,
-                          builder: (context) {
-                            return ListView.builder(
-                              itemCount: _availableCategories.length,
-                              itemBuilder: (context, index) {
-                                final cat = _availableCategories[index];
-                                return ListTile(
-                                  title: Text(cat),
-                                  trailing: _selectedCategory == cat
-                                      ? const Icon(
-                                          Icons.check,
-                                          color: AppColors.accentStrong,
-                                        )
-                                      : null,
-                                  onTap: () {
-                                    setState(() => _selectedCategory = cat);
-                                    Navigator.pop(context);
-                                  },
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                      backgroundColor: _selectedCategory != 'Tất cả'
-                          ? AppColors.accentSoft
-                          : Colors.white,
-                    ),
-                  ),
-
-                  // Lọc Thời gian
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      label: Text(
-                        _startDate != null
-                            ? DateFormat('dd/MM/yyyy').format(_startDate!)
-                            : 'Thời gian',
-                      ),
-                      avatar: const Icon(Icons.date_range, size: 16),
-                      onPressed: _showDatePicker,
-                      backgroundColor: _startDate != null
-                          ? AppColors.accentSoft
-                          : Colors.white,
-                    ),
-                  ),
-
-                  // Lọc Số tiền
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      label: Text(
-                        _minAmount != null || _maxAmount != null
-                            ? 'Đã lọc số tiền'
-                            : 'Số tiền',
-                      ),
-                      avatar: const Icon(Icons.attach_money, size: 16),
-                      onPressed: _showAmountFilterDialog,
-                      backgroundColor: _minAmount != null || _maxAmount != null
-                          ? AppColors.accentSoft
-                          : Colors.white,
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: AppPill(
+                            label: 'Loại: $_selectedType',
+                            icon: Icons.swap_horiz_rounded,
+                            isActive: _selectedType != 'Tất cả',
+                            onTap: () {
+                              setState(() {
+                                if (_selectedType == 'Tất cả') {
+                                  _selectedType = 'Thu Nhập';
+                                } else if (_selectedType == 'Thu Nhập') {
+                                  _selectedType = 'Chi Tiêu';
+                                } else {
+                                  _selectedType = 'Tất cả';
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: AppPill(
+                            label: 'Danh mục: $_selectedCategory',
+                            icon: Icons.category_outlined,
+                            isActive: _selectedCategory != 'Tất cả',
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                showDragHandle: true,
+                                builder: (context) {
+                                  return ListView.builder(
+                                    itemCount: _availableCategories.length,
+                                    itemBuilder: (context, index) {
+                                      final cat = _availableCategories[index];
+                                      return ListTile(
+                                        title: Text(cat),
+                                        trailing: _selectedCategory == cat
+                                            ? const Icon(
+                                                Icons.check,
+                                                color: AppColors.accentStrong,
+                                              )
+                                            : null,
+                                        onTap: () {
+                                          setState(
+                                            () => _selectedCategory = cat,
+                                          );
+                                          Navigator.pop(context);
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: AppPill(
+                            label: _startDate != null
+                                ? DateFormat('dd/MM/yyyy').format(_startDate!)
+                                : 'Thời gian',
+                            icon: Icons.date_range_rounded,
+                            isActive: _startDate != null,
+                            onTap: _showDatePicker,
+                          ),
+                        ),
+                        AppPill(
+                          label: _minAmount != null || _maxAmount != null
+                              ? 'Khoảng tiền'
+                              : 'Số tiền',
+                          icon: Icons.payments_outlined,
+                          isActive: _minAmount != null || _maxAmount != null,
+                          onTap: _showAmountFilterDialog,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // Hiển thị nút Xóa bộ lọc nếu có lọc
           if (_selectedType != 'Tất cả' ||
               _selectedCategory != 'Tất cả' ||
               _startDate != null ||
@@ -404,61 +431,57 @@ class _SearchScreenState extends State<SearchScreen> {
               _maxAmount != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  const Text(
-                    'Đang lọc kết quả',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _selectedType = 'Tất cả';
-                        _selectedCategory = 'Tất cả';
-                        _startDate = null;
-                        _endDate = null;
-                        _minAmount = null;
-                        _maxAmount = null;
-                      });
-                    },
-                    icon: const Icon(Icons.clear_all, size: 16),
-                    label: const Text('Xóa lọc'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
+              child: AppPanel(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Tìm thấy ${filtered.length} kết quả phù hợp',
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _selectedType = 'Tất cả';
+                          _selectedCategory = 'Tất cả';
+                          _startDate = null;
+                          _endDate = null;
+                          _minAmount = null;
+                          _maxAmount = null;
+                        });
+                      },
+                      icon: const Icon(Icons.clear_all, size: 16),
+                      label: const Text('Xóa lọc'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-
-          // Kết quả tìm kiếm
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchQuery.isEmpty &&
-                                  _selectedType == 'Tất cả' &&
-                                  _selectedCategory == 'Tất cả' &&
-                                  _startDate == null &&
-                                  _minAmount == null
-                              ? 'Nhập từ khóa hoặc chọn bộ lọc để tìm kiếm'
-                              : 'Không tìm thấy giao dịch nào phù hợp!',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
+                ? AppEmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: "Không tìm thấy giao dịch",
+                    message:
+                        _searchQuery.isEmpty &&
+                            _selectedType == 'Tất cả' &&
+                            _selectedCategory == 'Tất cả' &&
+                            _startDate == null &&
+                            _minAmount == null
+                        ? 'Nhập từ khóa hoặc chọn bộ lọc để bắt đầu tìm kiếm.'
+                        : 'Không có giao dịch nào khớp với bộ lọc hiện tại.',
                   )
                 : ListView.builder(
                     itemCount: filtered.length,

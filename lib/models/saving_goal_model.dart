@@ -26,17 +26,66 @@ class SavingGoal {
   });
 
   factory SavingGoal.fromFirestore(String id, Map<String, dynamic> data) {
+    DateTime readDate(dynamic value, {DateTime? fallback}) {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      if (value is DateTime) {
+        return value;
+      }
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      if (value is String) {
+        return DateTime.tryParse(value) ?? (fallback ?? DateTime.now());
+      }
+      return fallback ?? DateTime.now();
+    }
+
+    int readInt(dynamic value) {
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      if (value is String) {
+        return int.tryParse(value) ?? 0;
+      }
+      return 0;
+    }
+
+    String readString(dynamic value, {String fallback = ''}) {
+      if (value == null) {
+        return fallback;
+      }
+      if (value is String) {
+        final trimmed = value.trim();
+        return trimmed.isEmpty ? fallback : trimmed;
+      }
+      return value.toString();
+    }
+
     return SavingGoal(
       id: id,
-      name: data['goal_name'] ?? '',
-      targetAmount: data['target_amount'] ?? 0,
-      currentAmount: data['current_amount'] ?? 0,
-      startDate: (data['start_date'] as Timestamp).toDate(),
-      targetDate: (data['target_date'] as Timestamp).toDate(),
-      icon: data['icon'] ?? 'star',
-      color: data['color'] ?? '#3498DB',
-      status: data['status'] ?? 'active',
-      createdAt: (data['created_at'] as Timestamp).toDate(),
+      name: readString(data['goal_name'] ?? data['name']),
+      targetAmount: readInt(data['target_amount'] ?? data['targetAmount']),
+      currentAmount: readInt(data['current_amount'] ?? data['currentAmount']),
+      startDate: readDate(
+        data['start_date'] ?? data['startDate'],
+        fallback: DateTime.now(),
+      ),
+      targetDate: readDate(
+        data['target_date'] ?? data['targetDate'],
+        fallback: DateTime.now().add(const Duration(days: 30)),
+      ),
+      icon: readString(data['icon'], fallback: 'star'),
+      color: readString(data['color'], fallback: '#3498DB'),
+      status: readString(data['status'], fallback: 'active'),
+      createdAt: readDate(
+        data['created_at'] ?? data['createdAt'],
+        fallback: DateTime.now(),
+      ),
     );
   }
 
@@ -60,7 +109,7 @@ class SavingGoal {
     final diff = targetDate.difference(DateTime.now()).inDays;
     return diff > 0 ? diff : 0;
   }
-  
+
   int get dailySavingRequired {
     if (daysLeft <= 0) return remainingToSave > 0 ? remainingToSave : 0;
     return (remainingToSave / daysLeft).round();

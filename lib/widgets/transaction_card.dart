@@ -1,4 +1,5 @@
 import 'package:app/services/db.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/widgets/edit_transactions_form.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +25,7 @@ class TransactionCard extends StatelessWidget {
         timestamp = int.tryParse(data['timestamp'].toString()) ?? 0;
       }
     }
-    
+
     DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     String formatedDate = DateFormat('dd/MM/yyyy HH:mm').format(date);
 
@@ -39,40 +40,47 @@ class TransactionCard extends StatelessWidget {
       num.tryParse(data['remainingAmount']?.toString() ?? '0') ?? 0,
     );
 
+    final accentColor = data['type'] == 'credit'
+        ? const Color(0xFF1D9A63)
+        : const Color(0xFFC45A43);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, accentColor.withValues(alpha: 0.04)],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.06)),
           boxShadow: [
             BoxShadow(
-              offset: const Offset(0, 10),
-              color: Colors.grey.withValues(alpha: 0.09),
-              blurRadius: 10.0,
-              spreadRadius: 4.0,
+              offset: const Offset(0, 12),
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 18,
             ),
           ],
         ),
         child: ListTile(
           minVerticalPadding: 10,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          ),
           leading: SizedBox(
-            width: 70,
-            height: 100,
+            width: 58,
+            height: 58,
             child: Container(
-              width: 30,
-              height: 30,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                color: data['type'] == 'credit'
-                    ? Colors.green.withValues(alpha: 0.2)
-                    : Colors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(18),
+                color: accentColor.withValues(alpha: 0.14),
               ),
               child: Center(
                 child: FaIcon(
                   appIcons.getExpenseCategoryIcons('${data['category'] ?? ''}'),
-                  color: data['type'] == 'credit' ? Colors.green : Colors.red,
+                  color: accentColor,
                 ),
               ),
             ),
@@ -83,7 +91,10 @@ class TransactionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   "${data['title'] ?? 'Không có tiêu đề'}",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Column(
@@ -92,9 +103,7 @@ class TransactionCard extends StatelessWidget {
                   Text(
                     "${data['type'] == 'credit' ? '+' : '-'}$formattedAmount VND",
                     style: TextStyle(
-                      color: data['type'] == 'credit'
-                          ? Colors.green
-                          : Colors.red,
+                      color: accentColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -110,21 +119,24 @@ class TransactionCard extends StatelessWidget {
               ),
             ],
           ),
-          subtitle: data['note'] != null && data['note'].toString().trim().isNotEmpty
+          subtitle:
+              data['note'] != null && data['note'].toString().trim().isNotEmpty
               ? Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     "${data['note']}",
                     style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic),
+                      color: Colors.grey[600],
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 )
               : null,
           trailing: PopupMenuButton(
+            color: Colors.white,
             itemBuilder: (BuildContext context) => [
               PopupMenuItem(
                 value: 'edit',

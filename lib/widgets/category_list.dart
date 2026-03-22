@@ -15,7 +15,6 @@ class CategoryList extends StatefulWidget {
 
 class _CategoryListState extends State<CategoryList> {
   static const Color _selectedCategoryColor = Color(0xFF5EAA74);
-  static const Color _unselectedCategoryFill = Color(0xFFE9F1EA);
   static const Color _unselectedCategoryText = Color(0xFF4F8C79);
 
   String currentCategory = "Tất cả";
@@ -50,24 +49,34 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const SizedBox(height: 55, child: Center(child: Text("Không có user")));
+      return const SizedBox(
+        height: 55,
+        child: Center(child: Text("Không có user")),
+      );
     }
 
     return SizedBox(
-      height: 55,
+      height: 62,
       child: StreamBuilder<QuerySnapshot>(
         // Lấy danh mục hệ thống (mặc định cho tất cả user)
-        stream: FirebaseFirestore.instance.collection('categories').orderBy('createdAt').snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('categories')
+            .orderBy('createdAt')
+            .snapshots(),
         builder: (context, globalSnapshot) {
           return StreamBuilder<DocumentSnapshot>(
             // Lấy danh mục riêng của user
-            stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .snapshots(),
             builder: (context, userSnapshot) {
               if (globalSnapshot.hasError || userSnapshot.hasError) {
                 return const Center(child: Text('Lỗi tải danh mục'));
               }
 
-              if (globalSnapshot.connectionState == ConnectionState.waiting && categoryList.isEmpty) {
+              if (globalSnapshot.connectionState == ConnectionState.waiting &&
+                  categoryList.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
 
@@ -86,7 +95,8 @@ class _CategoryListState extends State<CategoryList> {
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
                 final data = userSnapshot.data!.data() as Map<String, dynamic>?;
                 if (data != null) {
-                  final customCategories = data['customCategories'] as List<dynamic>? ?? [];
+                  final customCategories =
+                      data['customCategories'] as List<dynamic>? ?? [];
                   for (var cat in customCategories) {
                     if (cat is Map<String, dynamic>) {
                       final iconName = cat['iconName'] as String?;
@@ -104,7 +114,10 @@ class _CategoryListState extends State<CategoryList> {
               // Tổng hợp danh mục: Tất cả + Hệ thống (do Admin quản lý) + Custom (của riêng User)
               categoryList = [
                 addCat,
-                if (systemCategories.isEmpty) ...appIcons.defaultCategories else ...systemCategories,
+                if (systemCategories.isEmpty)
+                  ...appIcons.defaultCategories
+                else
+                  ...systemCategories,
                 ...loadedCustomCategories,
               ];
 
@@ -125,17 +138,28 @@ class _CategoryListState extends State<CategoryList> {
                     },
                     child: Container(
                       margin: const EdgeInsets.all(6),
-                      padding: const EdgeInsets.only(left: 10, right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(
                         color: currentCategory == data['name']
                             ? _selectedCategoryColor
-                            : _unselectedCategoryFill,
-                        borderRadius: BorderRadius.circular(20),
+                            : Colors.white.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(24),
                         border: Border.all(
                           color: currentCategory == data['name']
                               ? _selectedCategoryColor
-                              : AppColors.accentSoft,
+                              : AppColors.primary.withValues(alpha: 0.08),
                         ),
+                        boxShadow: currentCategory == data['name']
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.16,
+                                  ),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Center(
                         child: Row(

@@ -1,6 +1,7 @@
 import 'package:app/models/budget_model.dart';
 import 'package:app/services/db.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/budget_progress_card.dart';
 import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -78,22 +79,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
     displayMonthYear =
         displayMonthYear[0].toUpperCase() + displayMonthYear.substring(1);
 
-    return Scaffold(
-      appBar: AppBar(
+    return AppScaffold(
+      appBar: AppBar(title: const Text('Ngân sách')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddBudgetDialog(context),
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'Ngân Sách',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: Column(
+      child: Column(
         children: [
           Container(
-            color: const Color(0xFF3498DB),
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: AppColors.heroGradient,
+              borderRadius: BorderRadius.circular(28),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -151,23 +152,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 final budgets = budgetSnapshot.data ?? [];
 
                 if (budgets.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 64,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Chưa có ngân sách nào trong tháng này.\nHãy nhấn + để thêm mới.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
+                  return const AppEmptyState(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: "Chưa có ngân sách",
+                    message:
+                        "Hãy nhấn nút + để tạo ngân sách đầu tiên cho tháng này.",
                   );
                 }
 
@@ -212,11 +201,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddBudgetDialog(context),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

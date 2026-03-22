@@ -57,16 +57,45 @@ class Cards extends StatelessWidget {
     );
 
     return Container(
-      decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+      decoration: BoxDecoration(
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.20),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    "Tổng quan hiện tại",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
                   "Tổng Số Dư",
                   style: TextStyle(
                     fontSize: 18,
@@ -77,9 +106,9 @@ class Cards extends StatelessWidget {
                 ),
 
                 Text(
-                  "$formattedRemaining VND", // 4. Sử dụng biến đã format
-                  style: TextStyle(
-                    fontSize: 44,
+                  "$formattedRemaining VND",
+                  style: const TextStyle(
+                    fontSize: 40,
                     color: Colors.white,
                     height: 1.2,
                     fontWeight: FontWeight.w600,
@@ -90,26 +119,26 @@ class Cards extends StatelessWidget {
           ),
 
           Container(
-            padding: EdgeInsets.only(top: 30, bottom: 10, left: 10, right: 10),
-
+            padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(30),
-                topRight: Radius.circular(30),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(28),
+                topRight: Radius.circular(28),
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
               ),
-              color: Colors.white,
+              color: Colors.white.withValues(alpha: 0.96),
             ),
             child: Row(
               children: [
-                // 5. Truyền biến đã format vào CardOne
                 CardOne(
-                  color: Colors.green,
+                  color: const Color(0xFF1D9A63),
                   heading: 'Thu Nhập',
                   amount: formattedCredit,
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 CardOne(
-                  color: Colors.red,
+                  color: const Color(0xFFC45A43),
                   heading: 'Chi Tiêu',
                   amount: formattedDebit,
                 ),
@@ -138,111 +167,58 @@ class CardOne extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(22),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              // 1. Dùng Expanded bọc Column để lấy hết khoảng trống, đẩy Icon sát lề phải
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(heading, style: TextStyle(color: color, fontSize: 14)),
-
-                    // 2. FittedBox tự động thu nhỏ chữ nếu số tiền quá dài (tránh vỡ giao diện)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "$amount VND",
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 20, // Kích thước chuẩn khi có đủ không gian
-                          fontWeight: FontWeight.w600,
-                        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    heading,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "$amount VND",
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-
-              // (Đã xóa Spacer() ở đây để chữ không bị ép nhỏ lại)
-
-              // 3. Icon mũi tên chỉ hiện thị ở một góc nhỏ gọn
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Icon(
-                  heading == "Credit"
-                      ? Icons.arrow_upward_outlined
-                      : Icons.arrow_downward_outlined,
-                  color: color,
-                ),
+            ),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
               ),
-            ],
-          ),
+              child: Icon(
+                heading == "Thu Nhập"
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
-// // Class CardOne giữ nguyên không cần thay đổi gì
-// class CardOne extends StatelessWidget {
-//   const CardOne({
-//     super.key,
-//     required this.color,
-//     required this.heading,
-//     required this.amount,
-//   });
-
-//   final Color color;
-//   final String heading;
-//   final String amount;
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Expanded(
-//       child: Container(
-//         decoration: BoxDecoration(
-//           color: color.withOpacity(0.1),
-//           borderRadius: BorderRadius.circular(10),
-//         ),
-//         child: Padding(
-//           padding: const EdgeInsets.all(10),
-//           child: Row(
-//             children: [
-//               Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text(heading, style: TextStyle(color: color, fontSize: 14)),
-//                   Text(
-//                     "$amount VND",
-//                     style: TextStyle(
-//                       color: color,
-//                       fontSize: 20,
-//                       fontWeight: FontWeight.w600,
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//               Spacer(),
-//               Padding(
-//                 padding: const EdgeInsets.all(8.0),
-//                 child: Icon(
-//                   heading == "Credit"
-//                       ? Icons.arrow_upward_outlined
-//                       : Icons.arrow_downward_outlined,
-//                   color: color,
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }

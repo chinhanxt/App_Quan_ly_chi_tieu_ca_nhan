@@ -1,6 +1,7 @@
+import 'package:app/screens/add_transaction_screen.dart';
 import 'package:app/screens/ai_input_screen.dart';
 import 'package:app/utils/app_colors.dart';
-import 'package:app/widgets/add_transactions_form.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/hero_card.dart';
 import 'package:app/widgets/system_broadcast_widget.dart';
 import 'package:app/widgets/top_saving_goals_widget.dart';
@@ -21,22 +22,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final userId = FirebaseAuth.instance.currentUser!.uid;
 
-  Future<void> _dialoBuilder(BuildContext context) {
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(content: AddTransactionsForm());
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Nút AI nổi (Floating AI Button)
           FloatingActionButton(
             heroTag: 'ai_button',
             onPressed: () {
@@ -45,12 +36,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(builder: (context) => const AIInputScreen()),
               );
             },
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             child: Ink(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.blue[400]!, Colors.purple[400]!],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
+                  colors: [AppColors.gold, AppColors.accentStrong],
                 ),
                 shape: BoxShape.circle,
               ),
@@ -60,39 +53,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   minHeight: 56.0,
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.auto_awesome, color: Colors.white),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          // Nút thêm truyền thống
           FloatingActionButton(
             heroTag: 'add_button',
             backgroundColor: AppColors.primary,
             onPressed: (() {
-              _dialoBuilder(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddTransactionScreen(),
+                ),
+              );
             }),
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ],
       ),
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          "Trang Chủ",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        automaticallyImplyLeading: false, // tắt mũi tên
+        title: const Text("Trang chủ"),
+        automaticallyImplyLeading: false,
       ),
-      body: SingleChildScrollView(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const AppHeroHeader(
+              title: "Tài chính của bạn",
+              subtitle:
+                  "Tổng quan đẹp mắt, rõ ràng và vẫn giữ nguyên mọi chức năng đang dùng.",
+            ),
+            const SizedBox(height: 18),
             const SystemBroadcastWidget(),
+            const SizedBox(height: 18),
             HeroCard(userId: userId),
+            const SizedBox(height: 18),
             TopSavingGoalsWidget(userId: userId),
+            const SizedBox(height: 18),
             TransactionsCard(),
           ],
         ),

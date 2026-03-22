@@ -3,6 +3,7 @@ import 'package:app/models/report_models.dart';
 import 'package:app/services/report_service.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/services/pdf_export_service.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/chart_widgets.dart';
 import 'package:app/widgets/report_widgets.dart';
 import 'package:intl/intl.dart';
@@ -161,17 +162,9 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+    return AppScaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'Báo Cáo',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Báo cáo'),
         actions: [
           IconButton(
             onPressed: _exportPdf,
@@ -179,19 +172,22 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _reportData == null
-                  ? const Center(child: Text("Không có dữ liệu"))
-                  : _buildReportContent(),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _reportData == null
+                ? const AppEmptyState(
+                    icon: Icons.insert_chart_outlined_rounded,
+                    title: "Chưa có dữ liệu",
+                    message:
+                        "Hãy chọn tháng khác hoặc thêm giao dịch để tạo báo cáo.",
+                  )
+                : _buildReportContent(),
+          ),
+        ],
       ),
     );
   }
@@ -202,8 +198,12 @@ class _ReportScreenState extends State<ReportScreen> {
         monthYearLabel[0].toUpperCase() + monthYearLabel.substring(1);
 
     return Container(
-      color: const Color(0xFF3498DB),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

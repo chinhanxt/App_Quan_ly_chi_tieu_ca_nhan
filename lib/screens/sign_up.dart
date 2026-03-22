@@ -1,5 +1,7 @@
 import 'package:app/services/auth_service.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +23,7 @@ class _SignUpViewState extends State<SignUpView> {
   final _phoneController = TextEditingController();
 
   final _passWordController = TextEditingController();
+  bool _obscurePassword = true;
 
   var authService = AuthService();
   var isLoader = false;
@@ -96,103 +99,116 @@ class _SignUpViewState extends State<SignUpView> {
   var appvalidator = Appvalidator();
 
   @override
+  void dispose() {
+    _userNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passWordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF252634),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            // Thêm scroll để tránh overflow trên màn hình nhỏ
-            child: Column(
-              children: [
-                SizedBox(height: 80.0),
-                SizedBox(
-                  width: 250,
-                  child: Text(
-                    "Tạo Tài Khoản",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 50.0),
-                TextFormField(
-                  controller: _userNameController,
-                  style: TextStyle(color: Colors.white),
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  decoration: _buildInputDecoration(
-                    "Tên Người Dùng",
-                    Icons.person,
-                  ),
-                  validator: appvalidator.validateUsername,
-                ),
-                SizedBox(height: 16.0),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: TextStyle(color: Colors.white),
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  decoration: _buildInputDecoration("Email", Icons.email),
-                  validator: appvalidator.validateEmail,
-                ),
-                SizedBox(height: 16.0),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: TextStyle(color: Colors.white),
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  decoration: _buildInputDecoration(
-                    "Số Điện Thoại",
-                    Icons.call,
-                  ),
-                  validator: appvalidator.validatePhoneNumber,
-                ),
-
-                SizedBox(height: 16.0),
-                TextFormField(
-                  controller: _passWordController,
-
-                  style: TextStyle(color: Colors.white),
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  decoration: _buildInputDecoration("Mật Khẩu", Icons.lock),
-                  validator: appvalidator.validatePassWord,
-                ),
-                SizedBox(height: 40.0),
-                SizedBox(
-                  height: 50,
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isLoader ? null : _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF5C04), // màu nền nút
-                      foregroundColor: Colors.white, // màu chữ
-                    ),
-                    child: isLoader
-                        ? const Center(child: CircularProgressIndicator())
-                        : const Text(
-                            "Tạo Tài Khoản",
-                            style: TextStyle(fontSize: 20),
-                          ),
-                  ),
-                ),
-                SizedBox(height: 40.0),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Quay lại trang Login
-                  },
-                  child: Text(
-                    "Đã có tài khoản? Đăng Nhập",
-                    style: TextStyle(color: Color(0xFFFF5C04), fontSize: 20),
-                  ),
-                ),
-              ],
+    return AuthScaffold(
+      title: "Tạo tài khoản mới",
+      subtitle:
+          "Bắt đầu với không gian tài chính mới, tối giản hơn nhưng vẫn nổi bật và dễ dùng.",
+      headerIcon: Icons.person_add_alt_1_rounded,
+      canPop: true,
+      form: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _userNameController,
+              style: const TextStyle(color: Colors.white),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: _buildInputDecoration(
+                "Tên người dùng",
+                Icons.person_outline_rounded,
+              ),
+              validator: appvalidator.validateUsername,
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: _buildInputDecoration(
+                "Email",
+                Icons.mail_outline_rounded,
+              ),
+              validator: appvalidator.validateEmail,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(color: Colors.white),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: _buildInputDecoration(
+                "Số điện thoại",
+                Icons.call_outlined,
+              ),
+              validator: appvalidator.validatePhoneNumber,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passWordController,
+              obscureText: _obscurePassword,
+              style: const TextStyle(color: Colors.white),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration:
+                  _buildInputDecoration(
+                    "Mật khẩu",
+                    Icons.lock_outline_rounded,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+              validator: appvalidator.validatePassWord,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: isLoader ? null : _submitForm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.primaryDark,
+              ),
+              child: isLoader
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : const Text("Tạo tài khoản"),
+            ),
+          ],
+        ),
+      ),
+      footer: TextButton(
+        onPressed: () {
+          Navigator.pop(context);
+        },
+        child: const Text(
+          "Đã có tài khoản? Đăng nhập",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -201,18 +217,28 @@ class _SignUpViewState extends State<SignUpView> {
 
   InputDecoration _buildInputDecoration(String label, IconData suffixIcon) {
     return InputDecoration(
-      fillColor: Color(0xAA494A59),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.12),
+      labelStyle: const TextStyle(color: Colors.white70),
+      labelText: label,
+      prefixIcon: Icon(suffixIcon, color: AppColors.gold),
       enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: Color(0x35949494)),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: Color(0x35949494)),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
       ),
-      filled: true,
-      labelStyle: TextStyle(color: Colors.white),
-      labelText: label,
-      suffixIcon: Icon(suffixIcon, color: Color(0xFF949494)),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.4),
+      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }

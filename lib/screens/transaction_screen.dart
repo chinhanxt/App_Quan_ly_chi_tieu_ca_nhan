@@ -1,5 +1,5 @@
 import 'package:app/widgets/category_list.dart';
-import 'package:app/utils/app_colors.dart';
+import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/tab_bar_view.dart';
 import 'package:app/widgets/time_line_month.dart';
 import 'package:app/screens/search_screen.dart'; // Import màn hình tìm kiếm
@@ -27,19 +27,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          "Giao Dịch",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Giao dịch"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded),
             onPressed: () {
               Navigator.push(
                 context,
@@ -49,8 +42,18 @@ class _TransactionScreenState extends State<TransactionScreen> {
           ),
         ],
       ),
-      body: Column(
+      child: Column(
         children: [
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AppHeroHeader(
+              title: "Dòng tiền trong tháng",
+              subtitle:
+                  "Lọc theo tháng, danh mục và mở tìm kiếm nâng cao chỉ với một chạm.",
+            ),
+          ),
+          const SizedBox(height: 10),
           TimeLineMonth(
             onChanges: (String? value) {
               if (value != null) {

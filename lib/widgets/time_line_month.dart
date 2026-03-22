@@ -11,7 +11,6 @@ class TimeLineMonth extends StatefulWidget {
 
 class _TimeLineMonthState extends State<TimeLineMonth> {
   static const Color _selectedMonthColor = Color(0xFF5EAA74);
-  static const Color _unselectedMonthFill = Color(0xFFF0EAE3);
   static const Color _unselectedMonthText = Color(0xFF6E756F);
 
   String currentMonth = " ";
@@ -36,14 +35,10 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
   void scrollToSelectedMonth() {
     final selectedMonthIndex = months.indexOf(currentMonth);
     if (selectedMonthIndex != -1 && scrollController.hasClients) {
-      // Tính toán để item được chọn nằm ở giữa màn hình
-      // Mỗi item có width 120 + margin 16 = 136
-      final itemWidth = 136.0;
+      final itemWidth = 144.0;
       final screenWidth = MediaQuery.sizeOf(context).width;
       final centerOffset = screenWidth / 2 - itemWidth / 2;
       final scrollOffset = selectedMonthIndex * itemWidth - centerOffset;
-
-      // Đảm bảo không scroll quá đầu hoặc cuối
       final maxScroll = scrollController.position.maxScrollExtent;
       final clampedOffset = scrollOffset.clamp(0.0, maxScroll);
 
@@ -58,10 +53,11 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      height: 52,
       margin: const EdgeInsets.fromLTRB(8, 10, 8, 2),
       child: ListView.builder(
         controller: scrollController,
+        padding: const EdgeInsets.only(left: 4, right: 44),
         itemCount: months.length,
         scrollDirection: Axis.horizontal,
 
@@ -75,18 +71,27 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
               scrollToSelectedMonth();
             },
             child: Container(
-              width: 120, // mở rộng ô lớn hơn nữa
-              margin: EdgeInsets.all(8),
+              width: 128,
+              margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: currentMonth == months[index]
                     ? _selectedMonthColor
-                    : _unselectedMonthFill,
-                borderRadius: BorderRadius.circular(20),
+                    : Colors.white.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: currentMonth == months[index]
                       ? _selectedMonthColor
-                      : AppColors.surfaceMuted,
+                      : AppColors.primary.withValues(alpha: 0.08),
                 ),
+                boxShadow: currentMonth == months[index]
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.18),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ]
+                    : null,
               ),
               child: Center(
                 child: Text(
