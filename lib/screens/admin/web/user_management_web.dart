@@ -7,7 +7,8 @@ class UserManagementWebScreen extends StatefulWidget {
   const UserManagementWebScreen({super.key});
 
   @override
-  State<UserManagementWebScreen> createState() => _UserManagementWebScreenState();
+  State<UserManagementWebScreen> createState() =>
+      _UserManagementWebScreenState();
 }
 
 class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
@@ -33,7 +34,11 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
     super.dispose();
   }
 
-  void _sort<T>(Comparable<T>? Function(DocumentSnapshot) getField, int columnIndex, bool ascending) {
+  void _sort<T>(
+    Comparable<T>? Function(DocumentSnapshot) getField,
+    int columnIndex,
+    bool ascending,
+  ) {
     setState(() {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
@@ -55,29 +60,50 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
         List<DocumentSnapshot> users = snapshot.data!.docs.where((doc) {
           var email = (doc.data() as Map<String, dynamic>)['email'] ?? "";
           var name = (doc.data() as Map<String, dynamic>)['name'] ?? "";
-          return email.toLowerCase().contains(_searchQuery) || name.toLowerCase().contains(_searchQuery);
+          return email.toLowerCase().contains(_searchQuery) ||
+              name.toLowerCase().contains(_searchQuery);
         }).toList();
 
         // Sắp xếp dữ liệu
         users.sort((a, b) {
           final field = _getColumnField(_sortColumnIndex);
-          final dynamic aValue = (field == 'createdAt') 
-              ? (((a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0)
-              : ((a.data() as Map<String, dynamic>)[field]?.toString().toLowerCase() ?? "");
-          final dynamic bValue = (field == 'createdAt') 
-              ? (((b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0)
-              : ((b.data() as Map<String, dynamic>)[field]?.toString().toLowerCase() ?? "");
+          final dynamic aValue = (field == 'createdAt')
+              ? (((a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)
+                        ?.toDate()
+                        .millisecondsSinceEpoch ??
+                    0)
+              : ((a.data() as Map<String, dynamic>)[field]
+                        ?.toString()
+                        .toLowerCase() ??
+                    "");
+          final dynamic bValue = (field == 'createdAt')
+              ? (((b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?)
+                        ?.toDate()
+                        .millisecondsSinceEpoch ??
+                    0)
+              : ((b.data() as Map<String, dynamic>)[field]
+                        ?.toString()
+                        .toLowerCase() ??
+                    "");
 
           if (aValue is String && bValue is String) {
-            return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
+            return _sortAscending
+                ? aValue.compareTo(bValue)
+                : bValue.compareTo(aValue);
           } else if (aValue is int && bValue is int) {
-            return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
-          } else { 
+            return _sortAscending
+                ? aValue.compareTo(bValue)
+                : bValue.compareTo(aValue);
+          } else {
             return 0;
           }
         });
 
-        final dataSource = UserDataSource(users, context, currencyFormat: NumberFormat.decimalPattern('vi_VN'));
+        final dataSource = UserDataSource(
+          users,
+          context,
+          currencyFormat: NumberFormat.decimalPattern('vi_VN'),
+        );
 
         return Padding(
           padding: EdgeInsets.all(Responsive.isDesktop(context) ? 20.0 : 16.0),
@@ -85,24 +111,40 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       "Quản lý Người dùng",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText: "Tìm kiếm theo Email hoặc Tên...",
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.grey,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                         filled: true,
                         fillColor: Colors.grey[100],
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -115,10 +157,14 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
-                      width: MediaQuery.of(context).size.width > 1200 ? MediaQuery.of(context).size.width - 300 : 1000,
+                      width: MediaQuery.of(context).size.width > 1200
+                          ? MediaQuery.of(context).size.width - 300
+                          : 1000,
                       child: PaginatedDataTable(
-                        key: ValueKey(users.length), // Add a key to force rebuild when users change
-                        header: const Text('Danh sách User'),
+                        key: ValueKey(
+                          users.length,
+                        ), // Add a key to force rebuild when users change
+                        header: const Text('Danh sách người dùng'),
                         rowsPerPage: _rowsPerPage,
                         onRowsPerPageChanged: (value) {
                           setState(() {
@@ -130,33 +176,69 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
                         columns: [
                           DataColumn(
                             label: const Text('Email'),
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['email'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) =>
+                                  (d.data() as Map<String, dynamic>)['email'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Tên'),
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['name'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) => (d.data() as Map<String, dynamic>)['name'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Vai trò'),
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['role'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) => (d.data() as Map<String, dynamic>)['role'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Trạng thái'),
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['status'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) =>
+                                  (d.data() as Map<String, dynamic>)['status'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Ngày tạo'),
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['createdAt'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) =>
+                                  (d.data()
+                                      as Map<String, dynamic>)['createdAt'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Tổng Thu'),
                             numeric: true,
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['totalCredit'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) =>
+                                  (d.data()
+                                      as Map<String, dynamic>)['totalCredit'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           DataColumn(
                             label: const Text('Tổng Chi'),
                             numeric: true,
-                            onSort: (columnIndex, ascending) => _sort((d) => (d.data() as Map<String, dynamic>)['totalDebit'], columnIndex, ascending),
+                            onSort: (columnIndex, ascending) => _sort(
+                              (d) =>
+                                  (d.data()
+                                      as Map<String, dynamic>)['totalDebit'],
+                              columnIndex,
+                              ascending,
+                            ),
                           ),
                           const DataColumn(label: Text('Thao tác')),
                         ],
@@ -175,14 +257,22 @@ class _UserManagementWebScreenState extends State<UserManagementWebScreen> {
 
   String _getColumnField(int index) {
     switch (index) {
-      case 0: return 'email';
-      case 1: return 'name';
-      case 2: return 'role';
-      case 3: return 'status';
-      case 4: return 'createdAt';
-      case 5: return 'totalCredit';
-      case 6: return 'totalDebit';
-      default: return 'email';
+      case 0:
+        return 'email';
+      case 1:
+        return 'name';
+      case 2:
+        return 'role';
+      case 3:
+        return 'status';
+      case 4:
+        return 'createdAt';
+      case 5:
+        return 'totalCredit';
+      case 6:
+        return 'totalDebit';
+      default:
+        return 'email';
     }
   }
 }
@@ -201,10 +291,11 @@ class UserDataSource extends DataTableSource {
     final data = user.data() as Map<String, dynamic>;
 
     String email = data['email'] ?? "N/A";
-    String name = data['name'] ?? data['username'] ?? "User";
+    String name = data['name'] ?? data['username'] ?? "Người dùng";
     String role = data['role'] ?? 'user';
     String status = data['status'] ?? 'active';
-    DateTime createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000); 
+    DateTime createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
     int totalCredit = data['totalCredit'] ?? 0;
     int totalDebit = data['totalDebit'] ?? 0;
 
@@ -217,18 +308,20 @@ class UserDataSource extends DataTableSource {
         DataCell(Text(DateFormat('dd/MM/yyyy').format(createdAt))),
         DataCell(Text(currencyFormat.format(totalCredit))),
         DataCell(Text(currencyFormat.format(totalDebit))),
-        DataCell(Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-              onPressed: () => _showEditUserDialog(user.id, data),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-              onPressed: () => _confirmDeleteUser(user.id, email),
-            ),
-          ],
-        )),
+        DataCell(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                onPressed: () => _showEditUserDialog(user.id, data),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                onPressed: () => _confirmDeleteUser(user.id, email),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -255,34 +348,42 @@ class UserDataSource extends DataTableSource {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: currentRole, 
+                initialValue: currentRole,
                 decoration: const InputDecoration(labelText: "Vai trò"),
                 items: const [
-                  DropdownMenuItem(value: 'user', child: Text("User")),
-                  DropdownMenuItem(value: 'admin', child: Text("Admin")),
+                  DropdownMenuItem(value: 'user', child: Text("Người dùng")),
+                  DropdownMenuItem(
+                    value: 'admin',
+                    child: Text("Quản trị viên"),
+                  ),
                 ],
-                onChanged: (value) => setDialogState(() => currentRole = value!),
+                onChanged: (value) =>
+                    setDialogState(() => currentRole = value!),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue: currentStatus, 
+                initialValue: currentStatus,
                 decoration: const InputDecoration(labelText: "Trạng thái"),
                 items: const [
                   DropdownMenuItem(value: 'active', child: Text("Hoạt động")),
                   DropdownMenuItem(value: 'locked', child: Text("Khóa")),
                 ],
-                onChanged: (value) => setDialogState(() => currentStatus = value!),
+                onChanged: (value) =>
+                    setDialogState(() => currentStatus = value!),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Hủy")),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Hủy"),
+            ),
             ElevatedButton(
               onPressed: () async {
-                await FirebaseFirestore.instance.collection('users').doc(userId).update({
-                  'role': currentRole,
-                  'status': currentStatus,
-                });
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
+                    .update({'role': currentRole, 'status': currentStatus});
                 if (!context.mounted) return;
                 Navigator.pop(context);
               },
@@ -299,12 +400,20 @@ class UserDataSource extends DataTableSource {
       context: _context,
       builder: (context) => AlertDialog(
         title: const Text("Xác nhận xóa người dùng"),
-        content: Text("Bạn có chắc chắn muốn xóa người dùng '${email}' này không? Hành động này không thể hoàn tác."),
+        content: Text(
+          "Bạn có chắc chắn muốn xóa người dùng '${email}' này không? Hành động này không thể hoàn tác.",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Hủy")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Hủy"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              await FirebaseFirestore.instance.collection('users').doc(userId).delete();
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .delete();
               if (!context.mounted) return;
               Navigator.pop(context);
             },

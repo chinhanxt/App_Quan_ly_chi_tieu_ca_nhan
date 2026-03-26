@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -156,15 +157,14 @@ class BroadcastRecord {
 }
 
 class SystemConfigRecord {
-  const SystemConfigRecord({
-    required this.id,
-    required this.data,
-  });
+  const SystemConfigRecord({required this.id, required this.data});
 
   final String id;
   final Map<String, dynamic> data;
 
-  factory SystemConfigRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory SystemConfigRecord.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     return SystemConfigRecord(
       id: doc.id,
       data: doc.data() ?? <String, dynamic>{},
@@ -319,21 +319,16 @@ class AdminMonthlyReport {
 }
 
 class AdminWebRepository {
-  AdminWebRepository({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  }) : _auth = auth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance;
+  AdminWebRepository({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
   Stream<User?> authChanges() => _auth.authStateChanges();
 
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     await _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
@@ -358,22 +353,19 @@ class AdminWebRepository {
   }
 
   Stream<List<AdminUserRecord>> watchUsers() {
-    return _firestore
-        .collection('users')
-        .snapshots()
-        .map((snapshot) {
-          final users = snapshot.docs.map(AdminUserRecord.fromDoc).toList();
-          users.sort((a, b) {
-            final left =
-                a.createdAt?.millisecondsSinceEpoch ??
-                _readEpochMillis(a.raw['updatedAt']);
-            final right =
-                b.createdAt?.millisecondsSinceEpoch ??
-                _readEpochMillis(b.raw['updatedAt']);
-            return right.compareTo(left);
-          });
-          return users;
-        });
+    return _firestore.collection('users').snapshots().map((snapshot) {
+      final users = snapshot.docs.map(AdminUserRecord.fromDoc).toList();
+      users.sort((a, b) {
+        final left =
+            a.createdAt?.millisecondsSinceEpoch ??
+            _readEpochMillis(a.raw['updatedAt']);
+        final right =
+            b.createdAt?.millisecondsSinceEpoch ??
+            _readEpochMillis(b.raw['updatedAt']);
+        return right.compareTo(left);
+      });
+      return users;
+    });
   }
 
   Future<void> updateUserRole(String uid, String role) async {
@@ -391,24 +383,21 @@ class AdminWebRepository {
   }
 
   Stream<List<CategoryRecord>> watchCategories() {
-    return _firestore
-        .collection('categories')
-        .snapshots()
-        .map((snapshot) {
-          final categories = snapshot.docs.map(CategoryRecord.fromDoc).toList();
-          categories.sort((a, b) {
-            final left =
-                a.updatedAt?.millisecondsSinceEpoch ??
-                a.createdAt?.millisecondsSinceEpoch ??
-                0;
-            final right =
-                b.updatedAt?.millisecondsSinceEpoch ??
-                b.createdAt?.millisecondsSinceEpoch ??
-                0;
-            return right.compareTo(left);
-          });
-          return categories;
-        });
+    return _firestore.collection('categories').snapshots().map((snapshot) {
+      final categories = snapshot.docs.map(CategoryRecord.fromDoc).toList();
+      categories.sort((a, b) {
+        final left =
+            a.updatedAt?.millisecondsSinceEpoch ??
+            a.createdAt?.millisecondsSinceEpoch ??
+            0;
+        final right =
+            b.updatedAt?.millisecondsSinceEpoch ??
+            b.createdAt?.millisecondsSinceEpoch ??
+            0;
+        return right.compareTo(left);
+      });
+      return categories;
+    });
   }
 
   Future<void> saveCategory({
@@ -431,10 +420,10 @@ class AdminWebRepository {
       return;
     }
 
-    await _firestore.collection('categories').doc(id).set(
-      payload,
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('categories')
+        .doc(id)
+        .set(payload, SetOptions(merge: true));
   }
 
   Future<void> deleteCategory(String id) {
@@ -442,24 +431,23 @@ class AdminWebRepository {
   }
 
   Stream<List<BroadcastRecord>> watchBroadcasts() {
-    return _firestore
-        .collection('system_broadcasts')
-        .snapshots()
-        .map((snapshot) {
-          final broadcasts = snapshot.docs.map(BroadcastRecord.fromDoc).toList();
-          broadcasts.sort((a, b) {
-            final left =
-                a.updatedAt?.millisecondsSinceEpoch ??
-                a.createdAt?.millisecondsSinceEpoch ??
-                0;
-            final right =
-                b.updatedAt?.millisecondsSinceEpoch ??
-                b.createdAt?.millisecondsSinceEpoch ??
-                0;
-            return right.compareTo(left);
-          });
-          return broadcasts;
-        });
+    return _firestore.collection('system_broadcasts').snapshots().map((
+      snapshot,
+    ) {
+      final broadcasts = snapshot.docs.map(BroadcastRecord.fromDoc).toList();
+      broadcasts.sort((a, b) {
+        final left =
+            a.updatedAt?.millisecondsSinceEpoch ??
+            a.createdAt?.millisecondsSinceEpoch ??
+            0;
+        final right =
+            b.updatedAt?.millisecondsSinceEpoch ??
+            b.createdAt?.millisecondsSinceEpoch ??
+            0;
+        return right.compareTo(left);
+      });
+      return broadcasts;
+    });
   }
 
   Future<void> saveBroadcast({
@@ -492,19 +480,20 @@ class AdminWebRepository {
       return;
     }
 
-    await _firestore.collection('system_broadcasts').doc(id).set(
-      payload,
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('system_broadcasts')
+        .doc(id)
+        .set(payload, SetOptions(merge: true));
   }
 
   Future<void> toggleBroadcastStatus(String id, bool active) {
-    return _firestore.collection('system_broadcasts').doc(id).update(
-      <String, dynamic>{
-        'status': active ? 'active' : 'inactive',
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
+    return _firestore
+        .collection('system_broadcasts')
+        .doc(id)
+        .update(<String, dynamic>{
+          'status': active ? 'active' : 'inactive',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
   }
 
   Future<void> deleteBroadcast(String id) {
@@ -512,20 +501,27 @@ class AdminWebRepository {
   }
 
   Stream<List<SystemConfigRecord>> watchSystemConfigs() {
-    return _firestore.collection('system_configs').snapshots().map(
-      (snapshot) => snapshot.docs
-          .map(SystemConfigRecord.fromDoc)
-          .where((config) => config.id != 'ai_lexicon')
-          .toList(growable: false),
-    );
+    return _firestore
+        .collection('system_configs')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(SystemConfigRecord.fromDoc)
+              .where(
+                (config) => !<String>{
+                  'ai_lexicon',
+                  'ai_lexicon_draft',
+                  'ai_runtime_config',
+                  'ai_runtime_config_draft',
+                }.contains(config.id),
+              )
+              .toList(growable: false),
+        );
   }
 
   Future<void> saveSystemConfig(String id, Map<String, dynamic> data) {
     return _firestore.collection('system_configs').doc(id).set(
-      <String, dynamic>{
-        ...data,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
+      <String, dynamic>{...data, 'updatedAt': FieldValue.serverTimestamp()},
       SetOptions(merge: true),
     );
   }
@@ -552,7 +548,9 @@ class AdminWebRepository {
       return AiLexiconState(
         raw: raw.isNotEmpty ? raw : fallback,
         version: (data?['version'] as num?)?.toInt() ?? 1,
-        sourceLabel: raw.isNotEmpty ? 'Cấu hình đang áp dụng' : 'Tệp hệ thống data.text',
+        sourceLabel: raw.isNotEmpty
+            ? 'Cấu hình đang áp dụng'
+            : 'Tệp hệ thống data.text',
         draftRaw: draftRaw,
         draftVersion: (draftData?['version'] as num?)?.toInt() ?? 1,
       );
@@ -572,16 +570,16 @@ class AdminWebRepository {
     required AdminProfile actor,
     required int nextVersion,
   }) async {
-    await _firestore.collection('system_configs').doc('ai_lexicon_draft').set(
-      <String, dynamic>{
-        'raw_text': raw,
-        'version': nextVersion,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': actor.uid,
-        'updatedByEmail': actor.email,
-      },
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('system_configs')
+        .doc('ai_lexicon_draft')
+        .set(<String, dynamic>{
+          'raw_text': raw,
+          'version': nextVersion,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': actor.uid,
+          'updatedByEmail': actor.email,
+        }, SetOptions(merge: true));
 
     await _firestore.collection('admin_logs').add(<String, dynamic>{
       'action': 'save_ai_lexicon_draft',
@@ -598,14 +596,14 @@ class AdminWebRepository {
     required AdminProfile actor,
     required int nextVersion,
   }) async {
-    await _firestore.collection('system_configs').doc('ai_lexicon').set(
-      <String, dynamic>{
-        'raw_text': raw,
-        'version': nextVersion,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('system_configs')
+        .doc('ai_lexicon')
+        .set(<String, dynamic>{
+          'raw_text': raw,
+          'version': nextVersion,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
     await _firestore.collection('admin_logs').add(<String, dynamic>{
       'action': 'publish_ai_lexicon',
@@ -617,6 +615,100 @@ class AdminWebRepository {
     });
 
     TransactionPhraseLexicon.invalidateCache();
+  }
+
+  Future<AiRuntimeConfigState> loadAiRuntimeConfigState() async {
+    final defaults = AiRuntimeConfig.defaults();
+    try {
+      final snapshot = await _firestore
+          .collection('system_configs')
+          .doc('ai_runtime_config')
+          .get();
+      final draftSnapshot = await _firestore
+          .collection('system_configs')
+          .doc('ai_runtime_config_draft')
+          .get();
+      final data = snapshot.data();
+      final draftData = draftSnapshot.data();
+      final published = AiRuntimeConfig.fromMap(data);
+      final hasDraft = draftData != null && draftData.isNotEmpty;
+      final draft = hasDraft
+          ? AiRuntimeConfig.fromMap(draftData)
+          : AiRuntimeConfig.fromMap(data);
+      final publishedVersion = (data?['version'] as num?)?.toInt() ?? 1;
+      final draftVersion = hasDraft
+          ? (draftData['version'] as num?)?.toInt() ?? 1
+          : publishedVersion;
+      return AiRuntimeConfigState(
+        published: published,
+        publishedVersion: publishedVersion,
+        draft: hasDraft ? draft : published,
+        draftVersion: draftVersion,
+        sourceLabel: data == null || data.isEmpty
+            ? 'Mặc định hệ thống'
+            : 'Cấu hình runtime đang áp dụng',
+      );
+    } catch (_) {
+      return AiRuntimeConfigState(
+        published: defaults,
+        publishedVersion: 1,
+        draft: defaults,
+        draftVersion: 1,
+        sourceLabel: 'Mặc định hệ thống',
+      );
+    }
+  }
+
+  Future<void> saveAiRuntimeConfigDraft({
+    required AiRuntimeConfig config,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    await _firestore
+        .collection('system_configs')
+        .doc('ai_runtime_config_draft')
+        .set(<String, dynamic>{
+          ...config.toMap(),
+          'version': nextVersion,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': actor.uid,
+          'updatedByEmail': actor.email,
+        }, SetOptions(merge: true));
+
+    await _firestore.collection('admin_logs').add(<String, dynamic>{
+      'action': 'save_ai_runtime_config_draft',
+      'target': 'system_configs/ai_runtime_config_draft',
+      'version': nextVersion,
+      'adminUid': actor.uid,
+      'adminEmail': actor.email,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> saveAiRuntimeConfigRaw({
+    required AiRuntimeConfig config,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    await _firestore
+        .collection('system_configs')
+        .doc('ai_runtime_config')
+        .set(<String, dynamic>{
+          ...config.toMap(),
+          'version': nextVersion,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': actor.uid,
+          'updatedByEmail': actor.email,
+        }, SetOptions(merge: true));
+
+    await _firestore.collection('admin_logs').add(<String, dynamic>{
+      'action': 'publish_ai_runtime_config',
+      'target': 'system_configs/ai_runtime_config',
+      'version': nextVersion,
+      'adminUid': actor.uid,
+      'adminEmail': actor.email,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Stream<List<AdminTransactionRecord>> watchRecentTransactions({
@@ -638,7 +730,10 @@ class AdminWebRepository {
     int perUserLimit = 40,
     int maxUsers = 200,
   }) async {
-    final usersSnapshot = await _firestore.collection('users').limit(maxUsers).get();
+    final usersSnapshot = await _firestore
+        .collection('users')
+        .limit(maxUsers)
+        .get();
     final futures = usersSnapshot.docs.map((userDoc) async {
       final txSnapshot = await userDoc.reference
           .collection('transactions')
@@ -662,23 +757,25 @@ class AdminWebRepository {
   }) async {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
-    final usersSnapshot = await _firestore.collection('users').limit(maxUsers).get();
-    final futures = usersSnapshot.docs.map((userDoc) async {
-      final txSnapshot = await userDoc.reference
-          .collection('transactions')
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo: start.millisecondsSinceEpoch,
-          )
-          .where(
-            'timestamp',
-            isLessThan: end.millisecondsSinceEpoch,
-          )
-          .get();
-      return txSnapshot.docs
-          .map(AdminTransactionRecord.fromDoc)
-          .toList(growable: false);
-    }).toList(growable: false);
+    final usersSnapshot = await _firestore
+        .collection('users')
+        .limit(maxUsers)
+        .get();
+    final futures = usersSnapshot.docs
+        .map((userDoc) async {
+          final txSnapshot = await userDoc.reference
+              .collection('transactions')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: start.millisecondsSinceEpoch,
+              )
+              .where('timestamp', isLessThan: end.millisecondsSinceEpoch)
+              .get();
+          return txSnapshot.docs
+              .map(AdminTransactionRecord.fromDoc)
+              .toList(growable: false);
+        })
+        .toList(growable: false);
 
     final grouped = await Future.wait(futures);
     final merged = grouped.expand((items) => items).toList()
@@ -750,10 +847,7 @@ class AdminWebRepository {
         0,
         (total, user) => total + user.totalCredit,
       ),
-      totalDebit: users.fold<int>(
-        0,
-        (total, user) => total + user.totalDebit,
-      ),
+      totalDebit: users.fold<int>(0, (total, user) => total + user.totalDebit),
       netAmount: users.fold<int>(
         0,
         (total, user) => total + user.remainingAmount,
@@ -765,7 +859,9 @@ class AdminWebRepository {
     final now = DateTime.now();
     final usersSnapshot = await _firestore.collection('users').get();
     final categoriesSnapshot = await _firestore.collection('categories').get();
-    final broadcastsCollection = await _firestore.collection('system_broadcasts').get();
+    final broadcastsCollection = await _firestore
+        .collection('system_broadcasts')
+        .get();
 
     final users = usersSnapshot.docs.map(AdminUserRecord.fromDoc).toList()
       ..sort((a, b) {
@@ -778,18 +874,19 @@ class AdminWebRepository {
         return right.compareTo(left);
       });
 
-    final broadcasts = broadcastsCollection.docs.map(BroadcastRecord.fromDoc).toList()
-      ..sort((a, b) {
-        final left =
-            a.updatedAt?.millisecondsSinceEpoch ??
-            a.createdAt?.millisecondsSinceEpoch ??
-            0;
-        final right =
-            b.updatedAt?.millisecondsSinceEpoch ??
-            b.createdAt?.millisecondsSinceEpoch ??
-            0;
-        return right.compareTo(left);
-      });
+    final broadcasts =
+        broadcastsCollection.docs.map(BroadcastRecord.fromDoc).toList()
+          ..sort((a, b) {
+            final left =
+                a.updatedAt?.millisecondsSinceEpoch ??
+                a.createdAt?.millisecondsSinceEpoch ??
+                0;
+            final right =
+                b.updatedAt?.millisecondsSinceEpoch ??
+                b.createdAt?.millisecondsSinceEpoch ??
+                0;
+            return right.compareTo(left);
+          });
 
     final recentTransactions = await loadTransactionsFeed(
       perUserLimit: 12,
@@ -803,16 +900,15 @@ class AdminWebRepository {
       adminUsers: users.where((user) => user.role != 'user').length,
       lockedUsers: users.where((user) => user.status == 'locked').length,
       systemCategories: categoriesSnapshot.size,
-      activeBroadcasts: broadcasts.where((item) => item.status == 'active').length,
+      activeBroadcasts: broadcasts
+          .where((item) => item.status == 'active')
+          .length,
       transactionsThisMonth: monthTransactions.length,
       totalCredit: users.fold<int>(
         0,
         (total, user) => total + user.totalCredit,
       ),
-      totalDebit: users.fold<int>(
-        0,
-        (total, user) => total + user.totalDebit,
-      ),
+      totalDebit: users.fold<int>(0, (total, user) => total + user.totalDebit),
       netAmount: users.fold<int>(
         0,
         (total, user) => total + user.remainingAmount,
@@ -834,24 +930,24 @@ class AdminWebRepository {
     final usersSnapshot = await _firestore.collection('users').get();
 
     final usersById = <String, AdminUserRecord>{
-      for (final doc in usersSnapshot.docs) doc.id: AdminUserRecord.fromDoc(doc),
+      for (final doc in usersSnapshot.docs)
+        doc.id: AdminUserRecord.fromDoc(doc),
     };
-    final futures = usersSnapshot.docs.map((userDoc) async {
-      final txSnapshot = await userDoc.reference
-          .collection('transactions')
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo: start.millisecondsSinceEpoch,
-          )
-          .where(
-            'timestamp',
-            isLessThan: end.millisecondsSinceEpoch,
-          )
-          .get();
-      return txSnapshot.docs
-          .map(AdminTransactionRecord.fromDoc)
-          .toList(growable: false);
-    }).toList(growable: false);
+    final futures = usersSnapshot.docs
+        .map((userDoc) async {
+          final txSnapshot = await userDoc.reference
+              .collection('transactions')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: start.millisecondsSinceEpoch,
+              )
+              .where('timestamp', isLessThan: end.millisecondsSinceEpoch)
+              .get();
+          return txSnapshot.docs
+              .map(AdminTransactionRecord.fromDoc)
+              .toList(growable: false);
+        })
+        .toList(growable: false);
 
     final grouped = await Future.wait(futures);
     final transactions = grouped.expand((items) => items).toList()
@@ -884,31 +980,29 @@ class AdminWebRepository {
       );
     }
 
-    final categories = categoryMap.entries
-        .map(
-          (entry) => AdminCategorySummary(
-            name: entry.key.split(':').last,
-            totalAmount: entry.value.amount,
-            transactionCount: entry.value.count,
-            type: entry.value.type,
-          ),
-        )
-        .toList()
-      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+    final categories =
+        categoryMap.entries
+            .map(
+              (entry) => AdminCategorySummary(
+                name: entry.key.split(':').last,
+                totalAmount: entry.value.amount,
+                transactionCount: entry.value.count,
+                type: entry.value.type,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
-    final topUsers = userMap.entries
-        .map((entry) {
-          final user = usersById[entry.key];
-          return AdminUserSummary(
-            userId: entry.key,
-            name: user?.name ?? 'Nguoi dung',
-            email: user?.email ?? '',
-            totalAmount: entry.value.amount,
-            transactionCount: entry.value.count,
-          );
-        })
-        .toList()
-      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+    final topUsers = userMap.entries.map((entry) {
+      final user = usersById[entry.key];
+      return AdminUserSummary(
+        userId: entry.key,
+        name: user?.name ?? 'Nguoi dung',
+        email: user?.email ?? '',
+        totalAmount: entry.value.amount,
+        transactionCount: entry.value.count,
+      );
+    }).toList()..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
     return AdminMonthlyReport(
       month: month,

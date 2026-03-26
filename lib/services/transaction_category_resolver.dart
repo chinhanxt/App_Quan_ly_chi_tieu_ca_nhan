@@ -34,6 +34,65 @@ class TransactionCategoryResolver {
         'KHAC': (category: 'Khác', iconName: 'ellipsis'),
       };
 
+  static const Map<String, List<String>> _sectionHints = <String, List<String>>{
+    'AN_UONG': <String>[
+      'an',
+      'uong',
+      'an sang',
+      'an trua',
+      'an toi',
+      'com',
+      'bun',
+      'pho',
+      'cafe',
+      'ca phe',
+      'cf',
+      'tra sua',
+      'tra da',
+      'do an',
+      'do uong',
+    ],
+    'DI_LAI': <String>[
+      'di xe',
+      'xe om',
+      'xe om cong nghe',
+      'grab',
+      'be',
+      'gsm',
+      'taxi',
+      'bus',
+      'xe buyt',
+      'do xang',
+      'xang',
+      'gui xe',
+      've xe',
+      'tau xe',
+      'di lai',
+      'di chuyen',
+      'ship xe',
+      'di grab',
+    ],
+    'MUA_SAM': <String>[
+      'mua',
+      'shop',
+      'order',
+      'sieu thi',
+      'bach hoa xanh',
+      'shopee',
+      'lazada',
+      'tiki',
+    ],
+    'HOA_DON': <String>[
+      'tien dien',
+      'tien nuoc',
+      'wifi',
+      'internet',
+      'hoa don',
+      'tien mang',
+    ],
+    'NHA_O': <String>['tien nha', 'tien tro', 'thue nha', 'phong tro'],
+  };
+
   static Future<ResolvedCategory> resolve({
     required String input,
     required String? title,
@@ -52,8 +111,7 @@ class TransactionCategoryResolver {
           _containsPhrase(normalizedTitle, normalizedName)) {
         return ResolvedCategory(
           category: name,
-          iconName:
-              category['iconName']?.toString().trim().isNotEmpty == true
+          iconName: category['iconName']?.toString().trim().isNotEmpty == true
               ? category['iconName'].toString().trim()
               : 'cartShopping',
           isNewCategory: false,
@@ -63,9 +121,28 @@ class TransactionCategoryResolver {
       }
     }
 
+    final semanticSection = _inferSectionFromHints(
+      '$normalizedInput $normalizedTitle',
+    );
+    if (semanticSection != null && _sectionMap.containsKey(semanticSection)) {
+      final mapped = _sectionMap[semanticSection]!;
+      final matchedExisting = _findExistingCategory(
+        mapped.category,
+        availableCategories,
+      );
+      return ResolvedCategory(
+        category: matchedExisting?.$1 ?? mapped.category,
+        iconName: matchedExisting?.$2 ?? mapped.iconName,
+        isNewCategory: matchedExisting == null,
+        isKnownCategory: matchedExisting != null,
+        section: semanticSection,
+      );
+    }
+
     final lexicon = await TransactionPhraseLexicon.load();
     final section =
-        lexicon.bestPrioritySection(input) ?? lexicon.bestCategorySection(input);
+        lexicon.bestPrioritySection(input) ??
+        lexicon.bestCategorySection(input);
     if (section != null && _sectionMap.containsKey(section)) {
       final mapped = _sectionMap[section]!;
       final matchedExisting = _findExistingCategory(
@@ -110,7 +187,8 @@ class TransactionCategoryResolver {
           : _sectionMap.values
                 .firstWhere(
                   (item) => item.category == canonicalCategory,
-                  orElse: () => (category: canonicalCategory, iconName: 'ellipsis'),
+                  orElse: () =>
+                      (category: canonicalCategory, iconName: 'ellipsis'),
                 )
                 .iconName;
       return (name, iconName);
@@ -180,5 +258,16 @@ class TransactionCategoryResolver {
   static bool _containsPhrase(String text, String phrase) {
     final pattern = RegExp('(^| )${RegExp.escape(phrase)}(?= |\$)');
     return pattern.hasMatch(text);
+  }
+
+  static String? _inferSectionFromHints(String normalizedText) {
+    for (final entry in _sectionHints.entries) {
+      for (final hint in entry.value) {
+        if (_containsPhrase(normalizedText, hint)) {
+          return entry.key;
+        }
+      }
+    }
+    return null;
   }
 }

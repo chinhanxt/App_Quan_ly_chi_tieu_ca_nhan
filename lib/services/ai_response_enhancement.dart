@@ -106,10 +106,7 @@ class AIResponseEnhancement {
     return template.replaceAll('{count}', '$transactionCount');
   }
 
-  static String failureMessage({
-    required String reasonCode,
-    String? fallback,
-  }) {
+  static String failureMessage({required String reasonCode, String? fallback}) {
     switch (reasonCode) {
       case 'rate_limit':
         return 'Mình đang chạm giới hạn xử lý một chút, bạn thử lại sau ít phút nhé!';
@@ -174,6 +171,10 @@ class AIResponseEnhancement {
 
   static String futureDateMessage() {
     return _pickFromPool(_futureDateMessages, seed: _futureDateMessages.length);
+  }
+
+  static String exactDateClarificationMessage() {
+    return 'Mình hiểu mốc thời gian bạn nói rồi, nhưng nó vẫn còn hơi mơ hồ. Bạn cho mình ngày chính xác giúp nhé, ví dụ 24/03/2026 hoặc hôm qua.';
   }
 
   static bool shouldUseLocalFastPath(String input) {
@@ -401,6 +402,13 @@ class AIResponseEnhancement {
       'do xang',
       'xang',
       'grab',
+      'di grab',
+      'di xe',
+      'xe',
+      'xe om',
+      'taxi',
+      'bus',
+      'xe buyt',
       'ship',
       'gui xe',
       'di cho',

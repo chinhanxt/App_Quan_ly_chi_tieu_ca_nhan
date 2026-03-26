@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:app/models/ai_chat_message.dart';
+import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
+import 'package:app/services/transaction_amount_parser.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/ocr_helper.dart';
@@ -54,6 +56,9 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   bool _isProcessing = false;
   bool _isRestoringHistory = true;
+  bool _isLoadingRuntimeConfig = true;
+  bool _useRealAiMode = false;
+  AiRuntimeConfig _runtimeConfig = AiRuntimeConfig.defaults();
   @override
   void initState() {
     super.initState();
@@ -64,6 +69,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     _transactionCategoryOptionsFuture = _loadTransactionCategoryOptions();
     _restoreChatHistory();
     _loadQuickTemplates();
+    _loadRuntimeConfig();
   }
 
   @override
@@ -107,6 +113,242 @@ class _AIInputScreenState extends State<AIInputScreen>
       text: _repairLegacyText(message.text),
       transactions: message.transactions.map(_repairLegacyTransaction).toList(),
     );
+  }
+
+  bool _shouldShowCategoryDecisionActions(AIChatMessage message) {
+    if (message.sender != AIChatSender.ai ||
+        message.status != 'clarification') {
+      return false;
+    }
+
+    final normalized = _repairLegacyText(message.text).toLowerCase();
+    return normalized.contains('tạo danh mục mới') &&
+        normalized.contains('không');
+  }
+
+  String? _extractCategoryNameFromClarification(String text) {
+    final repaired = _repairLegacyText(text);
+    final quotedMatch = RegExp(
+      "[\"']([^\"']+)[\"']",
+      unicode: true,
+    ).firstMatch(repaired);
+    if (quotedMatch != null) {
+      final value = quotedMatch.group(1)?.trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    final namedMatch = RegExp(
+      r'tạo danh mục mới\s+([^\?\.!\n]+)',
+      caseSensitive: false,
+      unicode: true,
+    ).firstMatch(repaired);
+    final value = namedMatch?.group(1)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  Widget _buildCategoryDecisionActions(AIChatMessage message) {
+    final categoryName =
+        _extractCategoryNameFromClarification(message.text) ?? 'danh mục này';
+
+    Widget actionButton({
+      required String label,
+      required VoidCallback onTap,
+      required List<Color> colors,
+      required Color borderColor,
+    }) {
+      return Expanded(
+        child: SizedBox(
+          height: 42,
+          child: ElevatedButton(
+            onPressed: _isProcessing ? null : onTap,
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.zero,
+              backgroundColor: Colors.transparent,
+              disabledBackgroundColor: Colors.transparent,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: colors,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor),
+              ),
+              child: Center(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          actionButton(
+            label: 'Tạo',
+            onTap: () => _submitInput(
+              preset:
+                  'Tạo danh mục mới $categoryName và dùng nó cho giao dịch đó',
+            ),
+            colors: const [Color(0xFF15A36D), Color(0xFF1DBF73)],
+            borderColor: Colors.white.withValues(alpha: 0.12),
+          ),
+          const SizedBox(width: 10),
+          actionButton(
+            label: 'Không tạo',
+            onTap: () => _handleDeclineNewCategory(message, categoryName),
+            colors: [
+              Colors.white.withValues(alpha: 0.08),
+              Colors.white.withValues(alpha: 0.04),
+            ],
+            borderColor: Colors.white.withValues(alpha: 0.12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _findPreviousUserMessageText(String clarificationMessageId) {
+    final clarificationIndex = _messages.indexWhere(
+      (message) => message.id == clarificationMessageId,
+    );
+    if (clarificationIndex <= 0) return null;
+
+    for (var i = clarificationIndex - 1; i >= 0; i--) {
+      final message = _messages[i];
+      if (message.sender == AIChatSender.user) {
+        final text = message.text.trim();
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _handleDeclineNewCategory(
+    AIChatMessage clarificationMessage,
+    String categoryName,
+  ) async {
+    if (_isProcessing) return;
+
+    final sourceText = _findPreviousUserMessageText(clarificationMessage.id);
+    if (sourceText == null || sourceText.isEmpty) {
+      await _submitInput(
+        preset:
+            'Không tạo danh mục mới $categoryName, hãy dùng danh mục có sẵn phù hợp nhất trong tài khoản',
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+      _messages.add(
+        AIChatMessage(
+          id: _uuid.v4(),
+          sender: AIChatSender.user,
+          text: 'Không tạo',
+          timestamp: DateTime.now(),
+          status: 'user',
+        ),
+      );
+    });
+    await _persistChatHistory();
+    _scrollToBottom();
+
+    try {
+      final localResult = await aiService.processInput(
+        sourceText,
+        runtimeOverride: _runtimeConfig.copyWith(enabled: false),
+      );
+      if (!mounted) return;
+
+      final localTransactions =
+          _normalizeTransactions(localResult['transactions']).map((tx) {
+            final updated = Map<String, dynamic>.from(tx);
+            updated['isNewCategory'] = true;
+            updated['confirmCreateCategory'] = false;
+            updated['fallbackCategory'] =
+                tx['fallbackCategory']?.toString().trim().isNotEmpty == true
+                ? tx['fallbackCategory']
+                : tx['category'];
+            updated['fallbackIconName'] =
+                tx['fallbackIconName']?.toString().trim().isNotEmpty == true
+                ? tx['fallbackIconName']
+                : (tx['suggestedIcon'] ?? 'cartShopping');
+            return updated;
+          }).toList();
+      final manualCard = _buildManualCategoryChoiceCard(sourceText);
+      final effectiveTransactions = localTransactions.isNotEmpty
+          ? localTransactions
+          : <Map<String, dynamic>>[
+              if (manualCard case final manualCardValue?) manualCardValue,
+            ];
+
+      final reply = effectiveTransactions.isNotEmpty
+          ? AIChatMessage(
+              id: _uuid.v4(),
+              sender: AIChatSender.ai,
+              text:
+                  'Mình dựng sẵn card rồi nè. Bạn chọn danh mục có sẵn phù hợp nhất trước khi lưu nhé!',
+              timestamp: DateTime.now(),
+              status: 'success',
+              transactions: effectiveTransactions,
+            )
+          : AIChatMessage(
+              id: _uuid.v4(),
+              sender: AIChatSender.ai,
+              text:
+                  'Mình chưa dựng được card tự động cho món này. Bạn nói rõ hơn một chút hoặc chọn lại danh mục giúp mình nhé!',
+              timestamp: DateTime.now(),
+              status: 'clarification',
+            );
+
+      setState(() {
+        _isProcessing = false;
+        _messages.add(reply);
+      });
+      await _persistChatHistory();
+      _scrollToBottom();
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isProcessing = false;
+        _messages.add(
+          AIChatMessage(
+            id: _uuid.v4(),
+            sender: AIChatSender.ai,
+            text:
+                'Mình chưa dựng được card chọn danh mục lúc này. Bạn thử lại giúp mình nhé!',
+            timestamp: DateTime.now(),
+            status: 'error',
+          ),
+        );
+      });
+      await _persistChatHistory();
+      _scrollToBottom();
+    }
   }
 
   Future<void> _restoreChatHistory() async {
@@ -519,6 +761,56 @@ class _AIInputScreenState extends State<AIInputScreen>
     return 'Khác';
   }
 
+  String _buildFallbackTitleFromText(String text) {
+    var cleaned = text.trim();
+    cleaned = cleaned.replaceAll(
+      RegExp(
+        r'\b\d[\d\.,]*(?:\s*)(k|ngan|nghin|ngàn|nghìn|tr|trieu|triệu|cu|củ|m|lit|lít|ve|xị|xi|chai|dong|đồng|vnd|vnđ|d|đ)?\b',
+        caseSensitive: false,
+        unicode: true,
+      ),
+      ' ',
+    );
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.isEmpty) return 'Giao dịch';
+    return cleaned[0].toUpperCase() + cleaned.substring(1);
+  }
+
+  Map<String, dynamic>? _buildManualCategoryChoiceCard(String sourceText) {
+    final amount = TransactionAmountParser.extractSingleAmount(sourceText);
+    if (amount == null || amount <= 0) return null;
+
+    final now = DateTime.now();
+    final type = _detectTransactionType(sourceText);
+    final fallbackCategory = _detectCategory(sourceText, type);
+    final fallbackIconName = fallbackCategory == 'Lương'
+        ? 'moneyBillWave'
+        : fallbackCategory == 'Di chuyển'
+        ? 'car'
+        : fallbackCategory == 'Ăn uống'
+        ? 'utensils'
+        : fallbackCategory == 'Mua sắm'
+        ? 'cartShopping'
+        : 'ellipsis';
+
+    return <String, dynamic>{
+      'title': _buildFallbackTitleFromText(sourceText),
+      'amount': amount,
+      'type': type,
+      'category': 'Danh mục mới',
+      'note': sourceText.trim(),
+      'date': DateFormat('dd/MM/yyyy').format(now),
+      'time': DateFormat('HH:mm').format(now),
+      'dateTime': DateFormat('dd/MM/yyyy HH:mm').format(now),
+      'isNewCategory': true,
+      'confirmCreateCategory': false,
+      'suggestedIcon': 'ellipsis',
+      'fallbackCategory': fallbackCategory,
+      'fallbackIconName': fallbackIconName,
+      'sourceKind': 'manual_category_choice',
+    };
+  }
+
   DateTime _parseOcrDate(String? rawDate) {
     if (rawDate == null || rawDate.trim().isEmpty) {
       return DateTime.now();
@@ -541,10 +833,48 @@ class _AIInputScreenState extends State<AIInputScreen>
     });
 
     try {
-      final result = await OcrHelper.scanImage(source);
+      final pickedFile = await OcrHelper.pickImage(source);
       if (!mounted) {
         return;
       }
+
+      if (pickedFile == null) {
+        return;
+      }
+
+      if (_useRealAiMode && _runtimeConfig.canUseRemoteAi) {
+        final now = DateTime.now();
+        final userMessage = AIChatMessage(
+          id: _uuid.v4(),
+          sender: AIChatSender.user,
+          text: source == ImageSource.camera
+              ? 'Nhập giao dịch bằng ảnh chụp'
+              : 'Nhập giao dịch bằng ảnh từ thư viện',
+          timestamp: now,
+          status: 'user',
+        );
+
+        setState(() {
+          _messages.add(userMessage);
+        });
+        await _persistChatHistory();
+        _scrollToBottom();
+
+        final aiResult = await aiService.processImageFileInput(
+          pickedFile.path,
+          runtimeOverride: _runtimeConfig,
+        );
+        if (!mounted) return;
+
+        setState(() {
+          _messages.add(_buildAiMessage(aiResult));
+        });
+        await _persistChatHistory();
+        _scrollToBottom();
+        return;
+      }
+
+      final result = await OcrHelper.scanImageFile(pickedFile.path);
 
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -558,8 +888,7 @@ class _AIInputScreenState extends State<AIInputScreen>
       final note = (result['note'] ?? 'Đã nhập từ ảnh').trim();
       final amount = int.tryParse(result['amount'] ?? '') ?? 0;
       final transactionDate = _parseOcrDate(result['date']);
-      final type =
-          result['type']?.toString().trim().isNotEmpty == true
+      final type = result['type']?.toString().trim().isNotEmpty == true
           ? result['type']!.toString().trim()
           : _detectTransactionType('$title $note');
       final category = _detectCategory('$title $note', type);
@@ -722,7 +1051,12 @@ class _AIInputScreenState extends State<AIInputScreen>
     _scrollToBottom();
 
     try {
-      final result = await aiService.processInput(text);
+      final result = await aiService.processInput(
+        text,
+        runtimeOverride: _useRealAiMode
+            ? _runtimeConfig
+            : _runtimeConfig.copyWith(enabled: false),
+      );
       if (!mounted) return;
 
       setState(() {
@@ -1808,14 +2142,10 @@ class _AIInputScreenState extends State<AIInputScreen>
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            color: isSelected
-                ? accent
-                : Colors.white.withValues(alpha: 0.12),
+            color: isSelected ? accent : Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected
-                  ? accent
-                  : Colors.white.withValues(alpha: 0.3),
+              color: isSelected ? accent : Colors.white.withValues(alpha: 0.3),
               width: isSelected ? 2 : 1,
             ),
             boxShadow: isSelected
@@ -1845,6 +2175,16 @@ class _AIInputScreenState extends State<AIInputScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _loadRuntimeConfig() async {
+    final config = await aiService.loadPublishedRuntimeConfig();
+    if (!mounted) return;
+    setState(() {
+      _runtimeConfig = config;
+      _useRealAiMode = config.enabled && config.canUseRemoteAi;
+      _isLoadingRuntimeConfig = false;
+    });
   }
 
   Widget _buildTransactionTypeOption({
@@ -1900,7 +2240,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                     offset: const Offset(0, 4),
                   ),
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isSelected ? 0.1 : 0.06),
+                  color: Colors.black.withValues(
+                    alpha: isSelected ? 0.1 : 0.06,
+                  ),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1920,7 +2262,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.white.withValues(alpha: isSelected ? 0.22 : 0.12),
+                          Colors.white.withValues(
+                            alpha: isSelected ? 0.22 : 0.12,
+                          ),
                           Colors.white.withValues(alpha: 0.02),
                         ],
                       ),
@@ -1948,6 +2292,8 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Widget _buildHeader() {
+    final runtimeReady = _runtimeConfig.canUseRemoteAi;
+    final modeLabel = _useRealAiMode ? 'Nâng cao' : 'Bình thường';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: ClipRRect(
@@ -2003,51 +2349,79 @@ class _AIInputScreenState extends State<AIInputScreen>
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _isProcessing
-                            ? "Đang suy nghĩ..."
-                            : "Nhập thu chi tự nhiên, AI sẽ tự động bóc tách.",
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.72),
-                          fontSize: 13,
-                          height: 1.35,
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF4ADE80),
-                          shape: BoxShape.circle,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: _useRealAiMode,
+                          onChanged: _isLoadingRuntimeConfig
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _useRealAiMode = value && runtimeReady;
+                                  });
+                                  if (value && !runtimeReady) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Runtime AI chưa đủ cấu hình hoặc chưa có key. Hãy cập nhật trên web admin trước nhé.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                          activeThumbColor: const Color(0xFF4ADE80),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        "Online",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                        Text(
+                          modeLabel,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
                       ),
-                    ],
-                  ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF4ADE80),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            "Online",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -2231,6 +2605,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                       fontWeight: isUser ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
+                  if (_shouldShowCategoryDecisionActions(message))
+                    _buildCategoryDecisionActions(message),
                 ],
               ),
             ),
@@ -2406,8 +2782,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                     color: Colors.white.withValues(alpha: 0.64),
                     fontSize: 13,
                   ),
-                  ),
                 ),
+              ),
             if (showTypeChoice)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -3112,9 +3488,11 @@ class _AIInputScreenState extends State<AIInputScreen>
             color: Colors.white,
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Text(
-                    "Nhập thu chi tự nhiên để AI tự động xử lý và lưu.",
+                    _useRealAiMode
+                        ? "AI thật đang bật. Tin nhắn và ảnh sẽ đi theo runtime config đã publish."
+                        : "AI thật đang tắt. App đang dùng parse hiện tại để bóc tách và lưu.",
                   ),
                 ),
               );

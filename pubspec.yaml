@@ -124,23 +124,23 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: icon/icon.png
+  image_path: icon/anh_app.png
   web:
     generate: true
-    image_path: icon/icon.png
+    image_path: icon/anh_app.png
     background_color: "#ffffff"
     theme_color: "#ffffff"
   windows:
     generate: true
-    image_path: icon/icon.png
+    image_path: icon/anh_app.png
     icon_size: 256
   macos:
     generate: true
-    image_path: icon/icon.png
+    image_path: icon/anh_app.png
 
 flutter_native_splash:
   color: "#ffffff"
-  image: icon/icon.png
+  image: icon/anh_app.png
   android: true
   ios: true
   web: true

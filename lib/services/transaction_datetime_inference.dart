@@ -2,6 +2,44 @@ import 'package:app/services/transaction_type_inference.dart';
 import 'package:intl/intl.dart';
 
 class TransactionDateTimeInference {
+  static bool requiresExactDateClarification(String input) {
+    final normalized = TransactionTypeInference.normalizeText(input);
+    if (normalized.isEmpty) return false;
+
+    if (_containsAny(normalized, <String>[
+      'hom qua',
+      'toi qua',
+      'dem qua',
+      'hom nay',
+      'ngay mai',
+      'mai',
+      'ngay kia',
+      'mai mot',
+    ])) {
+      return false;
+    }
+
+    if (_inferDateFromInput(input, DateTime.now()).isExplicit) {
+      return false;
+    }
+
+    return _containsAny(normalized, <String>[
+      'hom truoc',
+      'hom kia',
+      'bua hom',
+      'bua hom truoc',
+      'bua te',
+      'dot truoc',
+      'lan truoc',
+      'tuan truoc',
+      'thang truoc',
+      'nam ngoai',
+      'nam truoc',
+      'dau thang truoc',
+      'cuoi thang truoc',
+    ]);
+  }
+
   static Map<String, dynamic> refineResult(
     Map<String, dynamic> result, {
     required String input,
@@ -141,13 +179,6 @@ class TransactionDateTimeInference {
       }
     }
 
-    if (_containsAny(normalized, <String>['hom kia'])) {
-      return _DateResolution(
-        today.subtract(const Duration(days: 2)),
-        isExplicit: true,
-      );
-    }
-
     if (_containsAny(normalized, <String>['hom qua', 'toi qua', 'dem qua'])) {
       return _DateResolution(
         today.subtract(const Duration(days: 1)),
@@ -247,27 +278,41 @@ class TransactionDateTimeInference {
       }
     }
 
-    if (_containsAny(normalized, <String>['rang sang', 'sang som'])) {
+    if (_containsAny(normalized, <String>[
+      'rang sang',
+      'sang som',
+      'buoi sang som',
+    ])) {
       return const _TimeResolution(value: _TimeOfDay(6, 0), isExplicit: true);
     }
 
-    if (_containsAny(normalized, <String>['sang', 'an sang'])) {
+    if (_containsAny(normalized, <String>[
+      'sang',
+      'an sang',
+      'buoi sang',
+      'sang nay',
+    ])) {
       return const _TimeResolution(value: _TimeOfDay(8, 0), isExplicit: true);
     }
 
-    if (_containsAny(normalized, <String>['trua'])) {
+    if (_containsAny(normalized, <String>['trua', 'buoi trua', 'qua trua'])) {
       return const _TimeResolution(value: _TimeOfDay(12, 0), isExplicit: true);
     }
 
-    if (_containsAny(normalized, <String>['chieu'])) {
+    if (_containsAny(normalized, <String>['chieu', 'buoi chieu', 'xechieu'])) {
       return const _TimeResolution(value: _TimeOfDay(15, 0), isExplicit: true);
     }
 
-    if (_containsAny(normalized, <String>['toi'])) {
+    if (_containsAny(normalized, <String>['toi', 'buoi toi', 'toi nay'])) {
       return const _TimeResolution(value: _TimeOfDay(19, 0), isExplicit: true);
     }
 
-    if (_containsAny(normalized, <String>['dem', 'khuya'])) {
+    if (_containsAny(normalized, <String>[
+      'dem',
+      'khuya',
+      'nua dem',
+      'gan sang',
+    ])) {
       return const _TimeResolution(value: _TimeOfDay(22, 0), isExplicit: true);
     }
 

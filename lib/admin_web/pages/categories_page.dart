@@ -9,15 +9,26 @@ class CategoriesPage extends StatelessWidget {
 
   final AdminWebRepository repository;
 
-  Future<void> _seedDefaultCategories(BuildContext context, AppIcons icons) async {
+  Future<void> _seedDefaultCategories(
+    BuildContext context,
+    AppIcons icons,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Khởi tạo danh mục'),
-        content: const Text('Hệ thống sẽ tự động thêm 5 danh mục mặc định (Lương, Ăn uống, Di chuyển...) vào danh sách. Tiếp tục?'),
+        content: const Text(
+          'Hệ thống sẽ tự động thêm 5 danh mục mặc định (Lương, Ăn uống, Di chuyển...) vào danh sách. Tiếp tục?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Khởi tạo ngay')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Khởi tạo ngay'),
+          ),
         ],
       ),
     );
@@ -39,10 +50,12 @@ class CategoriesPage extends StatelessWidget {
           iconName: cat['iconName']!,
         );
       }
-      
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã khởi tạo xong 5 danh mục mặc định!')),
+          const SnackBar(
+            content: Text('Đã khởi tạo xong 5 danh mục mặc định!'),
+          ),
         );
       }
     }
@@ -88,13 +101,17 @@ class CategoriesPage extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final categories = snapshot.data!;
-                
+
                 if (categories.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.category_outlined, size: 64, color: Colors.grey.shade300),
+                        Icon(
+                          Icons.category_outlined,
+                          size: 64,
+                          color: Colors.grey.shade300,
+                        ),
                         const SizedBox(height: 16),
                         const Text(
                           'Chưa có danh mục nào.\nHãy nhấn "Nạp mục mặc định" để bắt đầu.',
@@ -108,7 +125,8 @@ class CategoriesPage extends StatelessWidget {
 
                 return ListView.separated(
                   itemCount: categories.length,
-                  separatorBuilder: (_, _) => const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 24, color: Color(0xFFF1F5F9)),
                   itemBuilder: (context, index) {
                     final item = categories[index];
                     return Material(
@@ -134,7 +152,9 @@ class CategoriesPage extends StatelessWidget {
                         subtitle: Text(
                           item.type == 'credit' ? 'Thu nhập' : 'Chi tiêu',
                           style: TextStyle(
-                            color: item.type == 'credit' ? Colors.green : Colors.orange.shade800,
+                            color: item.type == 'credit'
+                                ? Colors.green
+                                : Colors.orange.shade800,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -143,7 +163,11 @@ class CategoriesPage extends StatelessWidget {
                           spacing: 8,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 20),
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
                               onPressed: () => _showCategoryDialog(
                                 context,
                                 record: item,
@@ -151,18 +175,31 @@ class CategoriesPage extends StatelessWidget {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.red,
+                                size: 20,
+                              ),
                               onPressed: () async {
                                 final confirmed = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
                                     title: const Text('Xác nhận xóa'),
-                                    content: Text('Bạn có chắc muốn xóa danh mục "${item.name}"?'),
+                                    content: Text(
+                                      'Bạn có chắc muốn xóa danh mục "${item.name}"?',
+                                    ),
                                     actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
                                       TextButton(
-                                        onPressed: () => Navigator.pop(context, true),
-                                        child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Hủy'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text(
+                                          'Xóa',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -193,7 +230,8 @@ class CategoriesPage extends StatelessWidget {
   }) async {
     final nameController = TextEditingController(text: record?.name ?? '');
     var type = record?.type ?? 'debit';
-    var iconName = record?.iconName ?? icons.defaultCategories.first['iconName'];
+    var iconName =
+        record?.iconName ?? icons.defaultCategories.first['iconName'];
 
     await showDialog<void>(
       context: context,
@@ -224,8 +262,14 @@ class CategoriesPage extends StatelessWidget {
                           border: OutlineInputBorder(),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'debit', child: Text('Chi tiêu (Debit)')),
-                          DropdownMenuItem(value: 'credit', child: Text('Thu nhập (Credit)')),
+                          DropdownMenuItem(
+                            value: 'debit',
+                            child: Text('Chi tiêu'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'credit',
+                            child: Text('Thu nhập'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -240,7 +284,10 @@ class CategoriesPage extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Chọn biểu tượng:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -269,7 +316,9 @@ class CategoriesPage extends StatelessWidget {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: selected
-                                        ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                                        ? const Color(
+                                            0xFF6366F1,
+                                          ).withValues(alpha: 0.1)
                                         : Colors.white,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
@@ -281,7 +330,9 @@ class CategoriesPage extends StatelessWidget {
                                   ),
                                   child: Icon(
                                     item['icon'] as IconData,
-                                    color: selected ? const Color(0xFF6366F1) : const Color(0xFF64748B),
+                                    color: selected
+                                        ? const Color(0xFF6366F1)
+                                        : const Color(0xFF64748B),
                                     size: 20,
                                   ),
                                 ),

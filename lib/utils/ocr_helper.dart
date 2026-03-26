@@ -18,15 +18,23 @@ class OcrHelper {
   );
 
   static Future<Map<String, String>> scanImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: source);
+    final pickedFile = await pickImage(source);
 
     if (pickedFile == null) {
       return {};
     }
 
+    return scanImageFile(pickedFile.path);
+  }
+
+  static Future<XFile?> pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    return picker.pickImage(source: source);
+  }
+
+  static Future<Map<String, String>> scanImageFile(String filePath) async {
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    final inputImage = InputImage.fromFilePath(pickedFile.path);
+    final inputImage = InputImage.fromFilePath(filePath);
     final recognizedText = await textRecognizer.processImage(inputImage);
 
     await textRecognizer.close();
@@ -34,7 +42,9 @@ class OcrHelper {
     return parseRecognizedResult(recognizedText);
   }
 
-  static Map<String, String> parseRecognizedResult(RecognizedText recognizedText) {
+  static Map<String, String> parseRecognizedResult(
+    RecognizedText recognizedText,
+  ) {
     final orderedLines = _extractOrderedLines(recognizedText);
     final normalizedText = _normalizeText(
       orderedLines.isEmpty
@@ -42,6 +52,10 @@ class OcrHelper {
           : orderedLines.map((line) => line.text).join('\n'),
     );
     final result = <String, String>{};
+
+    if (normalizedText.isNotEmpty) {
+      result['ocrText'] = normalizedText;
+    }
 
     final amount =
         _extractBestAmountFromStructuredLines(orderedLines) ??
@@ -76,6 +90,10 @@ class OcrHelper {
   static Map<String, String> parseRecognizedText(String text) {
     final normalizedText = _normalizeText(text);
     final result = <String, String>{};
+
+    if (normalizedText.isNotEmpty) {
+      result['ocrText'] = normalizedText;
+    }
 
     final amount = _extractBestAmount(normalizedText);
     if (amount != null) {
@@ -124,12 +142,7 @@ class OcrHelper {
       for (final line in block.lines) {
         final text = line.text.trim();
         if (text.isEmpty) continue;
-        lines.add(
-          _OcrLine(
-            text: text,
-            boundingBox: line.boundingBox,
-          ),
-        );
+        lines.add(_OcrLine(text: text, boundingBox: line.boundingBox));
       }
     }
 
@@ -165,7 +178,9 @@ class OcrHelper {
       final previousLine = index > 0 ? lines[index - 1].text : '';
       final nextLine = index + 1 < lines.length ? lines[index + 1].text : '';
       final previousTwoLines = index > 1 ? lines[index - 2].text : '';
-      final nextTwoLines = index + 2 < lines.length ? lines[index + 2].text : '';
+      final nextTwoLines = index + 2 < lines.length
+          ? lines[index + 2].text
+          : '';
       final normalizedLine = line.text.toLowerCase();
 
       for (final match in _amountPattern.allMatches(line.text)) {
@@ -184,7 +199,9 @@ class OcrHelper {
           amount: amount,
         );
 
-        final heightRatio = maxHeight == 0 ? 0 : line.boundingBox.height / maxHeight;
+        final heightRatio = maxHeight == 0
+            ? 0
+            : line.boundingBox.height / maxHeight;
         final topRatio = maxBottom == 0 ? 1 : line.boundingBox.top / maxBottom;
 
         score += (heightRatio * 220).round();
@@ -279,8 +296,7 @@ class OcrHelper {
 
         if (best == null ||
             candidate.score > best.score ||
-            (candidate.score == best.score &&
-                candidate.amount > best.amount)) {
+            (candidate.score == best.score && candidate.amount > best.amount)) {
           best = candidate;
         }
       }
@@ -417,7 +433,7 @@ class OcrHelper {
     final stripped = normalized.replaceAll(RegExp(r'[^0-9a-zđ]'), '');
     return stripped == '${compactRaw}vnd' ||
         stripped == '${compactRaw}vnđ' ||
-        stripped == '${compactRaw}đ';
+        stripped == compactRaw + 'đ';
   }
 
   static bool _isCurrencyOnlyLine(String line) {
@@ -467,7 +483,8 @@ class OcrHelper {
 
     final lettersOnly = rawLine.replaceAll(RegExp(r'[^a-z]'), '');
     final digitsOnly = rawLine.replaceAll(RegExp(r'[^0-9]'), '');
-    final mostlyDigits = digitsOnly.length >= compactRaw.length &&
+    final mostlyDigits =
+        digitsOnly.length >= compactRaw.length &&
         (lettersOnly.isEmpty || digitsOnly.length >= lettersOnly.length * 3);
 
     return mostlyDigits;
@@ -482,9 +499,7 @@ class OcrHelper {
       }
     }
 
-    if (amount >= 2000 &&
-        amount <= 2099 &&
-        RegExp(r'[/:-]').hasMatch(line)) {
+    if (amount >= 2000 && amount <= 2099 && RegExp(r'[/:-]').hasMatch(line)) {
       return true;
     }
 
@@ -564,7 +579,8 @@ class OcrHelper {
       final parts = compact.split(separator);
       final trailingParts = parts.skip(1).toList();
 
-      final looksLikeThousands = trailingParts.isNotEmpty &&
+      final looksLikeThousands =
+          trailingParts.isNotEmpty &&
           trailingParts.every((part) => part.length == 3);
       if (looksLikeThousands) {
         return int.tryParse(parts.join());
@@ -648,7 +664,8 @@ class OcrHelper {
     final normalized = text.toLowerCase();
 
     final recipientLine = lines.firstWhere(
-      (line) => line.toLowerCase().startsWith('đến:') ||
+      (line) =>
+          line.toLowerCase().startsWith('đến:') ||
           line.toLowerCase().startsWith('den:'),
       orElse: () => '',
     );
@@ -718,10 +735,7 @@ class _AmountCandidate {
 }
 
 class _OcrLine {
-  const _OcrLine({
-    required this.text,
-    required this.boundingBox,
-  });
+  const _OcrLine({required this.text, required this.boundingBox});
 
   final String text;
   final Rect boundingBox;
