@@ -86,7 +86,8 @@ class _OverviewPageState extends State<OverviewPage> {
                 AdminMetricCard(
                   label: 'Người dùng',
                   value: '${stats.totalUsers}',
-                  note: '${stats.adminUsers} quản trị viên, ${stats.lockedUsers} bị khóa',
+                  note:
+                      '${stats.adminUsers} quản trị viên, ${stats.lockedUsers} bị khóa',
                   tint: const Color(0xFF155EEF),
                   icon: Icons.people_alt_rounded,
                 ),
@@ -102,7 +103,7 @@ class _OverviewPageState extends State<OverviewPage> {
                   value: '${stats.activeBroadcasts}',
                   note: 'Thông báo đang hiển thị cho người dùng',
                   tint: const Color(0xFFDC6803),
-                  icon: Icons.campaign_rounded,
+                  icon: Icons.notifications_active_rounded,
                 ),
                 AdminMetricCard(
                   label: 'Giao dịch tháng này',
@@ -153,13 +154,17 @@ class _OverviewPageState extends State<OverviewPage> {
                                       backgroundColor: user.role == 'user'
                                           ? const Color(0xFFDDEEE6)
                                           : const Color(0xFFEDE9FE),
-                                      child: Icon(
-                                        user.role == 'user'
-                                            ? Icons.person_rounded
-                                            : Icons.shield_rounded,
-                                        color: user.role == 'user'
-                                            ? const Color(0xFF1E3A37)
-                                            : const Color(0xFF7A5AF8),
+                                      child: Text(
+                                        (user.name.isNotEmpty
+                                                ? user.name.characters.first
+                                                : user.email.characters.first)
+                                            .toUpperCase(),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: user.role == 'user'
+                                              ? const Color(0xFF1E3A37)
+                                              : const Color(0xFF7A5AF8),
+                                        ),
                                       ),
                                     ),
                                     title: Text(
@@ -193,7 +198,7 @@ class _OverviewPageState extends State<OverviewPage> {
                                         item.type,
                                       ).withValues(alpha: 0.12),
                                       child: Icon(
-                                        Icons.campaign_rounded,
+                                        Icons.notifications_active_rounded,
                                         color: broadcastColor(item.type),
                                       ),
                                     ),
@@ -236,7 +241,8 @@ class _OverviewPageState extends State<OverviewPage> {
                                   Expanded(
                                     child: _MiniStat(
                                       label: 'Tổng giao dịch',
-                                      value: '${monthlySummary.totalTransactions}',
+                                      value:
+                                          '${monthlySummary.totalTransactions}',
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -260,37 +266,41 @@ class _OverviewPageState extends State<OverviewPage> {
                                 ],
                               ),
                               const SizedBox(height: 18),
-                              ...monthlySummary.topCategories.take(5).map(
-                                (entry) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: CircleAvatar(
-                                    backgroundColor: entry.type == 'credit'
-                                        ? Colors.green.shade50
-                                        : Colors.orange.shade50,
-                                    child: Icon(
-                                      entry.type == 'credit'
-                                          ? Icons.south_west_rounded
-                                          : Icons.north_east_rounded,
-                                      color: entry.type == 'credit'
-                                          ? Colors.green.shade700
-                                          : Colors.orange.shade800,
+                              ...monthlySummary.topCategories
+                                  .take(5)
+                                  .map(
+                                    (entry) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        backgroundColor: entry.type == 'credit'
+                                            ? Colors.green.shade50
+                                            : Colors.orange.shade50,
+                                        child: Icon(
+                                          entry.type == 'credit'
+                                              ? Icons.south_west_rounded
+                                              : Icons.north_east_rounded,
+                                          color: entry.type == 'credit'
+                                              ? Colors.green.shade700
+                                              : Colors.orange.shade800,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        entry.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '${entry.count} giao dịch',
+                                      ),
+                                      trailing: Text(
+                                        adminCurrency(entry.amount),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  title: Text(
-                                    entry.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  subtitle: Text('${entry.count} giao dịch'),
-                                  trailing: Text(
-                                    adminCurrency(entry.amount),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                   ),
@@ -378,7 +388,7 @@ class _HeroPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(
-            Icons.auto_awesome_mosaic_rounded,
+            Icons.space_dashboard_rounded,
             color: Colors.white,
             size: 34,
           ),
@@ -469,10 +479,7 @@ class _SummaryPanel extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({
-    required this.label,
-    required this.value,
-  });
+  const _MiniStat({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -498,10 +505,7 @@ class _MiniStat extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -573,17 +577,18 @@ class _MonthlySummary {
       );
     }
 
-    final rows = categoryTotals.entries
-        .map(
-          (entry) => _MonthlyCategoryRow(
-            name: entry.key.split(':').last,
-            amount: entry.value.amount,
-            count: entry.value.count,
-            type: entry.value.type,
-          ),
-        )
-        .toList()
-      ..sort((a, b) => b.amount.compareTo(a.amount));
+    final rows =
+        categoryTotals.entries
+            .map(
+              (entry) => _MonthlyCategoryRow(
+                name: entry.key.split(':').last,
+                amount: entry.value.amount,
+                count: entry.value.count,
+                type: entry.value.type,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.amount.compareTo(a.amount));
 
     return _MonthlySummary(
       totalTransactions: transactions.length,

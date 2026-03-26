@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class UsersPage extends StatefulWidget {
-  const UsersPage({
-    super.key,
-    required this.repository,
-    required this.profile,
-  });
+  const UsersPage({super.key, required this.repository, required this.profile});
 
   final AdminWebRepository repository;
   final AdminProfile profile;
@@ -48,11 +44,16 @@ class _UsersPageState extends State<UsersPage> {
               _buildDetailRow('Email:', user.email),
               _buildDetailRow('ID:', user.id),
               _buildDetailRow('Vai trò:', user.role.toUpperCase()),
-              _buildDetailRow('Trạng thái:', user.status == 'locked' ? 'Bị khóa' : 'Hoạt động'),
+              _buildDetailRow(
+                'Trạng thái:',
+                user.status == 'locked' ? 'Bị khóa' : 'Hoạt động',
+              ),
               _buildDetailRow(
                 'Ngày tham gia:',
                 user.createdAt != null
-                    ? DateFormat('HH:mm - dd/MM/yyyy').format(user.createdAt!.toDate())
+                    ? DateFormat(
+                        'HH:mm - dd/MM/yyyy',
+                      ).format(user.createdAt!.toDate())
                     : 'Không rõ',
               ),
               const Divider(height: 32),
@@ -132,7 +133,12 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  Widget _buildStatBox(String label, String value, Color color, {bool isFullWidth = false}) {
+  Widget _buildStatBox(
+    String label,
+    String value,
+    Color color, {
+    bool isFullWidth = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -141,7 +147,9 @@ class _UsersPageState extends State<UsersPage> {
         border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
-        crossAxisAlignment: isFullWidth ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        crossAxisAlignment: isFullWidth
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -214,7 +222,10 @@ class _UsersPageState extends State<UsersPage> {
               DropdownMenuItem(value: 'all', child: Text('Tất cả vai trò')),
               DropdownMenuItem(value: 'user', child: Text('Người dùng')),
               DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
-              DropdownMenuItem(value: 'super_admin', child: Text('Quản trị viên cấp cao')),
+              DropdownMenuItem(
+                value: 'super_admin',
+                child: Text('Quản trị viên cấp cao'),
+              ),
             ],
             onChanged: (value) {
               if (value != null) {
@@ -257,7 +268,8 @@ class _UsersPageState extends State<UsersPage> {
 
                 return ListView.separated(
                   itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 24, color: Color(0xFFF1F5F9)),
                   itemBuilder: (context, index) {
                     final user = filtered[index];
                     return Material(
@@ -274,13 +286,17 @@ class _UsersPageState extends State<UsersPage> {
                                 backgroundColor: user.role == 'user'
                                     ? const Color(0xFFDDEEE6)
                                     : const Color(0xFFEDE9FE),
-                                child: Icon(
-                                  user.role == 'user'
-                                      ? Icons.person_rounded
-                                      : Icons.shield_rounded,
-                                  color: user.role == 'user'
-                                      ? const Color(0xFF1E3A37)
-                                      : const Color(0xFF7A5AF8),
+                                child: Text(
+                                  (user.name.isNotEmpty
+                                          ? user.name.characters.first
+                                          : user.email.characters.first)
+                                      .toUpperCase(),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: user.role == 'user'
+                                        ? const Color(0xFF1E3A37)
+                                        : const Color(0xFF7A5AF8),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 16),
@@ -335,29 +351,52 @@ class _UsersPageState extends State<UsersPage> {
                                 SizedBox(
                                   width: 130,
                                   child: DropdownButtonFormField<String>(
-                                    value: user.role,
+                                    initialValue: user.role,
                                     decoration: const InputDecoration(
                                       isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 8,
+                                      ),
                                       border: OutlineInputBorder(),
                                     ),
                                     items: const [
-                                      DropdownMenuItem(value: 'user', child: Text('Người dùng')),
-                                      DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
-                                      DropdownMenuItem(value: 'super_admin', child: Text('Cấp cao')),
+                                      DropdownMenuItem(
+                                        value: 'user',
+                                        child: Text('Người dùng'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'admin',
+                                        child: Text('Quản trị viên'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'super_admin',
+                                        child: Text('Cấp cao'),
+                                      ),
                                     ],
                                     onChanged: (value) async {
-                                      if (value == null || value == user.role) return;
-                                      await widget.repository.updateUserRole(user.id, value);
+                                      if (value == null || value == user.role) {
+                                        return;
+                                      }
+                                      await widget.repository.updateUserRole(
+                                        user.id,
+                                        value,
+                                      );
                                     },
                                   ),
                                 ),
                               const SizedBox(width: 16),
                               IconButton(
-                                tooltip: user.status == 'locked' ? 'Mở khóa' : 'Khóa tài khoản',
+                                tooltip: user.status == 'locked'
+                                    ? 'Mở khóa'
+                                    : 'Khóa tài khoản',
                                 icon: Icon(
-                                  user.status == 'locked' ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                                  color: user.status == 'locked' ? Colors.green : Colors.red,
+                                  user.status == 'locked'
+                                      ? Icons.lock_open_rounded
+                                      : Icons.lock_outline_rounded,
+                                  color: user.status == 'locked'
+                                      ? Colors.green
+                                      : Colors.red,
                                 ),
                                 onPressed: () => _toggleUserStatus(user),
                               ),

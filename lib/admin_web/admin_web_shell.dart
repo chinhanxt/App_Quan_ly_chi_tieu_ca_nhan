@@ -45,7 +45,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.overview,
         label: 'Tổng quan',
-        icon: Icons.dashboard_customize_rounded,
+        icon: Icons.dashboard_rounded,
       ),
       (
         section: AdminSection.users,
@@ -60,7 +60,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.broadcasts,
         label: 'Thông báo',
-        icon: Icons.campaign_rounded,
+        icon: Icons.notifications_rounded,
       ),
       (
         section: AdminSection.systemConfigs,
@@ -70,7 +70,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.aiConfig,
         label: 'Cấu hình AI',
-        icon: Icons.psychology_alt_rounded,
+        icon: Icons.smart_toy_rounded,
       ),
       (
         section: AdminSection.transactions,
@@ -80,7 +80,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.reports,
         label: 'Báo cáo',
-        icon: Icons.assessment_rounded,
+        icon: Icons.insert_chart_rounded,
       ),
     ];
 
@@ -95,10 +95,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: <Color>[
-                  Color(0xFF112321),
-                  Color(0xFF18312E),
-                ],
+                colors: <Color>[Color(0xFF112321), Color(0xFF18312E)],
               ),
             ),
             child: SafeArea(
@@ -174,7 +171,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
                     Expanded(
                       child: ListView.separated(
                         itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = items[index];
                           return AdminSidebarTile(
@@ -212,7 +209,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
               ),
             ),
           ),
-          
+
           // MAIN CONTENT
           Expanded(
             child: Column(
@@ -290,14 +287,22 @@ class _AdminWebShellState extends State<AdminWebShell> {
 
   String _sectionTitle(AdminSection section) {
     switch (section) {
-      case AdminSection.overview: return 'Tổng quan hệ thống';
-      case AdminSection.users: return 'Quản lý người dùng';
-      case AdminSection.categories: return 'Danh mục hệ thống';
-      case AdminSection.broadcasts: return 'Thông báo hệ thống';
-      case AdminSection.systemConfigs: return 'Cấu hình hệ thống';
-      case AdminSection.aiConfig: return 'Cấu hình AI';
-      case AdminSection.transactions: return 'Giao dịch toàn hệ thống';
-      case AdminSection.reports: return 'Báo cáo tổng hợp';
+      case AdminSection.overview:
+        return 'Tổng quan hệ thống';
+      case AdminSection.users:
+        return 'Quản lý người dùng';
+      case AdminSection.categories:
+        return 'Danh mục hệ thống';
+      case AdminSection.broadcasts:
+        return 'Thông báo hệ thống';
+      case AdminSection.systemConfigs:
+        return 'Cấu hình hệ thống';
+      case AdminSection.aiConfig:
+        return 'Cấu hình AI';
+      case AdminSection.transactions:
+        return 'Giao dịch toàn hệ thống';
+      case AdminSection.reports:
+        return 'Báo cáo tổng hợp';
     }
   }
 }

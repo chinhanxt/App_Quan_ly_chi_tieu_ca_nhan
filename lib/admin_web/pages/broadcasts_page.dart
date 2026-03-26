@@ -31,14 +31,18 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
         }
 
         final allItems = snapshot.data!;
-        final items = allItems.where((item) {
-          final statusOk =
-              _statusFilter == 'all' || item.status == _statusFilter;
-          final typeOk = _typeFilter == 'all' || item.type == _typeFilter;
-          return statusOk && typeOk;
-        }).toList(growable: false);
+        final items = allItems
+            .where((item) {
+              final statusOk =
+                  _statusFilter == 'all' || item.status == _statusFilter;
+              final typeOk = _typeFilter == 'all' || item.type == _typeFilter;
+              return statusOk && typeOk;
+            })
+            .toList(growable: false);
 
-        final activeCount = allItems.where((item) => item.status == 'active').length;
+        final activeCount = allItems
+            .where((item) => item.status == 'active')
+            .length;
         final inactiveCount = allItems.length - activeCount;
 
         return Column(
@@ -71,7 +75,7 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                     label: 'Tổng thông báo',
                     value: '${allItems.length}',
                     tint: const Color(0xFF155EEF),
-                    icon: Icons.layers_rounded,
+                    icon: Icons.notifications_rounded,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -80,7 +84,7 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                     label: 'Đang hiển thị',
                     value: '$activeCount',
                     tint: const Color(0xFF039855),
-                    icon: Icons.campaign_rounded,
+                    icon: Icons.notifications_active_rounded,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -104,8 +108,14 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                     decoration: const InputDecoration(labelText: 'Trạng thái'),
                     items: const [
                       DropdownMenuItem(value: 'all', child: Text('Tất cả')),
-                      DropdownMenuItem(value: 'active', child: Text('Đang hiển thị')),
-                      DropdownMenuItem(value: 'inactive', child: Text('Tạm ẩn')),
+                      DropdownMenuItem(
+                        value: 'active',
+                        child: Text('Đang hiển thị'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'inactive',
+                        child: Text('Tạm ẩn'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -124,8 +134,14 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                     items: const [
                       DropdownMenuItem(value: 'all', child: Text('Tất cả')),
                       DropdownMenuItem(value: 'info', child: Text('Thông tin')),
-                      DropdownMenuItem(value: 'success', child: Text('Tích cực')),
-                      DropdownMenuItem(value: 'warning', child: Text('Cảnh báo')),
+                      DropdownMenuItem(
+                        value: 'success',
+                        child: Text('Tích cực'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'warning',
+                        child: Text('Cảnh báo'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -156,7 +172,9 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                       title: 'Danh sách thông báo',
                       child: items.isEmpty
                           ? const Center(
-                              child: Text('Chưa có thông báo phù hợp với bộ lọc.'),
+                              child: Text(
+                                'Chưa có thông báo phù hợp với bộ lọc.',
+                              ),
                             )
                           : ListView.separated(
                               itemCount: items.length,
@@ -172,8 +190,7 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                                     context,
                                     record: item,
                                   ),
-                                  onDelete: () =>
-                                      _confirmDelete(context, item),
+                                  onDelete: () => _confirmDelete(context, item),
                                 );
                               },
                             ),
@@ -242,7 +259,9 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
     BroadcastRecord? record,
   }) async {
     final titleController = TextEditingController(text: record?.title ?? '');
-    final contentController = TextEditingController(text: record?.content ?? '');
+    final contentController = TextEditingController(
+      text: record?.content ?? '',
+    );
     var type = record?.type ?? 'info';
     var active = record?.status == 'active';
     String? errorText;
@@ -304,7 +323,9 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             initialValue: type,
-                            decoration: const InputDecoration(labelText: 'Loại'),
+                            decoration: const InputDecoration(
+                              labelText: 'Loại',
+                            ),
                             items: const [
                               DropdownMenuItem(
                                 value: 'info',
@@ -368,7 +389,7 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Hủy'),
+                  child: const Text('Hủy'),
                 ),
                 FilledButton(
                   onPressed: () async {
@@ -433,9 +454,11 @@ class _BroadcastRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                backgroundColor: broadcastColor(item.type).withValues(alpha: 0.12),
+                backgroundColor: broadcastColor(
+                  item.type,
+                ).withValues(alpha: 0.12),
                 child: Icon(
-                  Icons.campaign_rounded,
+                  Icons.notifications_active_rounded,
                   color: broadcastColor(item.type),
                 ),
               ),
@@ -463,10 +486,7 @@ class _BroadcastRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Switch(
-                value: item.status == 'active',
-                onChanged: onToggle,
-              ),
+              Switch(value: item.status == 'active', onChanged: onToggle),
             ],
           ),
           const SizedBox(height: 14),
@@ -497,14 +517,8 @@ class _BroadcastRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              OutlinedButton(
-                onPressed: onEdit,
-                child: const Text('Sửa'),
-              ),
-              FilledButton.tonal(
-                onPressed: onDelete,
-                child: const Text('Xóa'),
-              ),
+              OutlinedButton(onPressed: onEdit, child: const Text('Sửa')),
+              FilledButton.tonal(onPressed: onDelete, child: const Text('Xóa')),
             ],
           ),
         ],
@@ -558,7 +572,9 @@ class _BroadcastPreviewCard extends StatelessWidget {
                     ),
                   ),
                 Text(
-                  item.content.isEmpty ? 'Nội dung sẽ hiển thị ở đây.' : item.content,
+                  item.content.isEmpty
+                      ? 'Nội dung sẽ hiển thị ở đây.'
+                      : item.content,
                   style: TextStyle(
                     color: color.withValues(alpha: 0.92),
                     height: 1.5,
