@@ -1,7 +1,7 @@
+import 'package:app/screens/edit_transaction_screen.dart';
 import 'package:app/services/db.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
-import 'package:app/widgets/edit_transactions_form.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
@@ -161,7 +161,7 @@ class TransactionCard extends StatelessWidget {
             ],
             onSelected: (value) {
               if (value == 'edit') {
-                _showEditDialog(context);
+                _openEditScreen(context);
               } else if (value == 'delete') {
                 _confirmDelete(context);
               }
@@ -172,18 +172,15 @@ class TransactionCard extends StatelessWidget {
     );
   }
 
-  void _showEditDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Sửa Giao Dịch"),
-          content: EditTransactionsForm(
-            transactionData: data,
-            transactionId: docId,
-          ),
-        );
-      },
+  void _openEditScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditTransactionScreen(
+          transactionData: Map<String, dynamic>.from(data as Map),
+          transactionId: docId,
+        ),
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:app/services/db.dart';
+import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/widgets/add_category_dialog.dart';
@@ -28,34 +29,43 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
   String? category;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  var isLoader = false;
-  var appvalidator = Appvalidator();
+  bool isLoader = false;
+  final Appvalidator appvalidator = Appvalidator();
   late TextEditingController amountEditController;
   late TextEditingController titleEditController;
   late TextEditingController noteEditController;
   late TextEditingController dateController;
   late DateTime _selectedDate;
 
-  var db = Db();
-  final appIcons = AppIcons();
+  final AppIcons appIcons = AppIcons();
 
   @override
   void initState() {
     super.initState();
-    titleEditController = TextEditingController(text: widget.transactionData['title']);
-    amountEditController = TextEditingController(text: widget.transactionData['amount'].toString());
-    noteEditController = TextEditingController(text: widget.transactionData['note'] ?? '');
+    titleEditController = TextEditingController(
+      text: widget.transactionData['title'],
+    );
+    amountEditController = TextEditingController(
+      text: widget.transactionData['amount'].toString(),
+    );
+    noteEditController = TextEditingController(
+      text: widget.transactionData['note'] ?? '',
+    );
     type = widget.transactionData['type'];
-    category = widget.transactionData['category'];
+    category = widget.transactionData['category']?.toString();
 
-    int timestamp = widget.transactionData['timestamp'] ?? DateTime.now().millisecondsSinceEpoch;
+    final timestamp =
+        widget.transactionData['timestamp'] ??
+        DateTime.now().millisecondsSinceEpoch;
     _selectedDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    dateController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(_selectedDate));
+    dateController = TextEditingController(
+      text: DateFormat('dd/MM/yyyy').format(_selectedDate),
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+    final now = DateTime.now();
+    final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
       firstDate: DateTime(2000),
@@ -84,20 +94,27 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      
-      final categoryFromList = appIcons.suggestedCategories.firstWhere((c) => c['icon'] == icon, orElse: () => {});
+
+      final categoryFromList = appIcons.suggestedCategories.firstWhere(
+        (c) => c['icon'] == icon,
+        orElse: () => {},
+      );
       if (categoryFromList.isEmpty) return;
 
-      final newCategory = {'name': categoryName, 'iconName': categoryFromList['name']};
+      final newCategory = {
+        'name': categoryName,
+        'iconName': categoryFromList['name'],
+      };
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
         'customCategories': FieldValue.arrayUnion([newCategory]),
       });
 
+      if (!mounted) return;
       setState(() {
         category = categoryName;
       });
     } catch (e) {
-      debugPrint("Lỗi thêm danh mục: $e");
+      debugPrint('Lỗi thêm danh mục: $e');
     }
   }
 
@@ -111,35 +128,44 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
   }
 
   Future<void> _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        isLoader = true;
-      });
+    if (!_formKey.currentState!.validate()) return;
 
-      int newAmount = int.parse(amountEditController.text);
-      int newTimestamp = _selectedDate.millisecondsSinceEpoch;
-      String newMonthYear = "${_selectedDate.month} ${_selectedDate.year}";
-
-      var newData = {
-        "title": titleEditController.text,
-        "amount": newAmount,
-        "type": type,
-        "category": category,
-        "timestamp": newTimestamp,
-        "monthyear": newMonthYear,
-        "note": noteEditController.text,
-      };
-
-      bool success = await db.updateTransaction(
-        widget.transactionId,
-        widget.transactionData,
-        newData,
+    if (category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn danh mục')),
       );
+      return;
+    }
 
-      if (success && mounted) {
-        Navigator.pop(context);
-      }
+    setState(() {
+      isLoader = true;
+    });
 
+    final newAmount = int.parse(amountEditController.text);
+    final newTimestamp = _selectedDate.millisecondsSinceEpoch;
+    final newMonthYear = '${_selectedDate.month} ${_selectedDate.year}';
+
+    final newData = {
+      'title': titleEditController.text,
+      'amount': newAmount,
+      'type': type,
+      'category': category,
+      'timestamp': newTimestamp,
+      'monthyear': newMonthYear,
+      'note': noteEditController.text,
+    };
+
+    final success = await Db().updateTransaction(
+      widget.transactionId,
+      widget.transactionData,
+      newData,
+    );
+
+    if (success && mounted) {
+      Navigator.pop(context);
+    }
+
+    if (mounted) {
       setState(() {
         isLoader = false;
       });
@@ -148,103 +174,155 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: titleEditController,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              validator: appvalidator.isEmptyCheck,
-              decoration: const InputDecoration(labelText: 'Tiêu Đề'),
-            ),
-            TextFormField(
-              controller: amountEditController,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              validator: appvalidator.isEmptyCheck,
-              keyboardType: const TextInputType.numberWithOptions(decimal: false),
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Số Lượng (VND)'),
-            ),
-            TextFormField(
-              controller: dateController,
-              readOnly: true,
-              onTap: () => _selectDate(context),
-              decoration: const InputDecoration(
-                labelText: 'Ngày giao dịch',
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
+    final screen = MediaQuery.of(context).size;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: screen.width > 560 ? 520 : screen.width - 32,
+        constraints: BoxConstraints(maxHeight: screen.height * 0.82),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(
+          color:
+              Theme.of(context).dialogTheme.backgroundColor ??
+              Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: CategoryDropdown(
-                    cattype: category,
-                    onChanged: (String? value) {
-                      if (value != null) {
-                        setState(() {
-                          category = value;
-                        });
-                      }
-                    },
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Sửa giao dịch',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Đóng',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Cập nhật thông tin giao dịch mà không làm gián đoạn việc chọn danh mục.',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: titleEditController,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  validator: appvalidator.isEmptyCheck,
+                  decoration: const InputDecoration(labelText: 'Tiêu đề'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amountEditController,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  validator: appvalidator.isEmptyCheck,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: false,
+                  ),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Số tiền (VND)'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: dateController,
+                  readOnly: true,
+                  onTap: () => _selectDate(context),
+                  decoration: const InputDecoration(
+                    labelText: 'Ngày giao dịch',
+                    suffixIcon: Icon(Icons.calendar_today),
                   ),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AddCategoryDialog(
-                        onCategoryAdded: (categoryName, icon) {
-                          _addNewCategory(categoryName, icon);
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: CategoryDropdown(
+                        cattype: category,
+                        onChanged: (String? value) {
+                          if (value == null) return;
+                          setState(() {
+                            category = value;
+                          });
                         },
                       ),
-                    );
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          showDialog<void>(
+                            context: context,
+                            builder: (context) => AddCategoryDialog(
+                              onCategoryAdded: (categoryName, icon) {
+                                _addNewCategory(categoryName, icon);
+                              },
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Thêm'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(
+                    labelText: 'Loại giao dịch',
+                    prefixIcon: Icon(Icons.sync_alt_rounded),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'credit', child: Text('Thu Nhập')),
+                    DropdownMenuItem(value: 'debit', child: Text('Chi Tiêu')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      type = value;
+                    });
                   },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Thêm'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: noteEditController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: isLoader ? null : _submitForm,
+                  child: isLoader
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Text('Cập Nhật Giao Dịch'),
                 ),
               ],
             ),
-            DropdownButtonFormField(
-              initialValue: type,
-              items: const [
-                DropdownMenuItem(value: 'credit', child: Text('Thu Nhập')),
-                DropdownMenuItem(value: 'debit', child: Text('Chi Tiêu')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    type = value;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: noteEditController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Ghi Chú',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                if (isLoader == false) {
-                  _submitForm();
-                }
-              },
-              child: isLoader
-                  ? const CircularProgressIndicator()
-                  : const Text('Cập Nhật Giao Dịch'),
-            ),
-          ],
+          ),
         ),
       ),
     );

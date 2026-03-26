@@ -38,6 +38,8 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
   var uid = Uuid();
   final appIcons = AppIcons();
 
+  bool get _isCredit => type == 'credit';
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +108,9 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
           amountEditController.text =
               result['amount'] ?? amountEditController.text;
           noteEditController.text = result['note'] ?? noteEditController.text;
+          if (result['type'] == 'credit' || result['type'] == 'debit') {
+            type = result['type']!;
+          }
           if (result['date'] != null) {
             try {
               DateTime scannedDate = DateFormat(
@@ -375,23 +380,60 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField(
-                  initialValue: type,
-                  decoration: const InputDecoration(
-                    labelText: 'Loại giao dịch',
-                    prefixIcon: Icon(Icons.sync_alt_rounded),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'credit', child: Text('Thu Nhập')),
-                    DropdownMenuItem(value: 'debit', child: Text('Chi Tiêu')),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Loại giao dịch',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.16),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _TransactionTypeOption(
+                              label: 'Thu nhập',
+                              icon: Icons.arrow_downward_rounded,
+                              selected: _isCredit,
+                              activeColor: const Color(0xFF0F8A4B),
+                              onTap: () {
+                                setState(() {
+                                  type = 'credit';
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _TransactionTypeOption(
+                              label: 'Chi tiêu',
+                              icon: Icons.arrow_upward_rounded,
+                              selected: !_isCredit,
+                              activeColor: const Color(0xFFB3261E),
+                              onTap: () {
+                                setState(() {
+                                  type = 'debit';
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        type = value;
-                      });
-                    }
-                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -438,6 +480,76 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionTypeOption extends StatelessWidget {
+  const _TransactionTypeOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.activeColor,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color activeColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foregroundColor = selected ? Colors.white : AppColors.textMuted;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: selected ? activeColor : AppColors.primaryDark,
+            border: Border.all(
+              color: selected
+                  ? activeColor
+                  : Colors.white.withValues(alpha: 0.14),
+              width: selected ? 1.6 : 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: selected
+                    ? activeColor.withValues(alpha: 0.42)
+                    : Colors.black.withValues(alpha: 0.18),
+                blurRadius: selected ? 16 : 10,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: foregroundColor, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

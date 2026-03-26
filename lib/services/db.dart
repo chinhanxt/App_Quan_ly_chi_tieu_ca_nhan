@@ -206,6 +206,7 @@ class Db {
             // 👇 FIX: Lấy timestamp và monthyear từ form thay vì lấy giờ hiện tại
             'timestamp': newTransactionData['timestamp'],
             'monthyear': newTransactionData['monthyear'],
+            'note': newTransactionData['note'],
             
             'totalCredit': totalCredit,
             'totalDebit': totalDebit,

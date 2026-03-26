@@ -488,6 +488,11 @@ class _AIInputScreenState extends State<AIInputScreen>
     return 'debit';
   }
 
+  bool _isImageDerivedTransaction(Map<String, dynamic> tx) {
+    return tx['sourceKind']?.toString() == 'image_ocr' ||
+        tx['showTypeChoice'] == true;
+  }
+
   String _detectCategory(String text, String type) {
     final normalized = text.toLowerCase();
     if (type == 'credit') {
@@ -553,7 +558,10 @@ class _AIInputScreenState extends State<AIInputScreen>
       final note = (result['note'] ?? 'Đã nhập từ ảnh').trim();
       final amount = int.tryParse(result['amount'] ?? '') ?? 0;
       final transactionDate = _parseOcrDate(result['date']);
-      final type = _detectTransactionType('$title $note');
+      final type =
+          result['type']?.toString().trim().isNotEmpty == true
+          ? result['type']!.toString().trim()
+          : _detectTransactionType('$title $note');
       final category = _detectCategory('$title $note', type);
       final iconName = category == 'Lương'
           ? 'moneyBillWave'
@@ -579,7 +587,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         id: _uuid.v4(),
         sender: AIChatSender.ai,
         text:
-            'Mình đã đọc thông tin từ ảnh và tạo sẵn một giao dịch nháp để bạn kiểm tra rồi lưu.',
+            'Mình đã đọc thông tin từ ảnh. Bạn chọn nhanh đây là Thu nhập hay Chi tiêu rồi kiểm tra lại trước khi lưu nhé.',
         timestamp: now,
         status: 'success',
         transactions: <Map<String, dynamic>>[
@@ -597,6 +605,8 @@ class _AIInputScreenState extends State<AIInputScreen>
             'suggestedIcon': iconName,
             'fallbackCategory': category,
             'fallbackIconName': iconName,
+            'sourceKind': 'image_ocr',
+            'showTypeChoice': true,
           },
         ],
       );
@@ -1788,8 +1798,8 @@ class _AIInputScreenState extends State<AIInputScreen>
   }) {
     final isSelected = value == selectedType;
     final accent = value == 'credit'
-        ? const Color(0xFF7EE787)
-        : const Color(0xFF8A72FF);
+        ? const Color(0xFF22C55E) // Xanh lá đậm hơn
+        : const Color(0xFFEF4444); // Đỏ đậm
 
     return Material(
       color: Colors.transparent,
@@ -1799,25 +1809,137 @@ class _AIInputScreenState extends State<AIInputScreen>
         child: Ink(
           decoration: BoxDecoration(
             color: isSelected
-                ? accent.withValues(alpha: 0.18)
-                : Colors.white.withValues(alpha: 0.06),
+                ? accent
+                : Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
-                  ? accent.withValues(alpha: 0.34)
-                  : Colors.white.withValues(alpha: 0.12),
+                  ? accent
+                  : Colors.white.withValues(alpha: 0.3),
+              width: isSelected ? 2 : 1,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             child: Center(
               child: Text(
                 label,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: isSelected ? 1 : 0.76),
-                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  letterSpacing: 0.5,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionTypeOption({
+    required String label,
+    required String value,
+    required bool isSelected,
+    required bool isDisabled,
+    required VoidCallback onTap,
+  }) {
+    final accent = value == 'credit'
+        ? const Color(0xFF2FA37D)
+        : const Color(0xFFD84F5C);
+    final gradientColors = value == 'credit'
+        ? const [Color(0xFF49C59C), Color(0xFF2FA37D)]
+        : const [Color(0xFFF06B75), Color(0xFFD84F5C)];
+
+    return Opacity(
+      opacity: isDisabled ? 0.7 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: isDisabled ? null : onTap,
+          child: Ink(
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: gradientColors,
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.14),
+                        Colors.white.withValues(alpha: 0.07),
+                      ],
+                    ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? accent.withValues(alpha: 0.95)
+                    : Colors.white.withValues(alpha: 0.16),
+                width: isSelected ? 1.4 : 1,
+              ),
+              boxShadow: [
+                if (isSelected)
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.34),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isSelected ? 0.1 : 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 1,
+                  right: 1,
+                  top: 1,
+                  child: Container(
+                    height: 18,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: isSelected ? 0.22 : 0.12),
+                          Colors.white.withValues(alpha: 0.02),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: isSelected ? 1 : 0.92,
+                      ),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -2136,6 +2258,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     final bool isNewCat = tx['isNewCategory'] == true;
     final bool createNewCategory = tx['confirmCreateCategory'] ?? true;
     final bool isCredit = tx['type'] == 'credit';
+    final bool showTypeChoice = _isImageDerivedTransaction(tx);
     final accent = isCredit ? const Color(0xFF7EE787) : const Color(0xFFFF8A8A);
     final amountColor = isCredit
         ? const Color(0xFFB8FFD0)
@@ -2283,6 +2406,61 @@ class _AIInputScreenState extends State<AIInputScreen>
                     color: Colors.white.withValues(alpha: 0.64),
                     fontSize: 13,
                   ),
+                  ),
+                ),
+            if (showTypeChoice)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Chọn nhanh loại giao dịch",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTransactionTypeOption(
+                            label: 'Thu nhập',
+                            value: 'credit',
+                            isSelected: isCredit,
+                            isDisabled: message.isSaved,
+                            onTap: () {
+                              _updateTransactionField(
+                                messageId: message.id,
+                                transactionIndex: index,
+                                field: 'type',
+                                value: 'credit',
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTransactionTypeOption(
+                            label: 'Chi tiêu',
+                            value: 'debit',
+                            isSelected: !isCredit,
+                            isDisabled: message.isSaved,
+                            onTap: () {
+                              _updateTransactionField(
+                                messageId: message.id,
+                                transactionIndex: index,
+                                field: 'type',
+                                value: 'debit',
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             if (isNewCat)

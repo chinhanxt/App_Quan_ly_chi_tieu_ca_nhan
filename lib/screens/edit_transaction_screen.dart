@@ -1,4 +1,5 @@
 import 'package:app/screens/saving_goals_screen.dart';
+import 'package:app/services/db.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
@@ -7,49 +8,77 @@ import 'package:app/widgets/add_category_dialog.dart';
 import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 
-class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+class EditTransactionScreen extends StatefulWidget {
+  const EditTransactionScreen({
+    super.key,
+    required this.transactionId,
+    required this.transactionData,
+  });
+
+  final String transactionId;
+  final Map<String, dynamic> transactionData;
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  State<EditTransactionScreen> createState() => _EditTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _EditTransactionScreenState extends State<EditTransactionScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final Appvalidator _appvalidator = Appvalidator();
   final AppIcons _appIcons = AppIcons();
-  final Uuid _uuid = const Uuid();
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
 
-  String _type = 'credit';
+  late String _type;
   String? _category;
-  DateTime _selectedDate = DateTime.now();
+  late DateTime _selectedDate;
   bool _isSaving = false;
-
-  String _formatAmount(num value) {
-    return NumberFormat.decimalPattern('vi_VN').format(value);
-  }
 
   @override
   void initState() {
     super.initState();
+    _titleController.text = widget.transactionData['title']?.toString() ?? '';
+    _amountController.text = widget.transactionData['amount']?.toString() ?? '';
+    _noteController.text = widget.transactionData['note']?.toString() ?? '';
+    _type = widget.transactionData['type']?.toString() ?? 'credit';
+    _category = widget.transactionData['category']?.toString();
+
+    final rawTimestamp = widget.transactionData['timestamp'];
+    final timestamp = rawTimestamp is int
+        ? rawTimestamp
+        : int.tryParse(rawTimestamp?.toString() ?? '');
+    _selectedDate = timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : DateTime.now();
     _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
+    _dateController.dispose();
+    super.dispose();
   }
 
   TextStyle get _fieldTextStyle => const TextStyle(
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w600,
   );
+
+  String _formatAmount(num value) {
+    return NumberFormat.decimalPattern('vi_VN').format(value);
+  }
 
   Widget _buildTypeCard({
     required String value,
@@ -121,37 +150,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _amountController.dispose();
-    _noteController.dispose();
-    _dateController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _selectDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
-      firstDate: DateTime(2000),
-      lastDate: now,
-      locale: const Locale('vi', 'VN'),
-      helpText: 'CHỌN NGÀY GIAO DỊCH',
-      cancelText: 'HỦY',
-      confirmText: 'CHỌN',
-    );
-
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
-      });
-    }
-  }
-
   Widget _buildOverviewCards() {
+    if (Firebase.apps.isEmpty) {
+      return Row(
+        children: [
+          _buildTypeCard(
+            value: 'credit',
+            title: 'Thu Nhập',
+            amountLabel: '+0 VND',
+            color: const Color(0xFF1D9A63),
+            icon: Icons.arrow_upward_rounded,
+          ),
+          const SizedBox(width: 10),
+          _buildTypeCard(
+            value: 'debit',
+            title: 'Chi Tiêu',
+            amountLabel: '-0 VND',
+            color: const Color(0xFFC45A43),
+            icon: Icons.arrow_downward_rounded,
+          ),
+        ],
+      );
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return Row(
@@ -208,6 +229,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  Future<void> _selectDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: now,
+      locale: const Locale('vi', 'VN'),
+      helpText: 'CHỌN NGÀY GIAO DỊCH',
+      cancelText: 'HỦY',
+      confirmText: 'CHỌN',
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
+      });
+    }
+  }
+
   Future<void> _scanBill(ImageSource source) async {
     showDialog<void>(
       context: context,
@@ -242,9 +284,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _titleController.text = result['title'] ?? _titleController.text;
         _amountController.text = result['amount'] ?? _amountController.text;
         _noteController.text = result['note'] ?? _noteController.text;
-        if (result['type'] == 'credit' || result['type'] == 'debit') {
-          _type = result['type']!;
-        }
         if (result['date'] != null) {
           try {
             var scannedDate = DateFormat('dd/MM/yyyy').parse(result['date']!);
@@ -284,11 +323,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         'iconName': categoryFromList['name'],
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {
-          'customCategories': FieldValue.arrayUnion([newCategory]),
-        },
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'customCategories': FieldValue.arrayUnion([newCategory]),
+      });
 
       if (!mounted) return;
       setState(() {
@@ -309,9 +346,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
     setState(() {
       _isSaving = true;
     });
@@ -320,56 +354,41 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       final timestamp = _selectedDate.millisecondsSinceEpoch;
       final monthyear = '${_selectedDate.month} ${_selectedDate.year}';
       final amount = int.parse(_amountController.text);
-      final id = _uuid.v4();
 
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid);
-      final userDoc = await userRef.get();
-
-      int remainingAmount = userDoc['remainingAmount'];
-      int totalCredit = userDoc['totalCredit'];
-      int totalDebit = userDoc['totalDebit'];
-
-      if (_type == 'credit') {
-        remainingAmount += amount;
-        totalCredit += amount;
-      } else {
-        remainingAmount -= amount;
-        totalDebit += amount;
-      }
-
-      await userRef.update({
-        'remainingAmount': remainingAmount,
-        'totalCredit': totalCredit,
-        'totalDebit': totalDebit,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
-
-      await userRef.collection('transactions').doc(id).set({
-        'id': id,
+      final data = {
         'title': _titleController.text,
         'amount': amount,
         'type': _type,
         'timestamp': timestamp,
-        'totalCredit': totalCredit,
-        'totalDebit': totalDebit,
-        'remainingAmount': remainingAmount,
         'monthyear': monthyear,
         'category': _category,
         'note': _noteController.text,
-      });
+      };
+
+      final success = await Db().updateTransaction(
+        widget.transactionId,
+        widget.transactionData,
+        data,
+      );
 
       if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã cập nhật giao dịch thành công')),
+        );
+        Navigator.pop(context);
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã thêm giao dịch thành công')),
+        const SnackBar(content: Text('Không thể cập nhật giao dịch')),
       );
-      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi khi lưu giao dịch: $e')));
+      ).showSnackBar(SnackBar(content: Text('Lỗi khi cập nhật giao dịch: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -386,7 +405,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
-        title: const Text('Thêm giao dịch'),
+        title: const Text('Sửa giao dịch'),
       ),
       body: SafeArea(
         child: Form(
@@ -405,7 +424,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Text(
-                        'Tạo giao dịch mới',
+                        'Chỉnh sửa giao dịch',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -413,7 +432,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Thêm khoản thu hoặc chi với đầy đủ nghiệp vụ cũ.',
+                        'Cập nhật khoản thu hoặc chi với cùng trải nghiệm như màn hình thêm giao dịch.',
                         style: TextStyle(color: AppColors.textMuted),
                       ),
                       const SizedBox(height: 16),
@@ -576,7 +595,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   strokeWidth: 2.4,
                                 ),
                               )
-                            : const Text('Lưu giao dịch'),
+                            : const Text('Lưu cập nhật'),
                       ),
                     ],
                   ),
