@@ -45,7 +45,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.overview,
         label: 'Tổng quan',
-        icon: Icons.dashboard_rounded,
+        icon: Icons.dashboard,
       ),
       (
         section: AdminSection.users,
@@ -60,7 +60,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.broadcasts,
         label: 'Thông báo',
-        icon: Icons.notifications_rounded,
+        icon: Icons.notifications,
       ),
       (
         section: AdminSection.systemConfigs,
@@ -70,18 +70,14 @@ class _AdminWebShellState extends State<AdminWebShell> {
       (
         section: AdminSection.aiConfig,
         label: 'Cấu hình AI',
-        icon: Icons.smart_toy_rounded,
+        icon: Icons.memory,
       ),
       (
         section: AdminSection.transactions,
         label: 'Giao dịch',
         icon: Icons.receipt_long_rounded,
       ),
-      (
-        section: AdminSection.reports,
-        label: 'Báo cáo',
-        icon: Icons.insert_chart_rounded,
-      ),
+      (section: AdminSection.reports, label: 'Báo cáo', icon: Icons.bar_chart),
     ];
 
     return Scaffold(

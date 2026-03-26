@@ -103,7 +103,7 @@ class _OverviewPageState extends State<OverviewPage> {
                   value: '${stats.activeBroadcasts}',
                   note: 'Thông báo đang hiển thị cho người dùng',
                   tint: const Color(0xFFDC6803),
-                  icon: Icons.notifications_active_rounded,
+                  icon: Icons.notifications,
                 ),
                 AdminMetricCard(
                   label: 'Giao dịch tháng này',
@@ -198,7 +198,7 @@ class _OverviewPageState extends State<OverviewPage> {
                                         item.type,
                                       ).withValues(alpha: 0.12),
                                       child: Icon(
-                                        Icons.notifications_active_rounded,
+                                        Icons.notifications,
                                         color: broadcastColor(item.type),
                                       ),
                                     ),
@@ -388,7 +388,7 @@ class _HeroPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(
-            Icons.space_dashboard_rounded,
+            Icons.account_balance_wallet,
             color: Colors.white,
             size: 34,
           ),
