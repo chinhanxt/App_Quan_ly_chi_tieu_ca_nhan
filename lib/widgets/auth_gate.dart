@@ -72,6 +72,10 @@ class AuthGate extends StatelessWidget {
 
                   if (data != null) {
                     final role = data['role']?.toString() ?? 'user';
+                    final email =
+                        data['email']?.toString() ??
+                        user.email?.toLowerCase() ??
+                        '';
                     final status = data['status']?.toString() ?? 'active';
 
                     if (status == 'locked') {
@@ -84,7 +88,9 @@ class AuthGate extends StatelessWidget {
                       );
                     }
 
-                    if (role == 'admin') {
+                    if (role == 'admin' ||
+                        role == 'super_admin' ||
+                        email.toLowerCase() == 'admin@gmail.com') {
                       if (kIsWeb) {
                         return const AdminDashboard();
                       } else {

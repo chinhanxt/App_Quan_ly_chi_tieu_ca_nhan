@@ -1,0 +1,117 @@
+# PHÂN TÍCH CHI TIẾT LUỒNG DỮ LIỆU VÀ CHỨC NĂNG HỆ THỐNG
+
+Tài liệu này mô tả chi tiết cơ chế vận hành bên dưới (Underlying Mechanics) của ứng dụng, bao gồm luồng dữ liệu, quy trình nghiệp vụ và logic phân quyền.
+
+---
+
+## 1. MÔ TẢ LUỒNG DỮ LIỆU (DATA FLOW DESCRIPTION)
+
+Hệ thống hoạt động dựa trên mô hình luồng dữ liệu hai chiều (Bi-directional Data Flow) giữa Client (Mobile/Web) và Server (Firebase/AI).
+
+### 1.1. Luồng xử lý Giao dịch thông thường (Manual Input)
+1.  **Input:** Người dùng nhập liệu tại form "Thêm giao dịch" (Số tiền, danh mục, ghi chú).
+2.  **Validation (Client-side):** Ứng dụng kiểm tra dữ liệu hợp lệ (số tiền > 0, ngày tháng không được null).
+3.  **Process:** Dữ liệu được đóng gói thành Object `TransactionModel`.
+4.  **Storage:** Gọi API `Firestore.instance.collection('users').doc(uid).collection('transactions').add()`.
+5.  **Feedback:** Firestore trả về tín hiệu thành công -> App đóng form, hiển thị thông báo "Đã lưu".
+6.  **Sync:** Ngay lập tức, các Widget đang lắng nghe (StreamBuilder) tại màn hình Dashboard tự động cập nhật số dư mới mà không cần load lại trang.
+
+### 1.2. Luồng xử lý Giao dịch thông minh qua AI (AI Flow)
+Đây là luồng phức tạp nhất, xử lý ngôn ngữ tự nhiên:
+1.  **User Input:** Người dùng nhập câu văn (Text) hoặc giọng nói (Voice -> Text). Ví dụ: "Ăn tối 50k và đổ xăng 30k".
+2.  **API Request:** App gửi chuỗi text kèm theo `system_instruction` (luật đóng vai) đến **AI Parser API**.
+3.  **AI Processing (Server-side):**
+    *   AI Parser phân tích ngữ nghĩa.
+    *   Tách câu thành 2 hành động riêng biệt.
+    *   Gán nhãn Category (Ăn tối -> Ăn uống, Xăng -> Di chuyển).
+    *   Trích xuất số tiền (50k -> 50000).
+4.  **AI Response:** AI Parser trả về chuỗi JSON có cấu trúc.
+5.  **Parsing (App-side):** Ứng dụng phân tích JSON, chuyển đổi thành danh sách `List<TransactionModel>`.
+6.  **Confirmation:** Hiển thị bản nháp (Draft) cho người dùng xem trước.
+7.  **Commit:** Người dùng bấm "Đồng ý" -> App ghi hàng loạt (Batch Write) vào Firestore.
+
+---
+
+## 2. QUY TRÌNH NGHIỆP VỤ (USER WORKFLOW)
+
+### 2.1. Workflow của Người dùng (End-User)
+Mô tả hành trình từ khi người dùng bắt đầu sử dụng app:
+
+1.  **Onboarding (Lần đầu):**
+    *   Đăng ký tài khoản (Email/Password).
+    *   Hệ thống tự động khởi tạo bộ "Danh mục mặc định" (Default Categories) cho user này.
+2.  **Hàng ngày (Daily Usage):**
+    *   **Ghi chép:** Mở app -> Chọn icon Micro hoặc Chat -> Nói "Nay đi chợ hết 200k" -> Xác nhận.
+    *   **Kiểm soát:** Mở tab "Ngân sách" -> Xem thanh màu sắc (Xanh/Đỏ) để biết tháng này còn được tiêu bao nhiêu.
+3.  **Cuối tháng (Review):**
+    *   Vào Báo cáo -> Chọn tháng -> Xem biểu đồ tròn để biết tỷ trọng chi tiêu (VD: 40% cho Ăn uống).
+
+### 2.2. Workflow của Quản trị viên (Admin)
+Quy trình dành riêng cho Admin trên nền tảng Web:
+
+1.  **Đăng nhập & Phân quyền:**
+    *   Đăng nhập tại trang Admin Portal.
+    *   Hệ thống kiểm tra field `role` trong Firestore. Nếu `role == 'admin'` -> Cho phép truy cập Dashboard.
+2.  **Giám sát:**
+    *   Nhìn Dashboard để xem biến động số lượng người dùng mới trong ngày.
+3.  **Can thiệp (Quản lý User):**
+    *   Tìm kiếm User nghi vấn (spam, vi phạm).
+    *   Thực hiện hành động `Lock Account` -> Cập nhật trạng thái `status: locked` trong DB.
+    *   Hệ quả: User đó khi mở app mobile sẽ bị đăng xuất cưỡng chế.
+4.  **Cập nhật hệ thống:**
+    *   Admin thêm danh mục mới "Đầu tư Crypto" vào danh sách Global -> Tất cả user mới đăng ký sau này sẽ có thêm danh mục này.
+
+---
+
+## 3. CƠ CHẾ PHÂN QUYỀN VÀ BẢO MẬT (SECURITY & PERMISSIONS)
+
+Hệ thống sử dụng **Firestore Security Rules** kết hợp với Logic tại tầng ứng dụng (Application Layer).
+
+### 3.1. Phân quyền dữ liệu (Data Isolation)
+*   **Nguyên tắc:** "Tài chính là riêng tư". User A tuyệt đối không thể đọc dữ liệu của User B.
+*   **Thực thi (Database Rules):**
+    ```javascript
+    match /users/{userId}/transactions/{document} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    ```
+    *Quy tắc trên đảm bảo chỉ chính chủ mới được phép đọc/ghi giao dịch của mình.*
+
+### 3.2. Phân quyền Admin (RBAC - Role Based Access Control)
+*   **Logic:**
+    *   User thường: Chỉ truy cập được `/users/{own_id}`.
+    *   Admin: Truy cập được `/users/{any_id}` (Read-only hoặc Write tùy chức năng) và `/system_config`.
+*   **Bảo vệ tầng giao diện (Frontend Guard):**
+    *   Khi mở Admin Web, code kiểm tra: `if (userModel.role != 'admin') return RedirectToLogin();`
+
+---
+
+## 4. LUỒNG ĐI CỦA CƠ SỞ DỮ LIỆU (DATABASE FLOW & ARCHITECTURE)
+
+Mô tả cách dữ liệu di chuyển và biến đổi trong cấu trúc NoSQL Firestore.
+
+### 4.1. Sơ đồ tổ chức dữ liệu (Schema Design)
+Dữ liệu không lưu vào các bảng (Table) quan hệ mà lưu dạng Cây (Collection/Document).
+
+*   **Root (Gốc):** Collection `users`
+    *   **Document (User A):** Chứa Profile (Tên, Email, Role).
+        *   **Sub-Collection `transactions` (Nhánh con 1):** Chứa hàng nghìn giao dịch của User A. Việc tách ra sub-collection giúp query nhanh, không phải load toàn bộ dữ liệu user khi chỉ cần xem profile.
+        *   **Sub-Collection `budgets` (Nhánh con 2):** Chứa các hạn mức chi tiêu.
+        *   **Sub-Collection `categories` (Nhánh con 3):** Chứa danh mục riêng của User A (nếu họ tự tạo thêm).
+
+### 4.2. Cơ chế Đồng bộ (Real-time Sync)
+Luồng cập nhật dữ liệu diễn ra như sau:
+1.  **User A** thêm giao dịch trên điện thoại (Mobile).
+2.  **Firestore** Cloud nhận dữ liệu.
+3.  **Firestore** đẩy tín hiệu (Push Notification/Stream) xuống:
+    *   Tablet của User A (nếu đang đăng nhập).
+    *   Màn hình Admin của Quản trị viên (nếu Admin đang soi chi tiết User A).
+4.  Kết quả: Dữ liệu đồng bộ tức thì trên mọi thiết bị mà không cần F5/Reload.
+
+### 4.3. Luồng tính toán Ngân sách (Budget Calculation Flow)
+Đây là logic tự động (Trigger):
+1.  Khi có một giao dịch mới (`type: debit`) được thêm vào.
+2.  Hệ thống lấy `categoryId` và `monthYear` của giao dịch đó.
+3.  Query tìm trong collection `budgets` xem có ngân sách nào khớp category và tháng đó không.
+4.  Nếu có: Hệ thống cộng dồn số tiền vào field `spentAmount` của Budget đó.
+5.  Kiểm tra: Nếu `spentAmount > limitAmount` -> Đánh dấu trạng thái `isOverBudget = true` -> UI hiển thị màu đỏ.

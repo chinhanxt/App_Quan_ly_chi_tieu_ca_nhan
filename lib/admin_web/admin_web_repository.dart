@@ -6,6 +6,61 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+const String superAdminEmail = 'admin@gmail.com';
+const String adminPermissionOverview = 'overview.view';
+const String adminPermissionUsers = 'users.manage';
+const String adminPermissionCategories = 'categories.manage';
+const String adminPermissionBroadcasts = 'broadcasts.manage';
+const String adminPermissionSystemConfigs = 'system_configs.manage';
+const String adminPermissionAiConfig = 'ai_config.manage';
+const String adminPermissionTransactions = 'transactions.view';
+const String adminPermissionReports = 'reports.view';
+
+const List<String> adminAllPermissions = <String>[
+  adminPermissionOverview,
+  adminPermissionUsers,
+  adminPermissionCategories,
+  adminPermissionBroadcasts,
+  adminPermissionSystemConfigs,
+  adminPermissionAiConfig,
+  adminPermissionTransactions,
+  adminPermissionReports,
+];
+
+String normalizeAdminRole({required String email, required String role}) {
+  if (email.trim().toLowerCase() == superAdminEmail) {
+    return 'super_admin';
+  }
+  return role.trim().isEmpty ? 'user' : role.trim();
+}
+
+List<String> defaultPermissionsForRole(String role) {
+  switch (role) {
+    case 'super_admin':
+    case 'admin':
+      return List<String>.from(adminAllPermissions);
+    default:
+      return const <String>[];
+  }
+}
+
+List<String> normalizeAdminPermissions(String role, Object? raw) {
+  final defaults = defaultPermissionsForRole(role);
+  if (raw is! List) return defaults;
+
+  final normalized = raw
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty && adminAllPermissions.contains(item))
+      .toSet()
+      .toList(growable: false);
+
+  if (normalized.isEmpty && role != 'user') {
+    return defaults;
+  }
+
+  return normalized;
+}
+
 int _readEpochMillis(Object? value) {
   if (value is Timestamp) {
     return value.millisecondsSinceEpoch;
@@ -33,6 +88,7 @@ class AdminProfile {
     required this.name,
     required this.role,
     required this.status,
+    required this.permissions,
   });
 
   final String uid;
@@ -40,10 +96,13 @@ class AdminProfile {
   final String name;
   final String role;
   final String status;
+  final List<String> permissions;
 
   bool get isAdmin => role == 'admin' || role == 'super_admin';
   bool get isSuperAdmin => role == 'super_admin';
   bool get isLocked => status == 'locked';
+  bool hasPermission(String permission) =>
+      isSuperAdmin || permissions.contains(permission);
 }
 
 class AdminUserRecord {
@@ -58,6 +117,7 @@ class AdminUserRecord {
     required this.remainingAmount,
     required this.createdAt,
     required this.raw,
+    required this.permissions,
   });
 
   final String id;
@@ -70,22 +130,32 @@ class AdminUserRecord {
   final int remainingAmount;
   final Timestamp? createdAt;
   final Map<String, dynamic> raw;
+  final List<String> permissions;
 
   factory AdminUserRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
+    final email = data['email']?.toString() ?? '';
+    final normalizedRole = normalizeAdminRole(
+      email: email,
+      role: data['role']?.toString() ?? 'user',
+    );
     return AdminUserRecord(
       id: doc.id,
-      email: data['email']?.toString() ?? '',
+      email: email,
       name: data['name']?.toString().trim().isNotEmpty == true
           ? data['name'].toString()
           : (data['username']?.toString() ?? 'Chua dat ten'),
-      role: data['role']?.toString() ?? 'user',
+      role: normalizedRole,
       status: data['status']?.toString() ?? 'active',
       totalCredit: (data['totalCredit'] as num?)?.toInt() ?? 0,
       totalDebit: (data['totalDebit'] as num?)?.toInt() ?? 0,
       remainingAmount: (data['remainingAmount'] as num?)?.toInt() ?? 0,
       createdAt: _readTimestamp(data['createdAt']),
       raw: data,
+      permissions: normalizeAdminPermissions(
+        normalizedRole,
+        data['permissions'],
+      ),
     );
   }
 }
@@ -338,16 +408,25 @@ class AdminWebRepository {
     return _firestore.collection('users').doc(uid).snapshots().map((doc) {
       final data = doc.data() ?? <String, dynamic>{};
       final authUser = _auth.currentUser;
+      final email = data['email']?.toString() ?? authUser?.email ?? '';
+      final normalizedRole = normalizeAdminRole(
+        email: email,
+        role: data['role']?.toString() ?? 'user',
+      );
       return AdminProfile(
         uid: uid,
-        email: data['email']?.toString() ?? authUser?.email ?? '',
+        email: email,
         name: data['name']?.toString().trim().isNotEmpty == true
             ? data['name'].toString()
             : (data['username']?.toString() ??
                   authUser?.email?.split('@').first ??
                   'Admin'),
-        role: data['role']?.toString() ?? 'user',
+        role: normalizedRole,
         status: data['status']?.toString() ?? 'active',
+        permissions: normalizeAdminPermissions(
+          normalizedRole,
+          data['permissions'],
+        ),
       );
     });
   }
@@ -371,6 +450,42 @@ class AdminWebRepository {
   Future<void> updateUserRole(String uid, String role) async {
     await _firestore.collection('users').doc(uid).update(<String, dynamic>{
       'role': role,
+      'permissions': defaultPermissionsForRole(role),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateUserAuthorization({
+    required String uid,
+    required String role,
+    required List<String> permissions,
+  }) async {
+    final actor = _auth.currentUser;
+    if (actor == null) {
+      throw FirebaseAuthException(
+        code: 'not-authenticated',
+        message: 'Bạn cần đăng nhập lại để phân quyền.',
+      );
+    }
+
+    final actorDoc = await _firestore.collection('users').doc(actor.uid).get();
+    final actorData = actorDoc.data() ?? <String, dynamic>{};
+    final actorRole = normalizeAdminRole(
+      email: actor.email ?? actorData['email']?.toString() ?? '',
+      role: actorData['role']?.toString() ?? 'user',
+    );
+
+    if (actorRole != 'super_admin') {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: 'Chỉ super admin mới được phân quyền.',
+      );
+    }
+
+    await _firestore.collection('users').doc(uid).update(<String, dynamic>{
+      'role': role,
+      'permissions': normalizeAdminPermissions(role, permissions),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

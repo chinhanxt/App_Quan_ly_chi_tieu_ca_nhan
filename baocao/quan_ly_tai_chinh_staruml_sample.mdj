@@ -1,0 +1,1108 @@
+{
+  "_type": "Project",
+  "_id": "proj-finance-001",
+  "name": "QuanLyTaiChinhCaNhan",
+  "ownedElements": [
+    {
+      "_type": "UMLModel",
+      "_id": "model-001",
+      "_parent": {
+        "$ref": "proj-finance-001"
+      },
+      "name": "Model",
+      "ownedElements": [
+        {
+          "_type": "UMLUseCaseDiagram",
+          "_id": "diag-usecase-001",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Use Case Tong Quat",
+          "defaultDiagram": true,
+          "ownedViews": [
+            {
+              "_type": "UMLActorView",
+              "_id": "view-actor-user",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "actor-user"
+              },
+              "font": "Arial;13;0",
+              "left": 40,
+              "top": 250,
+              "width": 64,
+              "height": 92,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLActorView",
+              "_id": "view-actor-admin",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "actor-admin"
+              },
+              "font": "Arial;13;0",
+              "left": 1210,
+              "top": 250,
+              "width": 64,
+              "height": 92,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-account",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-account"
+              },
+              "font": "Arial;13;0",
+              "left": 260,
+              "top": 80,
+              "width": 240,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-transaction",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-transaction"
+              },
+              "font": "Arial;13;0",
+              "left": 260,
+              "top": 180,
+              "width": 240,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-budget",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-budget"
+              },
+              "font": "Arial;13;0",
+              "left": 260,
+              "top": 380,
+              "width": 240,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-ai",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-ai"
+              },
+              "font": "Arial;13;0",
+              "left": 260,
+              "top": 280,
+              "width": 280,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-report",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-report"
+              },
+              "font": "Arial;13;0",
+              "left": 260,
+              "top": 480,
+              "width": 240,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-usermgmt",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-usermgmt"
+              },
+              "font": "Arial;13;0",
+              "left": 760,
+              "top": 180,
+              "width": 250,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-catemgmt",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-catemgmt"
+              },
+              "font": "Arial;13;0",
+              "left": 760,
+              "top": 300,
+              "width": 270,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLUseCaseView",
+              "_id": "view-uc-dashboard",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "uc-dashboard"
+              },
+              "font": "Arial;13;0",
+              "left": 760,
+              "top": 420,
+              "width": 250,
+              "height": 54,
+              "showNamespace": false,
+              "showProperty": false,
+              "stereotypeDisplay": 0
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-u1",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-u1"
+              },
+              "head": {
+                "$ref": "view-uc-account"
+              },
+              "tail": {
+                "$ref": "view-actor-user"
+              },
+              "points": "104:276;260:107"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-u2",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-u2"
+              },
+              "head": {
+                "$ref": "view-uc-transaction"
+              },
+              "tail": {
+                "$ref": "view-actor-user"
+              },
+              "points": "104:286;260:207"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-u3",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-u3"
+              },
+              "head": {
+                "$ref": "view-uc-budget"
+              },
+              "tail": {
+                "$ref": "view-actor-user"
+              },
+              "points": "104:306;260:407"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-u4",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-u4"
+              },
+              "head": {
+                "$ref": "view-uc-ai"
+              },
+              "tail": {
+                "$ref": "view-actor-user"
+              },
+              "points": "104:296;260:307"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-u5",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-u5"
+              },
+              "head": {
+                "$ref": "view-uc-report"
+              },
+              "tail": {
+                "$ref": "view-actor-user"
+              },
+              "points": "104:316;260:507"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-a1",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-a1"
+              },
+              "head": {
+                "$ref": "view-uc-account"
+              },
+              "tail": {
+                "$ref": "view-actor-admin"
+              },
+              "points": "500:107;1210:276"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-a2",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-a2"
+              },
+              "head": {
+                "$ref": "view-uc-usermgmt"
+              },
+              "tail": {
+                "$ref": "view-actor-admin"
+              },
+              "points": "1010:207;1210:286"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-a3",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-a3"
+              },
+              "head": {
+                "$ref": "view-uc-catemgmt"
+              },
+              "tail": {
+                "$ref": "view-actor-admin"
+              },
+              "points": "1030:327;1210:296"
+            },
+            {
+              "_type": "UMLAssociationView",
+              "_id": "assoc-view-a4",
+              "_parent": {
+                "$ref": "diag-usecase-001"
+              },
+              "model": {
+                "$ref": "assoc-a4"
+              },
+              "head": {
+                "$ref": "view-uc-dashboard"
+              },
+              "tail": {
+                "$ref": "view-actor-admin"
+              },
+              "points": "1010:447;1210:306"
+            }
+          ]
+        },
+        {
+          "_type": "UMLActivityDiagram",
+          "_id": "diag-activity-001",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Activity Nghiep Vu Tong Quat",
+          "ownedViews": [
+            {
+              "_type": "UMLControlNodeView",
+              "_id": "view-start",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "node-start"
+              },
+              "font": "Arial;13;0",
+              "left": 80,
+              "top": 60,
+              "width": 20,
+              "height": 20
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-1",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-1"
+              },
+              "font": "Arial;13;0",
+              "left": 150,
+              "top": 44,
+              "width": 230,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-2",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-2"
+              },
+              "font": "Arial;13;0",
+              "left": 440,
+              "top": 44,
+              "width": 210,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-3",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-3"
+              },
+              "font": "Arial;13;0",
+              "left": 700,
+              "top": 44,
+              "width": 220,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-4",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-4"
+              },
+              "font": "Arial;13;0",
+              "left": 960,
+              "top": 44,
+              "width": 210,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-5",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-5"
+              },
+              "font": "Arial;13;0",
+              "left": 440,
+              "top": 170,
+              "width": 260,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLActionView",
+              "_id": "view-act-6",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "act-6"
+              },
+              "font": "Arial;13;0",
+              "left": 760,
+              "top": 170,
+              "width": 260,
+              "height": 50,
+              "showNamespace": false,
+              "showProperty": false
+            },
+            {
+              "_type": "UMLControlNodeView",
+              "_id": "view-end",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "node-end"
+              },
+              "font": "Arial;13;0",
+              "left": 1080,
+              "top": 185,
+              "width": 23,
+              "height": 23
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-1",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-1"
+              },
+              "head": {
+                "$ref": "view-act-1"
+              },
+              "tail": {
+                "$ref": "view-start"
+              },
+              "points": "100:70;150:69"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-2",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-2"
+              },
+              "head": {
+                "$ref": "view-act-2"
+              },
+              "tail": {
+                "$ref": "view-act-1"
+              },
+              "points": "380:69;440:69"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-3",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-3"
+              },
+              "head": {
+                "$ref": "view-act-3"
+              },
+              "tail": {
+                "$ref": "view-act-2"
+              },
+              "points": "650:69;700:69"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-4",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-4"
+              },
+              "head": {
+                "$ref": "view-act-4"
+              },
+              "tail": {
+                "$ref": "view-act-3"
+              },
+              "points": "920:69;960:69"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-5",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-5"
+              },
+              "head": {
+                "$ref": "view-act-5"
+              },
+              "tail": {
+                "$ref": "view-act-4"
+              },
+              "points": "1060:94;1060:140;570:140;570:170"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-6",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-6"
+              },
+              "head": {
+                "$ref": "view-act-6"
+              },
+              "tail": {
+                "$ref": "view-act-5"
+              },
+              "points": "700:195;760:195"
+            },
+            {
+              "_type": "UMLControlFlowView",
+              "_id": "flow-view-7",
+              "_parent": {
+                "$ref": "diag-activity-001"
+              },
+              "model": {
+                "$ref": "flow-7"
+              },
+              "head": {
+                "$ref": "view-end"
+              },
+              "tail": {
+                "$ref": "view-act-6"
+              },
+              "points": "1020:195;1080:196"
+            }
+          ]
+        },
+        {
+          "_type": "UMLActor",
+          "_id": "actor-user",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "User"
+        },
+        {
+          "_type": "UMLActor",
+          "_id": "actor-admin",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Admin"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-account",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Quan ly tai khoan va dang nhap"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-transaction",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Quan ly giao dich thu chi"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-budget",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Quan ly ngan sach chi tieu"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-ai",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Nhap lieu thong minh bang AI"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-report",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Xem bao cao va thong ke"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-usermgmt",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Quan ly nguoi dung he thong"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-catemgmt",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Quan ly danh muc mac dinh"
+        },
+        {
+          "_type": "UMLUseCase",
+          "_id": "uc-dashboard",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Xem dashboard he thong"
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-u1",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u1-end1",
+            "_parent": {
+              "$ref": "assoc-u1"
+            },
+            "reference": {
+              "$ref": "actor-user"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u1-end2",
+            "_parent": {
+              "$ref": "assoc-u1"
+            },
+            "reference": {
+              "$ref": "uc-account"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-u2",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u2-end1",
+            "_parent": {
+              "$ref": "assoc-u2"
+            },
+            "reference": {
+              "$ref": "actor-user"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u2-end2",
+            "_parent": {
+              "$ref": "assoc-u2"
+            },
+            "reference": {
+              "$ref": "uc-transaction"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-u3",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u3-end1",
+            "_parent": {
+              "$ref": "assoc-u3"
+            },
+            "reference": {
+              "$ref": "actor-user"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u3-end2",
+            "_parent": {
+              "$ref": "assoc-u3"
+            },
+            "reference": {
+              "$ref": "uc-budget"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-u4",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u4-end1",
+            "_parent": {
+              "$ref": "assoc-u4"
+            },
+            "reference": {
+              "$ref": "actor-user"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u4-end2",
+            "_parent": {
+              "$ref": "assoc-u4"
+            },
+            "reference": {
+              "$ref": "uc-ai"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-u5",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u5-end1",
+            "_parent": {
+              "$ref": "assoc-u5"
+            },
+            "reference": {
+              "$ref": "actor-user"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-u5-end2",
+            "_parent": {
+              "$ref": "assoc-u5"
+            },
+            "reference": {
+              "$ref": "uc-report"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-a1",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a1-end1",
+            "_parent": {
+              "$ref": "assoc-a1"
+            },
+            "reference": {
+              "$ref": "actor-admin"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a1-end2",
+            "_parent": {
+              "$ref": "assoc-a1"
+            },
+            "reference": {
+              "$ref": "uc-account"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-a2",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a2-end1",
+            "_parent": {
+              "$ref": "assoc-a2"
+            },
+            "reference": {
+              "$ref": "actor-admin"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a2-end2",
+            "_parent": {
+              "$ref": "assoc-a2"
+            },
+            "reference": {
+              "$ref": "uc-usermgmt"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-a3",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a3-end1",
+            "_parent": {
+              "$ref": "assoc-a3"
+            },
+            "reference": {
+              "$ref": "actor-admin"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a3-end2",
+            "_parent": {
+              "$ref": "assoc-a3"
+            },
+            "reference": {
+              "$ref": "uc-catemgmt"
+            }
+          }
+        },
+        {
+          "_type": "UMLAssociation",
+          "_id": "assoc-a4",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "end1": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a4-end1",
+            "_parent": {
+              "$ref": "assoc-a4"
+            },
+            "reference": {
+              "$ref": "actor-admin"
+            }
+          },
+          "end2": {
+            "_type": "UMLAssociationEnd",
+            "_id": "assoc-a4-end2",
+            "_parent": {
+              "$ref": "assoc-a4"
+            },
+            "reference": {
+              "$ref": "uc-dashboard"
+            }
+          }
+        },
+        {
+          "_type": "UMLActivity",
+          "_id": "activity-main",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Luong xu ly giao dich den bao cao"
+        },
+        {
+          "_type": "UMLInitialNode",
+          "_id": "node-start",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Start"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-1",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Nguoi dung phat sinh giao dich"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-2",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Nhap lieu thu cong hoac bang AI"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-3",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Kiem tra va chuan hoa du lieu"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-4",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Luu giao dich vao Firestore"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-5",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Tinh lai so du ngan sach va tong hop"
+        },
+        {
+          "_type": "UMLAction",
+          "_id": "act-6",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "Dong bo realtime va hien thi tren bao cao"
+        },
+        {
+          "_type": "UMLFlowFinalNode",
+          "_id": "node-end",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "name": "End"
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-1",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "node-start"
+          },
+          "target": {
+            "$ref": "act-1"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-2",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-1"
+          },
+          "target": {
+            "$ref": "act-2"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-3",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-2"
+          },
+          "target": {
+            "$ref": "act-3"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-4",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-3"
+          },
+          "target": {
+            "$ref": "act-4"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-5",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-4"
+          },
+          "target": {
+            "$ref": "act-5"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-6",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-5"
+          },
+          "target": {
+            "$ref": "act-6"
+          }
+        },
+        {
+          "_type": "UMLControlFlow",
+          "_id": "flow-7",
+          "_parent": {
+            "$ref": "model-001"
+          },
+          "source": {
+            "$ref": "act-6"
+          },
+          "target": {
+            "$ref": "node-end"
+          }
+        }
+      ]
+    }
+  ]
+}

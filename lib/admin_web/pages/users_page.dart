@@ -1,5 +1,6 @@
 import 'package:app/admin_web/admin_web_repository.dart';
 import 'package:app/admin_web/admin_web_widgets.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -16,6 +17,50 @@ class UsersPage extends StatefulWidget {
 class _UsersPageState extends State<UsersPage> {
   final _searchController = TextEditingController();
   String _roleFilter = 'all';
+
+  static const List<({String key, String label, String description})>
+  _permissionOptions = <({String key, String label, String description})>[
+    (
+      key: adminPermissionOverview,
+      label: 'Tổng quan',
+      description: 'Xem dashboard vận hành',
+    ),
+    (
+      key: adminPermissionUsers,
+      label: 'Người dùng',
+      description: 'Quản lý tài khoản và phân quyền',
+    ),
+    (
+      key: adminPermissionCategories,
+      label: 'Danh mục',
+      description: 'Quản lý danh mục hệ thống',
+    ),
+    (
+      key: adminPermissionBroadcasts,
+      label: 'Thông báo',
+      description: 'Gửi và chỉnh sửa thông báo',
+    ),
+    (
+      key: adminPermissionSystemConfigs,
+      label: 'Cấu hình',
+      description: 'Quản lý cấu hình hệ thống',
+    ),
+    (
+      key: adminPermissionAiConfig,
+      label: 'Cấu hình AI',
+      description: 'Quản lý runtime AI và lexicon',
+    ),
+    (
+      key: adminPermissionTransactions,
+      label: 'Giao dịch',
+      description: 'Xem giao dịch toàn hệ thống',
+    ),
+    (
+      key: adminPermissionReports,
+      label: 'Báo cáo',
+      description: 'Xem báo cáo tổng hợp',
+    ),
+  ];
 
   @override
   void dispose() {
@@ -208,6 +253,165 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  Future<void> _showPermissionDialog(AdminUserRecord user) async {
+    String selectedRole = user.role;
+    final selectedPermissions = <String>{
+      ...normalizeAdminPermissions(user.role, user.permissions),
+    };
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void syncPermissionsForRole(String role) {
+              selectedPermissions
+                ..clear()
+                ..addAll(defaultPermissionsForRole(role));
+            }
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.admin_panel_settings_rounded),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('Phân quyền cho ${user.name}')),
+                ],
+              ),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRole,
+                        decoration: const InputDecoration(labelText: 'Vai trò'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'user',
+                            child: Text('Người dùng'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'admin',
+                            child: Text('Quản trị viên'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'super_admin',
+                            child: Text('Super admin'),
+                          ),
+                        ],
+                        onChanged: saving
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                setDialogState(() {
+                                  selectedRole = value;
+                                  syncPermissionsForRole(value);
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Quyền chi tiết',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Super admin luôn có toàn quyền. Với admin thường, bạn có thể chọn từng khu vực được phép truy cập.',
+                        style: TextStyle(color: Color(0xFF64748B), height: 1.5),
+                      ),
+                      const SizedBox(height: 12),
+                      ..._permissionOptions.map((option) {
+                        final forcedByRole = selectedRole == 'super_admin';
+                        final enabled = selectedRole != 'user' && !forcedByRole;
+                        final checked = forcedByRole
+                            ? true
+                            : selectedPermissions.contains(option.key);
+
+                        return CheckboxListTile(
+                          value: checked,
+                          onChanged: !enabled || saving
+                              ? null
+                              : (value) {
+                                  setDialogState(() {
+                                    if (value == true) {
+                                      selectedPermissions.add(option.key);
+                                    } else {
+                                      selectedPermissions.remove(option.key);
+                                    }
+                                  });
+                                },
+                          title: Text(option.label),
+                          subtitle: Text(option.description),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: EdgeInsets.zero,
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(context),
+                  child: const Text('Hủy'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            saving = true;
+                          });
+                          try {
+                            await widget.repository.updateUserAuthorization(
+                              uid: user.id,
+                              role: selectedRole,
+                              permissions: selectedPermissions.toList(),
+                            );
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                          } on FirebaseException catch (error) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  error.message ??
+                                      'Không thể lưu phân quyền lúc này.',
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setDialogState(() {
+                                saving = false;
+                              });
+                            }
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Lưu phân quyền'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -224,7 +428,7 @@ class _UsersPageState extends State<UsersPage> {
               DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
               DropdownMenuItem(
                 value: 'super_admin',
-                child: Text('Quản trị viên cấp cao'),
+                child: Text('Super admin'),
               ),
             ],
             onChanged: (value) {
@@ -344,46 +548,18 @@ class _UsersPageState extends State<UsersPage> {
                               ),
                               const SizedBox(width: 24),
                               AdminRolePill(label: user.role),
+                              const SizedBox(width: 8),
+                              _buildPermissionSummaryPill(user),
                               const SizedBox(width: 12),
                               AdminStatusPill(status: user.status),
                               const SizedBox(width: 24),
                               if (widget.profile.isSuperAdmin)
-                                SizedBox(
-                                  width: 130,
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: user.role,
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 8,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'user',
-                                        child: Text('Người dùng'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'admin',
-                                        child: Text('Quản trị viên'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'super_admin',
-                                        child: Text('Cấp cao'),
-                                      ),
-                                    ],
-                                    onChanged: (value) async {
-                                      if (value == null || value == user.role) {
-                                        return;
-                                      }
-                                      await widget.repository.updateUserRole(
-                                        user.id,
-                                        value,
-                                      );
-                                    },
+                                FilledButton.tonalIcon(
+                                  onPressed: () => _showPermissionDialog(user),
+                                  icon: const Icon(
+                                    Icons.admin_panel_settings_outlined,
                                   ),
+                                  label: const Text('Phân quyền'),
                                 ),
                               const SizedBox(width: 16),
                               IconButton(
@@ -412,6 +588,32 @@ class _UsersPageState extends State<UsersPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPermissionSummaryPill(AdminUserRecord user) {
+    final count = user.permissions.length;
+    final label = user.role == 'user'
+        ? 'Không có quyền'
+        : user.role == 'super_admin'
+        ? 'Toàn quyền'
+        : '$count quyền';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF475569),
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }

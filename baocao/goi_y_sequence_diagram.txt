@@ -1,0 +1,144 @@
+# GỢI Ý CÁC SƠ ĐỒ TUẦN TỰ (SEQUENCE DIAGRAMS) CẦN THIẾT
+
+Dưới đây là các sơ đồ quan trọng thể hiện các luồng nghiệp vụ chính của hệ thống.
+
+---
+
+## 0. SƠ ĐỒ TUẦN TỰ TỔNG QUÁT (GENERAL OVERVIEW SEQUENCE)
+**Mục đích:** Thể hiện bức tranh toàn cảnh về mối quan hệ giữa App Mobile, Admin Web và Cloud Services (Firebase/AI).
+
+*   **Các đối tượng (Lifelines):**
+    1.  **Mobile User** (Người dùng App)
+    2.  **Mobile App** (Flutter Client)
+    3.  **Cloud Services** (Firebase Auth + Firestore)
+    4.  **AI Parser** (API Xử lý ngôn ngữ)
+    5.  **Admin Web** (Trang quản trị)
+    6.  **Admin User** (Quản trị viên)
+
+*   **Luồng xử lý (Main Flow):**
+    1.  **Mobile User** mở App và Đăng nhập.
+    2.  **Mobile App** gửi thông tin xác thực -> **Cloud Services**.
+    3.  **Cloud Services** trả về Token & User Profile -> **Mobile App**.
+    4.  *(Vòng lặp sử dụng hàng ngày)*:
+        *   **Mobile User** nói câu lệnh chi tiêu -> **Mobile App**.
+        *   **Mobile App** chuyển tiếp Text -> **AI Parser**.
+        *   **AI Parser** trả về dữ liệu JSON -> **Mobile App**.
+        *   **Mobile App** hiển thị xem trước & **Mobile User** xác nhận.
+        *   **Mobile App** lưu Giao dịch mới -> **Cloud Services**.
+    5.  *(Phía Quản trị)*:
+        *   **Cloud Services** đồng bộ dữ liệu Real-time (Stream) -> **Admin Web**.
+        *   **Admin User** nhìn thấy biểu đồ dòng tiền tăng lên trên **Admin Web**.
+    6.  *(Phản hồi ngược)*:
+        *   **Admin User** cập nhật Danh mục chung (Thêm "Category mới") -> **Admin Web**.
+        *   **Admin Web** lưu thay đổi -> **Cloud Services**.
+        *   **Cloud Services** đẩy cập nhật xuống -> **Mobile App**.
+        *   **Mobile App** hiển thị Category mới cho **Mobile User**.
+
+---
+
+## 1. Sơ đồ: Thêm Giao dịch thông minh bằng AI (Chi tiết)
+**Mục đích:** Thể hiện tính năng nổi bật nhất của đồ án - khả năng xử lý ngôn ngữ tự nhiên.
+
+*   **Các đối tượng (Lifelines):**
+    1.  User (Người dùng)
+    2.  ChatScreen (Giao diện Chat)
+    3.  AIService (Xử lý logic AI)
+    4.  AI Parser API (Gemini/External API)
+    5.  Firestore (Cơ sở dữ liệu)
+
+*   **Luồng xử lý:**
+    1.  **User** nhập câu lệnh (VD: "Ăn sáng 30k") -> **ChatScreen**.
+    2.  **ChatScreen** gọi hàm `sendMessage()` -> **AIService**.
+    3.  **AIService** gửi Prompt + Text -> **AI Parser API**.
+    4.  **AI Parser API** phân tích và trả về JSON `{amount: 30000, category: 'Ăn uống'}` -> **AIService**.
+    5.  **AIService** chuyển đổi JSON thành Object `Transaction`.
+    6.  **ChatScreen** hiển thị bản nháp (Draft) cho **User**.
+    7.  **User** bấm nút "Xác nhận lưu" -> **ChatScreen**.
+    8.  **ChatScreen** gọi `saveTransaction()` -> **Firestore**.
+    9.  **Firestore** trả về kết quả thành công -> **User** nhận thông báo.
+
+---
+
+## 2. Sơ đồ: Kiểm tra và Cảnh báo Ngân sách (Logic nghiệp vụ)
+**Mục đích:** Thể hiện logic tính toán tự động khi thêm một khoản chi tiêu mới.
+
+*   **Các đối tượng (Lifelines):**
+    1.  User
+    2.  AddTransactionForm (Form thêm giao dịch)
+    3.  BudgetService (Dịch vụ Ngân sách)
+    4.  Firestore
+
+*   **Luồng xử lý:**
+    1.  **User** nhập số tiền và chọn danh mục -> **AddTransactionForm**.
+    2.  **AddTransactionForm** gọi `checkBudgetStatus(category, amount)` -> **BudgetService**.
+    3.  **BudgetService** lấy thông tin ngân sách hiện tại từ **Firestore**.
+    4.  **Firestore** trả về `{limit: 5tr, spent: 4.8tr}` -> **BudgetService**.
+    5.  **BudgetService** tính toán: `(4.8tr + khoản mới) > 5tr`.
+    6.  **BudgetService** trả về cảnh báo `IsOverBudget = true` -> **AddTransactionForm**.
+    7.  **AddTransactionForm** hiển thị thông báo màu đỏ: "Cảnh báo vượt hạn mức" -> **User**.
+    8.  **User** vẫn quyết định bấm "Lưu" -> **Firestore** (Ghi đè).
+
+---
+
+## 3. Sơ đồ: Đăng nhập và Phân quyền (Bảo mật)
+**Mục đích:** Thể hiện luồng phân chia người dùng thường và Admin.
+
+*   **Các đối tượng (Lifelines):**
+    1.  User/Admin
+    2.  LoginScreen
+    3.  AuthService (Xử lý đăng nhập)
+    4.  Firebase Auth
+    5.  Firestore (Chứa thông tin Role)
+
+*   **Luồng xử lý:**
+    1.  **User** nhập Email/Pass -> **LoginScreen**.
+    2.  **LoginScreen** gọi `login()` -> **AuthService**.
+    3.  **AuthService** gửi yêu cầu xác thực -> **Firebase Auth**.
+    4.  **Firebase Auth** trả về `User UID` thành công -> **AuthService**.
+    5.  **AuthService** truy vấn `users/{uid}` -> **Firestore**.
+    6.  **Firestore** trả về thông tin user kèm `role` -> **AuthService**.
+    7.  **AuthService** kiểm tra `role`:
+        *   Nếu `role == 'admin'` -> Chuyển hướng tới **AdminDashboard**.
+        *   Nếu `role == 'user'` -> Chuyển hướng tới **UserHomeScreen**.
+
+---
+
+## 4. Sơ đồ: Admin Khóa tài khoản User (Quản trị)
+**Mục đích:** Thể hiện quyền lực của Admin và tác động thời gian thực lên User.
+
+*   **Các đối tượng (Lifelines):**
+    1.  Admin
+    2.  UserManagementScreen (Web Admin)
+    3.  Firestore
+    4.  MobileApp (Của User đang bị khóa)
+
+*   **Luồng xử lý:**
+    1.  **Admin** bấm nút "Khóa tài khoản" -> **UserManagementScreen**.
+    2.  **UserManagementScreen** cập nhật `status = 'locked'` vào document của user -> **Firestore**.
+    3.  **Firestore** kích hoạt sự kiện `onSnapshot` (Realtime Stream) -> **MobileApp**.
+    4.  **MobileApp** nhận thấy `status` thay đổi thành `locked`.
+    5.  **MobileApp** tự động gọi hàm `logout()` và hiện thông báo lỗi.
+    6.  **User** bị đẩy ra màn hình đăng nhập ngay lập tức.
+
+---
+
+## 5. Sơ đồ: Admin Đồng bộ Dữ liệu xuống User (Real-time Sync)
+**Mục đích:** Thể hiện luồng cập nhật cấu hình hệ thống (Ví dụ: Thêm danh mục mới) từ Admin xuống toàn bộ thiết bị User đang online.
+
+*   **Các đối tượng (Lifelines):**
+    1.  Admin User (Quản trị viên)
+    2.  Admin Web Portal (Trang quản trị)
+    3.  Firestore (Cơ sở dữ liệu đám mây)
+    4.  Mobile App (Ứng dụng người dùng)
+    5.  User UI (Màn hình người dùng)
+
+*   **Luồng xử lý:**
+    1.  **Admin User** chọn "Thêm Danh mục mới" (Ví dụ: "Đầu tư Crypto") -> **Admin Web Portal**.
+    2.  **Admin Web Portal** kiểm tra dữ liệu hợp lệ -> **Firestore**.
+    3.  **Admin Web Portal** gọi lệnh ghi: `collection('categories').add(...)` -> **Firestore**.
+    4.  **Firestore** xác nhận ghi thành công -> **Admin Web Portal**.
+    5.  *(Cơ chế Real-time)*: **Firestore** tự động phát hiện thay đổi và đẩy (Push) bản cập nhật về danh mục mới -> **Mobile App**.
+        *(Lưu ý: Mobile App luôn duy trì kết nối `Stream` lắng nghe collection này).*
+    6.  **Mobile App** nhận dữ liệu mới -> Cập nhật State cục bộ.
+    7.  **Mobile App** vẽ lại giao diện (Re-build Widget) -> **User UI**.
+    8.  **User UI** hiển thị ngay lập tức danh mục "Đầu tư Crypto" trong danh sách chọn.

@@ -42,43 +42,105 @@ class _AdminWebShellState extends State<AdminWebShell> {
   @override
   Widget build(BuildContext context) {
     final items = <({AdminSection section, String label, IconData icon})>[
-      (
-        section: AdminSection.overview,
-        label: 'Tổng quan',
-        icon: Icons.dashboard,
-      ),
-      (
-        section: AdminSection.users,
-        label: 'Người dùng',
-        icon: Icons.people_alt_rounded,
-      ),
-      (
-        section: AdminSection.categories,
-        label: 'Danh mục',
-        icon: Icons.category_rounded,
-      ),
-      (
-        section: AdminSection.broadcasts,
-        label: 'Thông báo',
-        icon: Icons.notifications,
-      ),
-      (
-        section: AdminSection.systemConfigs,
-        label: 'Cấu hình',
-        icon: Icons.settings_suggest_rounded,
-      ),
-      (
-        section: AdminSection.aiConfig,
-        label: 'Cấu hình AI',
-        icon: Icons.memory,
-      ),
-      (
-        section: AdminSection.transactions,
-        label: 'Giao dịch',
-        icon: Icons.receipt_long_rounded,
-      ),
-      (section: AdminSection.reports, label: 'Báo cáo', icon: Icons.bar_chart),
+      if (widget.profile.hasPermission(adminPermissionOverview))
+        (
+          section: AdminSection.overview,
+          label: 'Tổng quan',
+          icon: Icons.dashboard,
+        ),
+      if (widget.profile.hasPermission(adminPermissionUsers))
+        (
+          section: AdminSection.users,
+          label: 'Người dùng',
+          icon: Icons.people_alt_rounded,
+        ),
+      if (widget.profile.hasPermission(adminPermissionCategories))
+        (
+          section: AdminSection.categories,
+          label: 'Danh mục',
+          icon: Icons.category_rounded,
+        ),
+      if (widget.profile.hasPermission(adminPermissionBroadcasts))
+        (
+          section: AdminSection.broadcasts,
+          label: 'Thông báo',
+          icon: Icons.notifications,
+        ),
+      if (widget.profile.hasPermission(adminPermissionSystemConfigs))
+        (
+          section: AdminSection.systemConfigs,
+          label: 'Cấu hình',
+          icon: Icons.settings_suggest_rounded,
+        ),
+      if (widget.profile.hasPermission(adminPermissionAiConfig))
+        (
+          section: AdminSection.aiConfig,
+          label: 'Cấu hình AI',
+          icon: Icons.memory,
+        ),
+      if (widget.profile.hasPermission(adminPermissionTransactions))
+        (
+          section: AdminSection.transactions,
+          label: 'Giao dịch',
+          icon: Icons.receipt_long_rounded,
+        ),
+      if (widget.profile.hasPermission(adminPermissionReports))
+        (
+          section: AdminSection.reports,
+          label: 'Báo cáo',
+          icon: Icons.bar_chart,
+        ),
     ];
+
+    final effectiveCurrent = items.any((item) => item.section == _current)
+        ? _current
+        : (items.isNotEmpty ? items.first.section : AdminSection.overview);
+
+    if (items.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF4F0E7),
+        body: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 560),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.admin_panel_settings_outlined,
+                  size: 64,
+                  color: Color(0xFF64748B),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Tài khoản quản trị này chưa được cấp quyền chức năng nào.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF172221),
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Hãy dùng tài khoản cấp cao để phân quyền cho tài khoản này trước khi sử dụng cổng quản trị.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    height: 1.6,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F0E7),
@@ -174,9 +236,9 @@ class _AdminWebShellState extends State<AdminWebShell> {
                             key: ValueKey('sidebar_${item.section.name}'),
                             label: item.label,
                             icon: item.icon,
-                            selected: _current == item.section,
+                            selected: effectiveCurrent == item.section,
                             onTap: () {
-                              if (_current == item.section) return;
+                              if (effectiveCurrent == item.section) return;
                               setState(() {
                                 _current = item.section;
                               });
@@ -252,7 +314,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
                     child: Material(
                       color: Colors.transparent,
                       child: IndexedStack(
-                        index: _current.index,
+                        index: AdminSection.values.indexOf(effectiveCurrent),
                         children: [
                           OverviewPage(repository: widget.repository),
                           UsersPage(

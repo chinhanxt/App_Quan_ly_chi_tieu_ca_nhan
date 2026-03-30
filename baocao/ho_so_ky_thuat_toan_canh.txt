@@ -1,0 +1,103 @@
+# HỒ SƠ KỸ THUẬT TOÀN CẢNH DỰ ÁN (TECHNICAL OVERVIEW PROFILE)
+
+## 1. TỔNG QUAN CÔNG NGHỆ (TECH STACK)
+Dự án được xây dựng dựa trên hệ sinh thái hiện đại của Google, tập trung vào trải nghiệm đa nền tảng và thời gian thực.
+
+*   **Ngôn ngữ lập trình:** Dart (Phiên bản mới nhất).
+*   **Framework:** Flutter (Hỗ trợ Mobile Android/iOS và Web Admin).
+*   **Backend as a Service (BaaS):** Firebase.
+    *   **Auth:** Quản lý xác thực người dùng.
+    *   **Firestore:** Cơ sở dữ liệu NoSQL thời gian thực.
+    *   **Storage:** Lưu trữ hình ảnh (Avatar, Hóa đơn).
+*   **AI Integration:** Google Generative AI SDK (Gemini API) để xử lý ngôn ngữ tự nhiên.
+*   **State Management:** `Provider` (hoặc `Riverpod`/`Bloc` tùy thực tế) để quản lý trạng thái ứng dụng.
+
+---
+
+## 2. KIẾN TRÚC PHẦN MỀM (SOFTWARE ARCHITECTURE)
+Dự án tuân theo mô hình **Layered Architecture (Kiến trúc phân tầng)**, chia tách rõ ràng giữa giao diện và logic xử lý.
+
+### 2.1. Các tầng (Layers)
+1.  **Presentation Layer (UI):**
+    *   Chứa các `Screen` (Màn hình) và `Widget` (Thành phần giao diện nhỏ).
+    *   Nhiệm vụ: Hiển thị dữ liệu và nhận tương tác từ người dùng. Không chứa logic nghiệp vụ phức tạp.
+    *   Ví dụ: `LoginScreen`, `Dashboard`, `TransactionCard`.
+
+2.  **Business Logic Layer (Services/Providers):**
+    *   Cầu nối giữa UI và Data.
+    *   Nhiệm vụ: Xử lý logic nghiệp vụ (VD: Tính tổng tiền, Kiểm tra ngân sách, Gọi AI phân tích).
+    *   Ví dụ: `AuthService`, `ReportService`, `AIService`.
+
+3.  **Data Layer (Models & Repositories):**
+    *   Định nghĩa cấu trúc dữ liệu.
+    *   Nhiệm vụ: Chuyển đổi dữ liệu từ JSON (Firestore) sang Dart Object và ngược lại.
+    *   Ví dụ: `TransactionModel`, `BudgetModel`, `UserModel`.
+
+---
+
+## 3. CẤU TRÚC THƯ MỤC & CHỨC NĂNG (FOLDER STRUCTURE EXPLAINED)
+
+Thư mục gốc `lib/` là trái tim của dự án, được tổ chức như sau:
+
+*   **`lib/main.dart`**: Điểm khởi chạy ứng dụng. Thiết lập cấu hình Firebase, Theme, Route.
+*   **`lib/models/`**: Chứa các lớp dữ liệu (POJO).
+    *   `transaction_model.dart`: Định nghĩa 1 giao dịch (số tiền, ngày, loại).
+    *   `user_model.dart`: Định nghĩa user (tên, email, role).
+*   **`lib/screens/`**: Chứa các màn hình chính.
+    *   `auth/`: Đăng nhập, Đăng ký.
+    *   `dashboard/`: Trang chủ hiển thị tổng quan.
+    *   `budget/`: Trang quản lý ngân sách.
+    *   `report/`: Trang biểu đồ báo cáo.
+*   **`lib/services/`**: Chứa các lớp giao tiếp với bên ngoài (API, DB).
+    *   `db.dart` (hoặc `firestore_service.dart`): Các hàm CRUD (Thêm, Sửa, Xóa) dữ liệu Firestore.
+    *   `auth_service.dart`: Các hàm login, logout, sign up.
+    *   `ai_service.dart`: Hàm gửi text lên Gemini và nhận về JSON.
+*   **`lib/widgets/`**: Chứa các Widget tái sử dụng (Reusable Widgets).
+    *   `custom_button.dart`: Nút bấm theo style riêng.
+    *   `transaction_item.dart`: Một dòng lịch sử giao dịch.
+*   **`lib/utils/`**: Các hàm tiện ích bổ trợ.
+    *   `formatters.dart`: Hàm định dạng tiền tệ (10000 -> 10.000 đ), ngày tháng.
+    *   `constants.dart`: Lưu màu sắc chủ đạo, font chữ, API Key.
+*   **`lib/admin_web/`** (Nếu gộp chung source): Chứa code riêng cho giao diện Admin.
+
+---
+
+## 4. CƠ CHẾ HOẠT ĐỘNG CỦA HỆ THỐNG (SYSTEM MECHANISM)
+
+### 4.1. Luồng dữ liệu Real-time (Stream)
+Dự án **KHÔNG** dùng cơ chế "Kéo - Thả" (Pull) truyền thống (tức là User phải vuốt để tải lại trang). Thay vào đó dùng **Stream**:
+*   App mở một "đường ống" kết nối tới Firestore.
+*   Bất kỳ thay đổi nào trên Server (User khác sửa, Admin sửa) đều tự động "chảy" về App ngay lập tức.
+*   **Code:** Sử dụng `StreamBuilder<QuerySnapshot>` để bao bọc các Widget hiển thị danh sách.
+
+### 4.2. Luồng xử lý AI (AI Parsing Flow)
+1.  **Input:** User nhập "Trà đá 5k".
+2.  **Prompting:** App ghép chuỗi này vào một "khuôn mẫu" (Prompt Template) ẩn: *"Đóng vai kế toán, trích xuất dữ liệu từ câu 'Trà đá 5k' ra JSON..."*.
+3.  **Request:** Gửi toàn bộ lên Google Cloud.
+4.  **Response:** Nhận về chuỗi JSON.
+5.  **Mapping:** Code Dart dùng `jsonDecode()` để biến chuỗi đó thành Object và hiển thị lên màn hình.
+
+### 4.3. Phân quyền (Authorization)
+*   Mỗi User có một document trong collection `users` chứa field `role: 'user' | 'admin'`.
+*   Khi App khởi động, nó tải document này về đầu tiên.
+*   Nếu `role == 'admin'` -> Hiển thị thêm nút "Trang quản trị".
+
+---
+
+## 5. CÁCH VIẾT CODE (CODING CONVENTIONS)
+
+*   **Naming:**
+    *   Biến/Hàm: camelCase (VD: `totalAmount`, `getUserProfile`).
+    *   Lớp/Widget: PascalCase (VD: `TransactionScreen`, `BudgetCard`).
+    *   File: snake_case (VD: `transaction_screen.dart`).
+*   **Async/Await:**
+    *   Tất cả các tác vụ liên quan đến IO (Đọc DB, Gọi API) đều phải dùng `async/await` để không làm đơ giao diện.
+*   **Safety:**
+    *   Luôn kiểm tra `null` (Null Safety) trước khi hiển thị dữ liệu lên màn hình.
+    *   Sử dụng `try-catch` bọc quanh các hàm gọi API để xử lý lỗi mất mạng hoặc lỗi server.
+
+---
+
+## 6. KHẢ NĂNG MỞ RỘNG (SCALABILITY)
+*   **Đa ngôn ngữ (i18n):** Hệ thống đã tách biệt các chuỗi văn bản, dễ dàng thêm file `en.json`, `jp.json` để hỗ trợ tiếng Anh, Nhật.
+*   **Đa nền tảng:** Codebase hiện tại có thể build ra file `.apk` (Android), `.ipa` (iOS) và Web App mà không cần sửa đổi logic cốt lõi.

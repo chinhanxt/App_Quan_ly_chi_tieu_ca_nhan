@@ -1,0 +1,69 @@
+# MÔ TẢ USE CASE TỔNG QUÁT (GENERAL USE CASE)
+
+## 1. TỔNG QUAN HỆ THỐNG
+Hệ thống **Quản lý Tài chính Cá nhân** phục vụ hai đối tượng chính: Người dùng cá nhân (User) và Quản trị viên (Admin). Mục tiêu là giúp người dùng ghi chép chi tiêu dễ dàng, thông minh và giúp Admin giám sát hoạt động hệ thống.
+
+## 2. DANH SÁCH USE CASE
+
+### A. NHÓM NGƯỜI DÙNG (USER)
+Người dùng là tác nhân chính, thực hiện các hoạt động quản lý tài chính cá nhân hàng ngày.
+
+1.  **Quản lý Tài khoản (Account Management):**
+    *   Đăng ký tài khoản mới.
+    *   Đăng nhập hệ thống (Email/Password).
+    *   Lấy lại mật khẩu, Đổi mật khẩu.
+    *   Cập nhật thông tin cá nhân (Profile).
+
+2.  **Quản lý Giao dịch (Transaction Management):**
+    *   **Thêm giao dịch thủ công:** Nhập tay số tiền, chọn danh mục, ngày tháng.
+    *   **Thêm giao dịch bằng AI (Smart Input):** Chat hoặc ra lệnh bằng giọng nói để hệ thống tự động tạo giao dịch.
+    *   **Thêm giao dịch qua Ảnh (OCR):** Quét hóa đơn mua hàng để trích xuất thông tin tự động.
+    *   Xem lịch sử giao dịch, chỉnh sửa hoặc xóa giao dịch đã tạo.
+
+3.  **Quản lý Ngân sách & Tiết kiệm (Budget & Savings):**
+    *   Thiết lập hạn mức chi tiêu cho từng danh mục (Ví dụ: Ăn uống, Mua sắm).
+    *   Nhận cảnh báo khi chi tiêu vượt quá hạn mức.
+    *   Lập và theo dõi các mục tiêu tiết kiệm (Saving Goals).
+
+4.  **Báo cáo & Phân tích (Reports & Analytics):**
+    *   Xem biểu đồ thống kê thu chi theo tháng/năm.
+    *   Phân tích cơ cấu chi tiêu (Biểu đồ tròn).
+
+### B. NHÓM QUẢN TRỊ VIÊN (ADMIN)
+Quản trị viên chịu trách nhiệm vận hành và giám sát hệ thống thông qua giao diện Web.
+
+1.  **Quản trị Người dùng (User Management):**
+    *   Xem danh sách toàn bộ người dùng trong hệ thống.
+    *   Tìm kiếm người dùng theo tên hoặc email.
+    *   Khóa (Block) hoặc Mở khóa (Unblock) tài khoản người dùng vi phạm.
+
+2.  **Quản trị Danh mục (Category Management):**
+    *   Quản lý danh sách các danh mục chi tiêu mặc định (Global Categories).
+    *   Thêm mới, chỉnh sửa hoặc xóa các danh mục hệ thống.
+
+3.  **Thống kê Hệ thống (System Dashboard):**
+    *   Xem tổng quan số lượng người dùng mới.
+    *   Theo dõi tổng dòng tiền giao dịch của toàn hệ thống.
+
+## 3. BIỂU ĐỒ USE CASE TỔNG QUÁT (DẠNG TEXT)
+
+```text
+                           +---------------------------+
+                           |      HỆ THỐNG TÀI CHÍNH   |
+                           |                           |
+       +---------+         |  (1) Quản lý Tài khoản    |
+       |         |-------->|                           |
+       |  USER   |         |  (2) Quản lý Giao dịch    |         +---------+
+       |         |-------->|      (AI, Ảnh, Thủ công)  |<--------|         |
+       +---------+         |                           |         |  ADMIN  |
+                           |  (3) Ngân sách & Tiết kiệm|         |         |
+                           |                           |         +---------+
+                           |  (4) Xem Báo cáo          |              |
+                           |                           |              |
+                           |  (5) Quản trị Người dùng  |<-------------+
+                           |                           |
+                           |  (6) Quản trị Danh mục    |<-------------+
+                           |                           |
+                           |  (7) Thống kê Hệ thống    |<-------------+
+                           +---------------------------+
+```

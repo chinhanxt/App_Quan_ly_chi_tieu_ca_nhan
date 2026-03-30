@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrapSuperAdmin() {
+      return isSignedIn() &&
+          request.auth.token.email != null &&
+          request.auth.token.email.lower() == 'admin@gmail.com';
+    }
+
+    function requesterDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function requesterDoc() {
+      return get(requesterDocPath());
+    }
+
+    function requesterDocExists() {
+      return exists(requesterDocPath());
+    }
+
+    function requesterRole() {
+      return isBootstrapSuperAdmin()
+          ? 'super_admin'
+          : (isSignedIn() && requesterDocExists()
+              ? requesterDoc().data.role
+              : 'user');
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+          (requesterRole() == 'admin' || requesterRole() == 'super_admin');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+          (isBootstrapSuperAdmin() || requesterRole() == 'super_admin');
+    }
+
+    function roleAndPermissionsUnchanged() {
+      return request.resource.data.role == resource.data.role &&
+          request.resource.data.permissions == resource.data.permissions;
+    }
+
+    function selfProfileCreateAllowed() {
+      return request.resource.data.role == 'user' &&
+          request.resource.data.status == 'active' &&
+          (!('permissions' in request.resource.data) ||
+              request.resource.data.permissions == []);
+    }
+
+    function adminStatusOnlyUpdateAllowed() {
+      return request.resource.data.role == resource.data.role &&
+          request.resource.data.permissions == resource.data.permissions &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'status',
+            'updatedAt',
+          ]);
+    }
+
+    function targetIsProtectedSuperAdmin() {
+      return resource.data.role == 'super_admin' ||
+          (resource.data.email != null &&
+              resource.data.email.lower() == 'admin@gmail.com');
+    }
+
+    match /users/{userId} {
+      allow read: if isOwnUser(userId) || isAdmin();
+      allow create: if isOwnUser(userId) && selfProfileCreateAllowed();
+      allow update: if isSuperAdmin() ||
+          (isOwnUser(userId) && roleAndPermissionsUnchanged()) ||
+          (!isOwnUser(userId) &&
+              isAdmin() &&
+              !targetIsProtectedSuperAdmin() &&
+              adminStatusOnlyUpdateAllowed());
+      allow delete: if isSuperAdmin();
+    }
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if isOwnUser(userId) || isAdmin();
+    }
+
+    match /categories/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /system_broadcasts/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /system_configs/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /admin_logs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

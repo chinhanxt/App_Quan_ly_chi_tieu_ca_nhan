@@ -1,0 +1,119 @@
+# CHƯƠNG II: PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG
+
+## 2.1. Phân tích yêu cầu
+### 2.1.1. Yêu cầu chức năng
+Hệ thống được chia làm 2 phân hệ chính dựa trên vai trò người dùng (User và Admin):
+
+**A. Phân hệ Người dùng (End-User):**
+1.  **Quản lý tài khoản:** Đăng ký, đăng nhập, lấy lại mật khẩu (OTP), chỉnh sửa thông tin cá nhân.
+2.  **Quản lý thu chi:** Thêm/Sửa/Xóa giao dịch (Số tiền, Danh mục, Ghi chú, Thời gian).
+3.  **Quản lý ngân sách (Budgeting):**
+    *   Thiết lập hạn mức chi tiêu cho từng danh mục theo tháng.
+    *   Cảnh báo (màu sắc Xanh/Vàng/Đỏ) khi chi tiêu gần chạm ngưỡng hoặc vượt quá hạn mức.
+4.  **Tích hợp AI (Trợ lý tài chính):**
+    *   Chat bot thông minh sử dụng **AI Parser**.
+    *   Nhập liệu tự nhiên (Ví dụ: "Sáng nay ăn phở 50k") -> AI tự động phân tích và lưu giao dịch.
+    *   Tư vấn tài chính cơ bản.
+5.  **Báo cáo & Thống kê:** Biểu đồ tròn/cột thể hiện tình hình thu chi theo tháng/năm.
+
+**B. Phân hệ Quản trị (Admin Web):**
+1.  **Dashboard tổng quan:** Thống kê tổng số người dùng, tổng dòng tiền giao dịch toàn hệ thống.
+2.  **Quản lý người dùng:** Xem danh sách, tìm kiếm, khóa/mở khóa tài khoản người dùng.
+3.  **Quản lý danh mục:** Thêm/Sửa/Xóa các danh mục chi tiêu mặc định của hệ thống.
+
+### 2.1.2. Yêu cầu phi chức năng
+1.  **Bảo mật:** Dữ liệu người dùng phải được phân quyền chặt chẽ (User A không thấy dữ liệu User B). Mật khẩu được mã hóa.
+2.  **Hiệu năng:** Ứng dụng phản hồi nhanh, AI xử lý câu lệnh dưới 3 giây.
+3.  **Tính sẵn sàng:** Dữ liệu đồng bộ realtime qua Firebase Cloud Firestore.
+4.  **Giao diện:** Thân thiện, hỗ trợ Dark Mode/Light Mode.
+
+## 2.2. Biểu đồ Use Case
+*(Phần này bạn vẽ biểu đồ dựa trên các actor sau)*
+*   **Actor User:** Đăng nhập -> (Quản lý giao dịch, Xem báo cáo, Chat với AI, Cài đặt ngân sách).
+*   **Actor Admin:** Đăng nhập -> (Quản lý User, Quản lý Danh mục hệ thống, Xem thống kê toàn cục).
+
+## 2.3. Thiết kế Cơ sở dữ liệu (Firestore Schema)
+Cơ sở dữ liệu NoSQL (Firestore) được thiết kế theo cấu trúc sau:
+
+1.  **Collection `users`**: Lưu thông tin người dùng.
+    *   `uid`: ID người dùng (Khóa chính).
+    *   `email`, `displayName`, `role` (user/admin).
+    *   `status` (active/locked).
+2.  **Sub-collection `users/{uid}/transactions`**: Lưu các giao dịch cá nhân.
+    *   `amount`: Số tiền.
+    *   `category`: Danh mục (Ăn uống, Lương...).
+    *   `type`: Loại (credit/debit).
+    *   `date`: Thời gian giao dịch.
+    *   `note`: Ghi chú.
+3.  **Sub-collection `users/{uid}/budgets`**: Lưu ngân sách chi tiêu.
+    *   `categoryName`: Danh mục áp dụng.
+    *   `limitAmount`: Hạn mức tối đa.
+    *   `monthYear`: Tháng áp dụng (VD: "10-2023").
+    *   `spentAmount`: Số tiền đã chi (tính toán realtime).
+
+## 2.4. Kiến trúc hệ thống
+Mô hình Client-Server hiện đại:
+*   **Client (Mobile App):** Xây dựng bằng **Flutter**, chạy trên Android/iOS.
+*   **Client (Admin Web):** Xây dựng bằng **Flutter Web**.
+*   **Backend as a Service (BaaS):** Sử dụng **Firebase** (Auth, Firestore, Cloud Functions).
+*   **AI Service:** Kết nối API **AI Parser** để xử lý ngôn ngữ tự nhiên.
+
+---
+
+# CHƯƠNG III: CÀI ĐẶT VÀ TRIỂN KHAI
+
+## 3.1. Công nghệ sử dụng
+1.  **Flutter & Dart:** Framework chính để phát triển ứng dụng đa nền tảng.
+2.  **Firebase:**
+    *   *Authentication:* Quản lý đăng nhập.
+    *   *Firestore:* Cơ sở dữ liệu thời gian thực.
+3.  **AI Parser Logic:** Xử lý logic thông minh, phân tích câu nói của người dùng thành dữ liệu có cấu trúc (JSON).
+
+## 3.2. Mô tả các màn hình chính (Giao diện)
+1.  **Màn hình Dashboard:** Hiển thị số dư hiện tại, biểu đồ thu chi nhanh, danh sách giao dịch gần đây.
+2.  **Màn hình Chat AI:** Giao diện chat giống Messenger, người dùng nhập câu thoại, AI trả lời và hiển thị xác nhận lưu giao dịch.
+3.  **Màn hình Ngân sách (Budget):** Hiển thị các thanh tiến trình (Progress Bar) cho từng danh mục.
+    *   Màu xanh: An toàn (< 80%).
+    *   Màu vàng: Cảnh báo (80% - 100%).
+    *   Màu đỏ: Vượt hạn mức (> 100%).
+4.  **Admin Dashboard (Web):** Bảng số liệu thống kê và danh sách người dùng dạng bảng (Table).
+
+## 3.3. Các thuật toán và xử lý nghiệp vụ quan trọng
+1.  **Xử lý ngôn ngữ tự nhiên (AI Logic):**
+    *   Prompt Engineering: Thiết lập "vai" (persona) cho AI là một trợ lý tài chính vui tính.
+    *   Logic phân tích: Tách câu lệnh phức tạp (VD: "Ăn sáng 30k và đổ xăng 50k") thành 2 giao dịch riêng biệt.
+    *   Tự động chuẩn hóa dữ liệu: "50k", "50 nghìn" -> 50000.
+2.  **Logic tính toán ngân sách:**
+    *   Khi người dùng thêm giao dịch mới -> Hệ thống tự động tính tổng chi tiêu trong tháng của danh mục đó -> So sánh với `limitAmount` -> Cập nhật trạng thái cảnh báo.
+
+---
+
+# CHƯƠNG IV: KIỂM THỬ VÀ ĐÁNH GIÁ
+
+## 4.1. Kịch bản kiểm thử (Test Cases)
+1.  **Test Case 1: Đăng nhập**
+    *   *Input:* Email/Pass đúng -> *Kết quả:* Vào màn hình chính.
+    *   *Input:* Sai pass -> *Kết quả:* Thông báo lỗi.
+    *   *Input:* Tài khoản bị Admin khóa -> *Kết quả:* Thông báo "Tài khoản bị khóa".
+2.  **Test Case 2: Thêm giao dịch bằng AI**
+    *   *Input:* Chat "Mua trà sữa 30k" -> *Kết quả:* AI nhận diện đúng số tiền 30.000, danh mục "Ăn uống", loại "Chi tiêu".
+3.  **Test Case 3: Cảnh báo ngân sách**
+    *   *Input:* Đặt hạn mức Ăn uống 1 triệu. Đã tiêu 900k. Thêm giao dịch 200k.
+    *   *Kết quả:* Hệ thống hiện cảnh báo đỏ "Vượt quá ngân sách".
+
+## 4.2. Kết quả đạt được
+*   Xây dựng thành công ứng dụng quản lý tài chính đa nền tảng.
+*   Tích hợp thành công AI giúp giảm thao tác nhập liệu thủ công (từ 5 bước xuống còn 1 bước chat).
+*   Hệ thống chạy ổn định, đồng bộ dữ liệu nhanh.
+
+---
+
+# CHƯƠNG V: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
+
+## 5.1. Kết luận
+Đồ án đã giải quyết được vấn đề khó khăn trong việc ghi chép chi tiêu hàng ngày bằng cách ứng dụng AI, làm cho việc quản lý tài chính trở nên thú vị và đơn giản hơn.
+
+## 5.2. Hướng phát triển
+1.  **OCR (Quét hóa đơn):** Chụp ảnh hóa đơn siêu thị, tự động trích xuất danh sách món hàng và giá tiền.
+2.  **Lập kế hoạch tiết kiệm:** Tính năng gợi ý số tiền nên tiết kiệm mỗi tháng dựa trên thu nhập.
+3.  **Đa ngôn ngữ:** Hỗ trợ thêm tiếng Anh/Tiếng Nhật.
