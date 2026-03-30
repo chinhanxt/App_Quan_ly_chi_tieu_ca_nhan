@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/mobile_adaptive.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // 1. Import thêm thư viện intl
 
@@ -56,6 +57,8 @@ class Cards extends StatelessWidget {
       num.tryParse(data['totalDebit'].toString()) ?? 0,
     );
 
+    final compact = MobileAdaptive.useCompactLayout(context);
+
     return Container(
       decoration: BoxDecoration(
         gradient: AppColors.heroGradient,
@@ -72,7 +75,12 @@ class Cards extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              compact ? 18 : 20,
+              20,
+              compact ? 14 : 16,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -94,7 +102,7 @@ class Cards extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: compact ? 14 : 18),
                 const Text(
                   "Tổng Số Dư",
                   style: TextStyle(
@@ -105,13 +113,18 @@ class Cards extends StatelessWidget {
                   ),
                 ),
 
-                Text(
-                  "$formattedRemaining VND",
-                  style: const TextStyle(
-                    fontSize: 40,
-                    color: Colors.white,
-                    height: 1.2,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "$formattedRemaining VND",
+                    style: TextStyle(
+                      fontSize: compact ? 34 : 40,
+                      color: Colors.white,
+                      height: 1.2,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -129,21 +142,37 @@ class Cards extends StatelessWidget {
               ),
               color: Colors.white.withValues(alpha: 0.96),
             ),
-            child: Row(
-              children: [
-                CardOne(
-                  color: const Color(0xFF1D9A63),
-                  heading: 'Thu Nhập',
-                  amount: formattedCredit,
-                ),
-                const SizedBox(width: 10),
-                CardOne(
-                  color: const Color(0xFFC45A43),
-                  heading: 'Chi Tiêu',
-                  amount: formattedDebit,
-                ),
-              ],
-            ),
+            child: compact
+                ? Column(
+                    children: [
+                      CardOne(
+                        color: const Color(0xFF1D9A63),
+                        heading: 'Thu Nhập',
+                        amount: formattedCredit,
+                      ),
+                      const SizedBox(height: 10),
+                      CardOne(
+                        color: const Color(0xFFC45A43),
+                        heading: 'Chi Tiêu',
+                        amount: formattedDebit,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      CardOne(
+                        color: const Color(0xFF1D9A63),
+                        heading: 'Thu Nhập',
+                        amount: formattedCredit,
+                      ),
+                      const SizedBox(width: 10),
+                      CardOne(
+                        color: const Color(0xFFC45A43),
+                        heading: 'Chi Tiêu',
+                        amount: formattedDebit,
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -165,11 +194,12 @@ class CardOne extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MobileAdaptive.useCompactLayout(context);
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(compact ? 12 : 14),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
@@ -182,7 +212,7 @@ class CardOne extends StatelessWidget {
                     heading,
                     style: TextStyle(
                       color: color,
-                      fontSize: 14,
+                      fontSize: compact ? 13 : 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -194,7 +224,7 @@ class CardOne extends StatelessWidget {
                       "$amount VND",
                       style: TextStyle(
                         color: color,
-                        fontSize: 18,
+                        fontSize: compact ? 17 : 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -203,8 +233,8 @@ class CardOne extends StatelessWidget {
               ),
             ),
             Container(
-              width: 42,
-              height: 42,
+              width: compact ? 38 : 42,
+              height: compact ? 38 : 42,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
@@ -214,6 +244,7 @@ class CardOne extends StatelessWidget {
                     ? Icons.arrow_upward_rounded
                     : Icons.arrow_downward_rounded,
                 color: color,
+                size: compact ? 18 : 22,
               ),
             ),
           ],

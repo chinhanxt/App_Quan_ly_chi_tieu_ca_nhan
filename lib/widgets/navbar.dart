@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/mobile_adaptive.dart';
 
 class Navbar extends StatelessWidget {
   const Navbar({
@@ -12,11 +13,13 @@ class Navbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MobileAdaptive.useCompactLayout(context);
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      margin: EdgeInsets.fromLTRB(16, 0, 16, compact ? 8 : 14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(compact ? 24 : 28),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
@@ -31,8 +34,12 @@ class Navbar extends StatelessWidget {
         onDestinationSelected: onDestinationSelected,
         indicatorColor: AppColors.primary,
         backgroundColor: Colors.transparent,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        height: 72,
+        labelBehavior: compact
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
+        height: compact
+            ? 64 + bottomInset.clamp(0.0, 8.0)
+            : 72 + bottomInset.clamp(0.0, 10.0),
         destinations: const <Widget>[
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
