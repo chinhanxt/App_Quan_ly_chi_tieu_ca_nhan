@@ -1,7 +1,7 @@
 import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/account_dialog.dart';
-import 'package:app/widgets/category_management_dialog.dart';
+import 'package:app/screens/category_management_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/providers/settings_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -148,13 +148,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showCategoryManagement() {
-    showDialog(
-      context: context,
-      builder: (context) => CategoryManagementDialog(
-        onCategoryChanged: () {
-          // Refresh if needed
-        },
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CategoryManagementScreen()),
     );
   }
 

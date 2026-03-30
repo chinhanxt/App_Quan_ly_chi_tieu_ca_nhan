@@ -62,6 +62,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
   bool _previewLoading = false;
   bool _savingRuntimeDraft = false;
   bool _pushingRuntime = false;
+  bool _syncingRuntimeEnabled = false;
   bool _runtimePreviewLoading = false;
   bool _showApiKey = false;
 
@@ -380,6 +381,57 @@ class _AiConfigPageState extends State<AiConfigPage> {
     }
   }
 
+  Future<void> _setRuntimeEnabledLive(bool value) async {
+    if (_syncingRuntimeEnabled) return;
+
+    final nextDraft = _buildDraftRuntimeConfig().copyWith(enabled: value);
+    final nextPublished = _publishedRuntimeConfig.copyWith(enabled: value);
+
+    setState(() {
+      _syncingRuntimeEnabled = true;
+      _runtimeEnabled = value;
+      _runtimeMessage = null;
+    });
+
+    try {
+      await widget.repository.saveAiRuntimeConfigDraft(
+        config: nextDraft,
+        actor: widget.profile,
+        nextVersion: _draftRuntimeVersion + 1,
+      );
+      await widget.repository.saveAiRuntimeConfigRaw(
+        config: nextPublished,
+        actor: widget.profile,
+        nextVersion: _publishedRuntimeVersion + 1,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _draftRuntimeConfig = nextDraft;
+        _publishedRuntimeConfig = nextPublished;
+        _draftRuntimeVersion += 1;
+        _publishedRuntimeVersion += 1;
+        _runtimeSource = 'Runtime Firestore';
+        _runtimeMessage = value
+            ? 'Đã mở AI thật cho bản chạy ngay lập tức.'
+            : 'Đã khóa AI thật trên bản chạy ngay lập tức.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _runtimeEnabled = _draftRuntimeConfig.enabled;
+        _runtimeMessage =
+            'Không cập nhật được trạng thái AI thật. Vui lòng thử lại.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _syncingRuntimeEnabled = false;
+        });
+      }
+    }
+  }
+
   Future<void> _runPreview() async {
     final input = _previewInputController.text.trim();
     if (input.isEmpty) {
@@ -678,10 +730,18 @@ class _AiConfigPageState extends State<AiConfigPage> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              AdminRolePill(label: 'ban chay v$_publishedRuntimeVersion'),
-              AdminRolePill(label: 'ban nhap v$_draftRuntimeVersion'),
+              AdminRolePill(
+                label:
+                    'ban chay v$_publishedRuntimeVersion · ${_publishedRuntimeConfig.enabled ? 'AI that: bat' : 'AI that: tat'}',
+              ),
+              AdminRolePill(
+                label:
+                    'ban nhap v$_draftRuntimeVersion · ${runtimeDraft.enabled ? 'AI that: bat' : 'AI that: tat'}',
+              ),
               _CountPill(
-                label: runtimeDraft.enabled ? 'AI that: bat' : 'AI that: tat',
+                label: _syncingRuntimeEnabled
+                    ? 'dang ap dung cho user'
+                    : 'ban chay dang ${_publishedRuntimeConfig.enabled ? 'bat' : 'tat'}',
               ),
               _CountPill(
                 label: runtimeDraft.hasApiKey
@@ -717,17 +777,17 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _runtimeEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      _runtimeEnabled = value;
-                    });
-                  },
+                  onChanged: _syncingRuntimeEnabled
+                      ? null
+                      : (value) => _setRuntimeEnabledLive(value),
                   title: const Text(
                     'Bat che do AI that',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  subtitle: const Text(
-                    'Khi bat, app se uu tien runtime AI neu key va config hop le.',
+                  subtitle: Text(
+                    _syncingRuntimeEnabled
+                        ? 'Đang cập nhật bản chạy cho user...'
+                        : 'Đây là khóa nóng. Khi đổi công tắc này, user sẽ bị bật hoặc khóa AI ngay trên app.',
                   ),
                 ),
                 const SizedBox(height: 12),

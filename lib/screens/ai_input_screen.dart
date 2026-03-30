@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -9,6 +10,7 @@ import 'package:app/services/ai_service.dart';
 import 'package:app/services/transaction_amount_parser.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
+import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/utils/ocr_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -53,12 +55,15 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   late AnimationController _pulseController;
   late Future<List<Map<String, dynamic>>> _transactionCategoryOptionsFuture;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _runtimeConfigSubscription;
 
   bool _isProcessing = false;
   bool _isRestoringHistory = true;
   bool _isLoadingRuntimeConfig = true;
   bool _useRealAiMode = false;
   AiRuntimeConfig _runtimeConfig = AiRuntimeConfig.defaults();
+  bool _hasReceivedRuntimeConfigSnapshot = false;
   @override
   void initState() {
     super.initState();
@@ -69,16 +74,29 @@ class _AIInputScreenState extends State<AIInputScreen>
     _transactionCategoryOptionsFuture = _loadTransactionCategoryOptions();
     _restoreChatHistory();
     _loadQuickTemplates();
-    _loadRuntimeConfig();
+    _subscribeRuntimeConfig();
   }
 
   @override
   void dispose() {
+    _runtimeConfigSubscription?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
+
+  bool _isCompactWidth(BuildContext context) =>
+      MobileAdaptive.isCompactWidth(context);
+
+  bool _isShortHeight(BuildContext context) =>
+      MobileAdaptive.isShortHeight(context);
+
+  bool _isLargeText(BuildContext context) =>
+      MobileAdaptive.isLargeText(context);
+
+  bool _useCompactDensity(BuildContext context) =>
+      MobileAdaptive.useCompactLayout(context);
 
   bool _hasSuspiciousEncoding(String text) {
     return RegExp(r'(Ã.|Ä.|Æ.|áº|á»|â€)').hasMatch(text);
@@ -842,6 +860,14 @@ class _AIInputScreenState extends State<AIInputScreen>
         return;
       }
 
+      if (_useRealAiMode) {
+        final canUseAdvanced = await _ensureLatestAdvancedModeAvailable();
+        if (!mounted) return;
+        if (!canUseAdvanced) {
+          return;
+        }
+      }
+
       if (_useRealAiMode && _runtimeConfig.canUseRemoteAi) {
         final now = DateTime.now();
         final userMessage = AIChatMessage(
@@ -1032,6 +1058,14 @@ class _AIInputScreenState extends State<AIInputScreen>
   Future<void> _submitInput({String? preset}) async {
     final text = (preset ?? _inputController.text).trim();
     if (text.isEmpty || _isProcessing) return;
+
+    if (_useRealAiMode) {
+      final canUseAdvanced = await _ensureLatestAdvancedModeAvailable();
+      if (!mounted) return;
+      if (!canUseAdvanced) {
+        return;
+      }
+    }
 
     final userMessage = AIChatMessage(
       id: _uuid.v4(),
@@ -2177,13 +2211,120 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
-  Future<void> _loadRuntimeConfig() async {
-    final config = await aiService.loadPublishedRuntimeConfig();
-    if (!mounted) return;
+  void _subscribeRuntimeConfig() {
+    _runtimeConfigSubscription?.cancel();
+    _runtimeConfigSubscription = FirebaseFirestore.instance
+        .collection('system_configs')
+        .doc('ai_runtime_config')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!mounted) return;
+
+            final nextConfig = AiRuntimeConfig.fromMap(snapshot.data());
+            final previousConfig = _runtimeConfig;
+            final wasUsingAdvanced = _useRealAiMode;
+            final justLockedByAdmin =
+                _hasReceivedRuntimeConfigSnapshot &&
+                previousConfig.enabled &&
+                !nextConfig.enabled;
+
+            setState(() {
+              _runtimeConfig = nextConfig;
+              _isLoadingRuntimeConfig = false;
+              if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
+                _useRealAiMode = false;
+              }
+              _hasReceivedRuntimeConfigSnapshot = true;
+            });
+
+            if ((justLockedByAdmin || wasUsingAdvanced) &&
+                !nextConfig.enabled) {
+              _showAdvancedModeLockedMessage();
+            }
+          },
+          onError: (_) async {
+            final config = await aiService.loadPublishedRuntimeConfig();
+            if (!mounted) return;
+            setState(() {
+              _runtimeConfig = config;
+              _useRealAiMode = config.enabled && config.canUseRemoteAi;
+              _isLoadingRuntimeConfig = false;
+              _hasReceivedRuntimeConfigSnapshot = true;
+            });
+          },
+        );
+  }
+
+  void _showAdvancedModeLockedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Chức năng nâng cao đang bị khóa bởi quản trị viên. Ứng dụng đã chuyển về chế độ thường.',
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _ensureLatestAdvancedModeAvailable({
+    bool notifyWhenLocked = true,
+  }) async {
+    final latestConfig = await aiService.loadPublishedRuntimeConfig();
+    if (!mounted) return false;
+
+    final adminDisabled = !latestConfig.enabled;
+    final runtimeReady = latestConfig.canUseRemoteAi;
+
     setState(() {
-      _runtimeConfig = config;
-      _useRealAiMode = config.enabled && config.canUseRemoteAi;
+      _runtimeConfig = latestConfig;
       _isLoadingRuntimeConfig = false;
+    });
+
+    if (adminDisabled) {
+      setState(() {
+        _useRealAiMode = false;
+      });
+      if (notifyWhenLocked) {
+        _showAdvancedModeLockedMessage();
+      }
+      return false;
+    }
+
+    if (!runtimeReady) {
+      setState(() {
+        _useRealAiMode = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Runtime AI chưa đủ cấu hình hoặc chưa có key. Hãy cập nhật trên web admin trước nhé.',
+          ),
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _handleRealAiModeToggle(
+    bool value, {
+    bool notifyWhenLocked = true,
+  }) async {
+    if (!value) {
+      setState(() {
+        _useRealAiMode = false;
+      });
+      return;
+    }
+
+    final allowed = await _ensureLatestAdvancedModeAvailable(
+      notifyWhenLocked: notifyWhenLocked,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _useRealAiMode = allowed;
     });
   }
 
@@ -2294,25 +2435,30 @@ class _AIInputScreenState extends State<AIInputScreen>
   Widget _buildHeader() {
     final runtimeReady = _runtimeConfig.canUseRemoteAi;
     final modeLabel = _useRealAiMode ? 'Nâng cao' : 'Bình thường';
+    final compact = _useCompactDensity(context);
+    final compactWidth = _isCompactWidth(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: EdgeInsets.fromLTRB(16, compact ? 8 : 12, 16, 0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(compact ? 24 : 28),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(compact ? 14 : 18),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(compact ? 24 : 28),
               border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(
+              crossAxisAlignment: compact
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
               children: [
                 ScaleTransition(
                   scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
                   child: Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: EdgeInsets.all(compact ? 12 : 14),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -2326,26 +2472,26 @@ class _AIInputScreenState extends State<AIInputScreen>
                         ),
                       ],
                     ),
-                    child: const Hero(
+                    child: Hero(
                       tag: 'ai_button',
                       child: Icon(
                         Icons.auto_awesome,
                         color: Colors.white,
-                        size: 30,
+                        size: compact ? 24 : 30,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: compact ? 10 : 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         "Trợ lý thông minh",
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: compact ? 18 : 20,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2362,37 +2508,24 @@ class _AIInputScreenState extends State<AIInputScreen>
                           value: _useRealAiMode,
                           onChanged: _isLoadingRuntimeConfig
                               ? null
-                              : (value) {
-                                  setState(() {
-                                    _useRealAiMode = value && runtimeReady;
-                                  });
-                                  if (value && !runtimeReady) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Runtime AI chưa đủ cấu hình hoặc chưa có key. Hãy cập nhật trên web admin trước nhé.',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                              : (value) => _handleRealAiModeToggle(value),
                           activeThumbColor: const Color(0xFF4ADE80),
                         ),
                         Text(
                           modeLabel,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.88),
-                            fontSize: 12,
+                            fontSize: compact ? 11 : 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: compact ? 2 : 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compactWidth ? 8 : 10,
+                        vertical: compact ? 5 : 6,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.1),
@@ -3186,6 +3319,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Widget _buildSuggestionsSection() {
+    final compact = _useCompactDensity(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3196,7 +3330,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                 "Chọn nhanh",
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.74),
-                  fontSize: 12,
+                  fontSize: compact ? 11 : 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3229,7 +3363,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                       "Nhập ảnh",
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 11,
+                        fontSize: compact ? 10 : 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -3258,16 +3392,16 @@ class _AIInputScreenState extends State<AIInputScreen>
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: compact ? 4 : 6),
         Text(
           "Tạo card giao dịch sẵn để dùng khi AI hiểu chưa đúng ý bạn.",
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.54),
-            fontSize: 11,
+            fontSize: compact ? 10 : 11,
             height: 1.35,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 8 : 10),
         if (_quickTemplates.isEmpty)
           Material(
             color: Colors.transparent,
@@ -3312,7 +3446,7 @@ class _AIInputScreenState extends State<AIInputScreen>
           )
         else
           SizedBox(
-            height: 42,
+            height: compact ? 38 : 42,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _quickTemplates.length,
@@ -3351,15 +3485,16 @@ class _AIInputScreenState extends State<AIInputScreen>
                           ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 12 : 14,
+                            vertical: compact ? 8 : 10,
                           ),
                           child: Text(
                             template.label,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: _surfaceInk,
                               fontWeight: FontWeight.w600,
+                              fontSize: compact ? 13 : 16,
                             ),
                           ),
                         ),
@@ -3376,25 +3511,37 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
+    final compact = _useCompactDensity(context);
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        keyboardInset > 0 ? 12 : (compact ? 12 : 20),
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(compact ? 24 : 30),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+            padding: EdgeInsets.fromLTRB(
+              compact ? 14 : 16,
+              compact ? 12 : 16,
+              compact ? 14 : 16,
+              compact ? 12 : 14,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(compact ? 24 : 30),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildSuggestionsSection(),
-                const SizedBox(height: 14),
+                SizedBox(height: compact ? 10 : 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -3402,7 +3549,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                       child: Container(
                         decoration: BoxDecoration(
                           color: AppColors.primaryDark.withValues(alpha: 0.74),
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(
+                            compact ? 18 : 22,
+                          ),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.12),
                           ),
@@ -3425,18 +3574,18 @@ class _AIInputScreenState extends State<AIInputScreen>
                               color: Colors.white.withValues(alpha: 0.62),
                             ),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: compact ? 14 : 16,
+                              vertical: compact ? 12 : 14,
                             ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: compact ? 10 : 12),
                     SizedBox(
-                      width: 54,
-                      height: 54,
+                      width: compact ? 48 : 54,
+                      height: compact ? 48 : 54,
                       child: ElevatedButton(
                         onPressed: canSend ? _submitInput : null,
                         style: ElevatedButton.styleFrom(
@@ -3447,10 +3596,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                           ),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(
+                              compact ? 16 : 18,
+                            ),
                           ),
                         ),
-                        child: const Icon(Icons.arrow_upward_rounded, size: 22),
+                        child: Icon(
+                          Icons.arrow_upward_rounded,
+                          size: compact ? 20 : 22,
+                        ),
                       ),
                     ),
                   ],
@@ -3465,6 +3619,10 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   @override
   Widget build(BuildContext context) {
+    final compact = _useCompactDensity(context);
+    final shortHeight = _isShortHeight(context);
+    final largeText = _isLargeText(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF102320),
       extendBodyBehindAppBar: true,
@@ -3514,8 +3672,8 @@ class _AIInputScreenState extends State<AIInputScreen>
               top: 90,
               right: -40,
               child: Container(
-                width: 180,
-                height: 180,
+                width: compact ? 120 : 180,
+                height: compact ? 120 : 180,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.gold.withValues(alpha: 0.12),
@@ -3523,11 +3681,11 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             ),
             Positioned(
-              top: 280,
+              top: compact ? 220 : 280,
               left: -60,
               child: Container(
-                width: 220,
-                height: 220,
+                width: compact ? 150 : 220,
+                height: compact ? 150 : 220,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.accentStrong.withValues(alpha: 0.18),
@@ -3538,8 +3696,8 @@ class _AIInputScreenState extends State<AIInputScreen>
               bottom: -80,
               right: -30,
               child: Container(
-                width: 240,
-                height: 240,
+                width: compact ? 180 : 240,
+                height: compact ? 180 : 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.accent.withValues(alpha: 0.16),
@@ -3564,7 +3722,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               left: 0,
               right: 0,
               bottom: 0,
-              height: 220,
+              height: compact ? 150 : 220,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -3584,10 +3742,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                   _buildHeader(),
                   Expanded(
                     child: Container(
-                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      margin: EdgeInsets.fromLTRB(
+                        16,
+                        compact ? 12 : 16,
+                        16,
+                        shortHeight || largeText ? 8 : 12,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(32),
+                        borderRadius: BorderRadius.circular(compact ? 26 : 32),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.08),
                         ),
