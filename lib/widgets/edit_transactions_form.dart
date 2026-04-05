@@ -98,19 +98,13 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final categoryFromList = appIcons.suggestedCategories.firstWhere(
-        (c) => c['icon'] == icon,
-        orElse: () => {},
-      );
-      if (categoryFromList.isEmpty) return;
-
       final newCategory = {
         'name': categoryName,
-        'iconName': categoryFromList['name'],
+        'iconName': appIcons.getIconNameFromIcon(icon),
       };
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'customCategories': FieldValue.arrayUnion([newCategory]),
-      });
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
       setState(() {
@@ -134,9 +128,9 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
     if (!_formKey.currentState!.validate()) return;
 
     if (category == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn danh mục')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vui lòng chọn danh mục')));
       return;
     }
 

@@ -161,22 +161,14 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final categoryFromList = _appIcons.suggestedCategories.firstWhere(
-        (c) => c['icon'] == icon,
-        orElse: () => {},
-      );
-      if (categoryFromList.isEmpty) return;
-
       final newCategory = {
         'name': categoryName,
-        'iconName': categoryFromList['name'],
+        'iconName': _appIcons.getIconNameFromIcon(icon),
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {
-          'customCategories': FieldValue.arrayUnion([newCategory]),
-        },
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'customCategories': FieldValue.arrayUnion([newCategory]),
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
       setState(() {

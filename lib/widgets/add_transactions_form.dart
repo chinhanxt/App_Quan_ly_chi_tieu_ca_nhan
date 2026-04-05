@@ -149,23 +149,14 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final categoryFromList = appIcons.suggestedCategories.firstWhere(
-        (c) => c['icon'] == icon,
-        orElse: () => {},
-      );
-
-      if (categoryFromList.isEmpty) return;
-
       final newCategory = {
         'name': categoryName,
-        'iconName': categoryFromList['name'],
+        'iconName': appIcons.getIconNameFromIcon(icon),
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {
-          'customCategories': FieldValue.arrayUnion([newCategory]),
-        },
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'customCategories': FieldValue.arrayUnion([newCategory]),
+      }, SetOptions(merge: true));
 
       setState(() {
         category = categoryName;
@@ -200,9 +191,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
       final userRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid);
-      final txSnapshot = await userRef
-          .collection('transactions')
-          .get();
+      final txSnapshot = await userRef.collection('transactions').get();
 
       final currentSummary = TransactionSummaryHelper.reconcileFromTransactions(
         txSnapshot.docs.map((doc) => doc.data()),
@@ -212,12 +201,11 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         type: type,
         amount: amount,
       );
-      await userRef
-          .update(
-            updatedSummary.toUserUpdateMap(
-              updatedAt: DateTime.now().millisecondsSinceEpoch,
-            ),
-          );
+      await userRef.update(
+        updatedSummary.toUserUpdateMap(
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
 
       var data = {
         "id": id,
@@ -233,10 +221,7 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         "note": noteEditController.text,
       };
 
-      await userRef
-          .collection("transactions")
-          .doc(id)
-          .set(data);
+      await userRef.collection("transactions").doc(id).set(data);
 
       if (mounted) {
         Navigator.pop(context);

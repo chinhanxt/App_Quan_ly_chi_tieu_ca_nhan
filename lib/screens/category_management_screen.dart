@@ -123,16 +123,9 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     final normalizedName = categoryName.trim();
     if (normalizedName.isEmpty) return null;
 
-    final categoryFromList = _appIcons.suggestedCategories.firstWhere(
-      (c) => c['icon'] == icon,
-      orElse: () => <String, dynamic>{},
-    );
-
-    if (categoryFromList.isEmpty) return null;
-
     return <String, dynamic>{
       'name': normalizedName,
-      'iconName': categoryFromList['name'],
+      'iconName': _appIcons.getIconNameFromIcon(icon),
     };
   }
 
@@ -245,9 +238,9 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
 
     final category = _customCategories[index];
     final hasTransactions = await _checkCategoryUsage(category.name);
+    if (!mounted) return;
 
     if (hasTransactions) {
-      if (!mounted) return;
       CustomAlertDialog.show(
         context: context,
         title: 'Không Thể Xóa',
@@ -314,7 +307,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
             subtitle:
                 'Chỉnh sửa trực tiếp trên màn hình để tránh lỗi popup lồng nhau.',
             action: TextButton.icon(
-              onPressed: _cancelEditing,
+              onPressed: _startCreate,
               icon: const Icon(Icons.add_circle_outline),
               label: const Text('Tạo mới'),
             ),
