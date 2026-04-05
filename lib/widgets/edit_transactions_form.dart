@@ -1,4 +1,5 @@
 import 'package:app/services/db.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
@@ -46,7 +47,9 @@ class _EditTransactionsFormState extends State<EditTransactionsForm> {
       text: widget.transactionData['title'],
     );
     amountEditController = TextEditingController(
-      text: widget.transactionData['amount'].toString(),
+      text: TransactionSummaryHelper.normalizeAmount(
+        widget.transactionData['amount'],
+      ).toString(),
     );
     noteEditController = TextEditingController(
       text: widget.transactionData['note'] ?? '',

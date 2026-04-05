@@ -6,12 +6,14 @@ import 'package:intl/intl.dart';
 class BudgetProgressCard extends StatelessWidget {
   final Budget budget;
   final int spentAmount;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const BudgetProgressCard({
     super.key,
     required this.budget,
     required this.spentAmount,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -71,11 +73,24 @@ class BudgetProgressCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                  onPressed: onDelete,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: Colors.grey),
+                      onPressed: onEdit,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Sửa ngân sách',
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                      onPressed: onDelete,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
               ],
             ),

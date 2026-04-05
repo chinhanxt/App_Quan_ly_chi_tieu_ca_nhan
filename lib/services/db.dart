@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/budget_model.dart';
+import 'transaction_summary_helper.dart';
 
 class Db {
   final CollectionReference<Map<String, dynamic>> users =
@@ -77,6 +78,56 @@ class Db {
     }
   }
 
+  Future<TransactionSummary> reconcileCurrentUserTransactionSummary() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const TransactionSummary(
+        remainingAmount: 0,
+        totalCredit: 0,
+        totalDebit: 0,
+      );
+    }
+
+    final txSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('transactions')
+        .get();
+
+    final summary = TransactionSummaryHelper.reconcileFromTransactions(
+      txSnapshot.docs.map((doc) => doc.data()),
+    );
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+      summary.toUserUpdateMap(
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+
+    return summary;
+  }
+
+  Future<TransactionSummary> _loadCurrentUserReconciledSummary() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const TransactionSummary(
+        remainingAmount: 0,
+        totalCredit: 0,
+        totalDebit: 0,
+      );
+    }
+
+    final txSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('transactions')
+        .get();
+
+    return TransactionSummaryHelper.reconcileFromTransactions(
+      txSnapshot.docs.map((doc) => doc.data()),
+    );
+  }
+
   // Hàm xóa giao dịch
   Future<bool> deleteTransaction(
     String transactionId,
@@ -91,34 +142,18 @@ class Db {
       int timestamp = DateTime.now().millisecondsSinceEpoch;
 
       // Lấy thông tin user hiện tại
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      int remainingAmount = userDoc['remainingAmount'];
-      int totalCredit = userDoc['totalCredit'];
-      int totalDebit = userDoc['totalDebit'];
-
-      // Tính toán lại các giá trị sau khi xóa
-      if (type == 'credit') {
-        remainingAmount -= amount;
-        totalCredit -= amount;
-      } else {
-        remainingAmount += amount;
-        totalDebit -= amount;
-      }
+      final currentSummary = await _loadCurrentUserReconciledSummary();
+      final updatedSummary = TransactionSummaryHelper.revertTransaction(
+        summary: currentSummary,
+        type: type,
+        amount: TransactionSummaryHelper.normalizeAmount(amount),
+      );
 
       // Cập nhật user document
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
-          .update({
-            "remainingAmount": remainingAmount,
-            "totalCredit": totalCredit,
-            "totalDebit": totalDebit,
-            "updatedAt": timestamp,
-          });
+          .update(updatedSummary.toUserUpdateMap(updatedAt: timestamp));
 
       // Xóa giao dịch
       await FirebaseFirestore.instance
@@ -148,49 +183,35 @@ class Db {
       int currentTimestamp = DateTime.now().millisecondsSinceEpoch;
 
       // Lấy thông tin user hiện tại
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      int remainingAmount = userDoc['remainingAmount'];
-      int totalCredit = userDoc['totalCredit'];
-      int totalDebit = userDoc['totalDebit'];
+      final currentSummary = await _loadCurrentUserReconciledSummary();
 
       // Hoàn tác giao dịch cũ
-      final int oldAmount = oldTransactionData['amount'];
+      final int oldAmount = TransactionSummaryHelper.normalizeAmount(
+        oldTransactionData['amount'],
+      );
       final String oldType = oldTransactionData['type'];
-
-      if (oldType == 'credit') {
-        remainingAmount -= oldAmount;
-        totalCredit -= oldAmount;
-      } else {
-        remainingAmount += oldAmount;
-        totalDebit += oldAmount;
-      }
+      final revertedSummary = TransactionSummaryHelper.revertTransaction(
+        summary: currentSummary,
+        type: oldType,
+        amount: oldAmount,
+      );
 
       // Áp dụng giao dịch mới
-      final int newAmount = newTransactionData['amount'];
+      final int newAmount = TransactionSummaryHelper.normalizeAmount(
+        newTransactionData['amount'],
+      );
       final String newType = newTransactionData['type'];
-
-      if (newType == 'credit') {
-        remainingAmount += newAmount;
-        totalCredit += newAmount;
-      } else {
-        remainingAmount -= newAmount;
-        totalDebit -= newAmount;
-      }
+      final updatedSummary = TransactionSummaryHelper.applyTransaction(
+        summary: revertedSummary,
+        type: newType,
+        amount: newAmount,
+      );
 
       // Cập nhật user document
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
-          .update({
-            "remainingAmount": remainingAmount,
-            "totalCredit": totalCredit,
-            "totalDebit": totalDebit,
-            "updatedAt": currentTimestamp, // Thời điểm cập nhật hồ sơ
-          });
+          .update(updatedSummary.toUserUpdateMap(updatedAt: currentTimestamp));
 
       // Cập nhật giao dịch
       await FirebaseFirestore.instance
@@ -208,9 +229,9 @@ class Db {
             'monthyear': newTransactionData['monthyear'],
             'note': newTransactionData['note'],
             
-            'totalCredit': totalCredit,
-            'totalDebit': totalDebit,
-            'remainingAmount': remainingAmount,
+            'totalCredit': updatedSummary.totalCredit,
+            'totalDebit': updatedSummary.totalDebit,
+            'remainingAmount': updatedSummary.remainingAmount,
           });
 
       return true;

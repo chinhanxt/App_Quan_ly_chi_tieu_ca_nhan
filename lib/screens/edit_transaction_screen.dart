@@ -1,5 +1,6 @@
 import 'package:app/screens/saving_goals_screen.dart';
 import 'package:app/services/db.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
@@ -47,7 +48,9 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
   void initState() {
     super.initState();
     _titleController.text = widget.transactionData['title']?.toString() ?? '';
-    _amountController.text = widget.transactionData['amount']?.toString() ?? '';
+    _amountController.text = TransactionSummaryHelper.normalizeAmount(
+      widget.transactionData['amount'],
+    ).toString();
     _noteController.text = widget.transactionData['note']?.toString() ?? '';
     _type = widget.transactionData['type']?.toString() ?? 'credit';
     _category = widget.transactionData['category']?.toString();

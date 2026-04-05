@@ -1,4 +1,5 @@
 import 'package:app/screens/saving_goals_screen.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
@@ -191,34 +192,32 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
       int timestamp = _selectedDate.millisecondsSinceEpoch;
       String monthyear = "${_selectedDate.month} ${_selectedDate.year}";
 
-      var amount = int.parse(amountEditController.text);
+      final amount = TransactionSummaryHelper.normalizeAmount(
+        amountEditController.text,
+      );
       var id = uid.v4();
 
-      final userDoc = await FirebaseFirestore.instance
+      final userRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(user!.uid)
+          .doc(user!.uid);
+      final txSnapshot = await userRef
+          .collection('transactions')
           .get();
 
-      int remainingAmount = userDoc['remainingAmount'];
-      int totalCredit = userDoc['totalCredit'];
-      int totalDebit = userDoc['totalDebit'];
-
-      if (type == 'credit') {
-        remainingAmount += amount;
-        totalCredit += amount;
-      } else {
-        remainingAmount -= amount;
-        totalDebit -= amount;
-      }
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-            "remainingAmount": remainingAmount,
-            "totalCredit": totalCredit,
-            "totalDebit": totalDebit,
-            "updatedAt": DateTime.now().millisecondsSinceEpoch,
-          });
+      final currentSummary = TransactionSummaryHelper.reconcileFromTransactions(
+        txSnapshot.docs.map((doc) => doc.data()),
+      );
+      final updatedSummary = TransactionSummaryHelper.applyTransaction(
+        summary: currentSummary,
+        type: type,
+        amount: amount,
+      );
+      await userRef
+          .update(
+            updatedSummary.toUserUpdateMap(
+              updatedAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
 
       var data = {
         "id": id,
@@ -226,17 +225,15 @@ class _AddTransactionsFormState extends State<AddTransactionsForm> {
         "amount": amount,
         "type": type,
         "timestamp": timestamp,
-        "totalCredit": totalCredit,
-        "totalDebit": totalDebit,
-        "remainingAmount": remainingAmount,
+        "totalCredit": updatedSummary.totalCredit,
+        "totalDebit": updatedSummary.totalDebit,
+        "remainingAmount": updatedSummary.remainingAmount,
         "monthyear": monthyear,
         "category": category,
         "note": noteEditController.text,
       };
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
+      await userRef
           .collection("transactions")
           .doc(id)
           .set(data);

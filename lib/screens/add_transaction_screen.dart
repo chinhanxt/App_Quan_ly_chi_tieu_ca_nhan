@@ -1,4 +1,5 @@
 import 'package:app/screens/saving_goals_screen.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/appvalidator.dart';
 import 'package:app/utils/icon_list.dart';
@@ -319,32 +320,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     try {
       final timestamp = _selectedDate.millisecondsSinceEpoch;
       final monthyear = '${_selectedDate.month} ${_selectedDate.year}';
-      final amount = int.parse(_amountController.text);
+      final amount = TransactionSummaryHelper.normalizeAmount(
+        _amountController.text,
+      );
       final id = _uuid.v4();
 
       final userRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid);
-      final userDoc = await userRef.get();
+      final txSnapshot = await userRef.collection('transactions').get();
+      final currentSummary = TransactionSummaryHelper.reconcileFromTransactions(
+        txSnapshot.docs.map((doc) => doc.data()),
+      );
+      final updatedSummary = TransactionSummaryHelper.applyTransaction(
+        summary: currentSummary,
+        type: _type,
+        amount: amount,
+      );
 
-      int remainingAmount = userDoc['remainingAmount'];
-      int totalCredit = userDoc['totalCredit'];
-      int totalDebit = userDoc['totalDebit'];
-
-      if (_type == 'credit') {
-        remainingAmount += amount;
-        totalCredit += amount;
-      } else {
-        remainingAmount -= amount;
-        totalDebit += amount;
-      }
-
-      await userRef.update({
-        'remainingAmount': remainingAmount,
-        'totalCredit': totalCredit,
-        'totalDebit': totalDebit,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      await userRef.update(
+        updatedSummary.toUserUpdateMap(
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
 
       await userRef.collection('transactions').doc(id).set({
         'id': id,
@@ -352,9 +350,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         'amount': amount,
         'type': _type,
         'timestamp': timestamp,
-        'totalCredit': totalCredit,
-        'totalDebit': totalDebit,
-        'remainingAmount': remainingAmount,
+        'totalCredit': updatedSummary.totalCredit,
+        'totalDebit': updatedSummary.totalDebit,
+        'remainingAmount': updatedSummary.remainingAmount,
         'monthyear': monthyear,
         'category': _category,
         'note': _noteController.text,

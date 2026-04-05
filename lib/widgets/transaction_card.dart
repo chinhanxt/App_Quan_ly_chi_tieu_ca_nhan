@@ -1,5 +1,6 @@
 import 'package:app/screens/edit_transaction_screen.dart';
 import 'package:app/services/db.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
@@ -35,7 +36,7 @@ class TransactionCard extends StatelessWidget {
 
     // Xử lý format cho amount và remainingAmount an toàn hơn
     final formattedAmount = formatter.format(
-      num.tryParse(data['amount']?.toString() ?? '0') ?? 0,
+      TransactionSummaryHelper.normalizeAmount(data['amount']),
     );
     final formattedRemaining = formatter.format(
       num.tryParse(data['remainingAmount']?.toString() ?? '0') ?? 0,

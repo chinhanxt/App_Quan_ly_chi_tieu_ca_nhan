@@ -8,6 +8,7 @@ import 'package:app/models/quick_template.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
 import 'package:app/services/transaction_amount_parser.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
@@ -1824,6 +1825,12 @@ class _AIInputScreenState extends State<AIInputScreen>
       final userDocRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid);
+      final existingTransactionsSnapshot = await userDocRef
+          .collection("transactions")
+          .get();
+      final baseSummary = TransactionSummaryHelper.reconcileFromTransactions(
+        existingTransactionsSnapshot.docs.map((doc) => doc.data()),
+      );
 
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final userSnapshot = await transaction.get(userDocRef);
@@ -1831,15 +1838,15 @@ class _AIInputScreenState extends State<AIInputScreen>
           throw Exception("Không tìm thấy dữ liệu người dùng.");
         }
 
-        int remainingAmount = userSnapshot['remainingAmount'];
-        int totalCredit = userSnapshot['totalCredit'];
-        int totalDebit = userSnapshot['totalDebit'];
+        var summary = baseSummary;
         List<dynamic> customCategories = List.from(
           userSnapshot.data()?['customCategories'] ?? [],
         );
 
         for (final tx in message.transactions) {
-          final int amount = tx['amount'];
+          final int amount = TransactionSummaryHelper.normalizeAmount(
+            tx['amount'],
+          );
           final String type = tx['type'];
           final String id = _uuid.v4();
           final bool shouldCreateCategory =
@@ -1866,13 +1873,11 @@ class _AIInputScreenState extends State<AIInputScreen>
             }
           }
 
-          if (type == 'credit') {
-            remainingAmount += amount;
-            totalCredit += amount;
-          } else {
-            remainingAmount -= amount;
-            totalDebit -= amount;
-          }
+          summary = TransactionSummaryHelper.applyTransaction(
+            summary: summary,
+            type: type,
+            amount: amount,
+          );
 
           DateTime txDate;
           try {
@@ -1892,9 +1897,9 @@ class _AIInputScreenState extends State<AIInputScreen>
             "amount": amount,
             "type": type,
             "timestamp": txDate.millisecondsSinceEpoch,
-            "totalCredit": totalCredit,
-            "totalDebit": totalDebit,
-            "remainingAmount": remainingAmount,
+            "totalCredit": summary.totalCredit,
+            "totalDebit": summary.totalDebit,
+            "remainingAmount": summary.remainingAmount,
             "monthyear": "${txDate.month} ${txDate.year}",
             "category": categoryToSave,
             "note": tx['note'],
@@ -1902,9 +1907,9 @@ class _AIInputScreenState extends State<AIInputScreen>
         }
 
         transaction.update(userDocRef, {
-          "remainingAmount": remainingAmount,
-          "totalCredit": totalCredit,
-          "totalDebit": totalDebit,
+          "remainingAmount": summary.remainingAmount,
+          "totalCredit": summary.totalCredit,
+          "totalDebit": summary.totalDebit,
           "customCategories": customCategories,
           "updatedAt": DateTime.now().millisecondsSinceEpoch,
         });

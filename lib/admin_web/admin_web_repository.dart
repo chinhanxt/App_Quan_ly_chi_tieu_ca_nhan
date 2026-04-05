@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -271,7 +272,7 @@ class AdminTransactionRecord {
       id: doc.id,
       userId: doc.reference.parent.parent?.id ?? '',
       title: data['title']?.toString() ?? '',
-      amount: (data['amount'] as num?)?.toInt() ?? 0,
+      amount: TransactionSummaryHelper.normalizeAmount(data['amount']),
       type: data['type']?.toString() ?? 'debit',
       category: data['category']?.toString() ?? 'Khac',
       timestamp: (data['timestamp'] as num?)?.toInt() ?? 0,
@@ -904,6 +905,10 @@ class AdminWebRepository {
   }) async {
     final userRef = _firestore.collection('users').doc(userId);
     final txRef = userRef.collection('transactions').doc(transactionId);
+    final txSnapshot = await userRef.collection('transactions').get();
+    final currentSummary = TransactionSummaryHelper.reconcileFromTransactions(
+      txSnapshot.docs.map((doc) => doc.data()),
+    );
 
     await _firestore.runTransaction((transaction) async {
       final userSnapshot = await transaction.get(userRef);
@@ -913,29 +918,22 @@ class AdminWebRepository {
         return;
       }
 
-      final userData = userSnapshot.data() ?? <String, dynamic>{};
       final txData = txSnapshot.data() ?? <String, dynamic>{};
 
-      final amount = (txData['amount'] as num?)?.toInt() ?? 0;
+      final amount = TransactionSummaryHelper.normalizeAmount(txData['amount']);
       final type = txData['type']?.toString() ?? 'debit';
-      var remainingAmount = (userData['remainingAmount'] as num?)?.toInt() ?? 0;
-      var totalCredit = (userData['totalCredit'] as num?)?.toInt() ?? 0;
-      var totalDebit = (userData['totalDebit'] as num?)?.toInt() ?? 0;
+      final updatedSummary = TransactionSummaryHelper.revertTransaction(
+        summary: currentSummary,
+        type: type,
+        amount: amount,
+      );
 
-      if (type == 'credit') {
-        remainingAmount -= amount;
-        totalCredit -= amount;
-      } else {
-        remainingAmount += amount;
-        totalDebit -= amount;
-      }
-
-      transaction.update(userRef, <String, dynamic>{
-        'remainingAmount': remainingAmount < 0 ? 0 : remainingAmount,
-        'totalCredit': totalCredit < 0 ? 0 : totalCredit,
-        'totalDebit': totalDebit < 0 ? 0 : totalDebit,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      transaction.update(
+        userRef,
+        updatedSummary.toUserUpdateMap(
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
       transaction.delete(txRef);
     });
   }

@@ -8,6 +8,7 @@
 /// - MonthComparison: So sánh tháng
 /// - ReportData: Báo cáo chính (tổng hợp)
 
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:intl/intl.dart';
 
 /// Chi tiết một giao dịch trong báo cáo
@@ -36,7 +37,7 @@ class TransactionDetail {
     return TransactionDetail(
       id: docId,
       title: data['title'] ?? '',
-      amount: data['amount'] ?? 0,
+      amount: TransactionSummaryHelper.normalizeAmount(data['amount']),
       type: data['type'] ?? 'debit',
       category: data['category'] ?? 'Khác',
       date: DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0),

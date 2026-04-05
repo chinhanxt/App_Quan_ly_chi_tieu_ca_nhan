@@ -64,6 +64,18 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  void _showEditBudgetDialog(BuildContext context, Budget budget) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AddBudgetDialog(
+          monthyear: currentMonthYear,
+          existingBudget: budget,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -191,6 +203,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         return BudgetProgressCard(
                           budget: budget,
                           spentAmount: spentAmount,
+                          onEdit: () => _showEditBudgetDialog(context, budget),
                           onDelete: () => _confirmDeleteBudget(context, budget),
                         );
                       },
@@ -236,7 +249,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
 class AddBudgetDialog extends StatefulWidget {
   final String monthyear;
-  const AddBudgetDialog({super.key, required this.monthyear});
+  final Budget? existingBudget;
+
+  const AddBudgetDialog({
+    super.key,
+    required this.monthyear,
+    this.existingBudget,
+  });
 
   @override
   State<AddBudgetDialog> createState() => _AddBudgetDialogState();
@@ -246,6 +265,23 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
   String? category;
   final TextEditingController amountController = TextEditingController();
   bool isLoading = false;
+
+  bool get isEditing => widget.existingBudget != null;
+
+  @override
+  void initState() {
+    super.initState();
+    category = widget.existingBudget?.categoryName;
+    if (widget.existingBudget != null) {
+      amountController.text = widget.existingBudget!.limitAmount.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
+  }
 
   void _saveBudget() async {
     if (amountController.text.isEmpty || category == null) {
@@ -265,11 +301,11 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
       );
 
       final budget = Budget(
-        id: const Uuid().v4(),
+        id: widget.existingBudget?.id ?? const Uuid().v4(),
         categoryName: category!,
         limitAmount: amount,
         monthyear: widget.monthyear,
-        createdAt: DateTime.now(),
+        createdAt: widget.existingBudget?.createdAt ?? DateTime.now(),
       );
 
       await Db().setBudget(budget);
@@ -277,7 +313,13 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã thêm ngân sách thành công!')),
+          SnackBar(
+            content: Text(
+              isEditing
+                  ? 'Đã cập nhật ngân sách thành công!'
+                  : 'Đã thêm ngân sách thành công!',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -294,7 +336,7 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Thêm Ngân Sách Mới'),
+      title: Text(isEditing ? 'Sửa Ngân Sách' : 'Thêm Ngân Sách Mới'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

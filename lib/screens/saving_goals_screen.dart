@@ -254,6 +254,11 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                   ),
                 ),
                 IconButton(
+                  tooltip: "Sửa mục tiêu",
+                  icon: const Icon(Icons.edit_outlined, color: Colors.grey),
+                  onPressed: () => _showGoalDialog(context, existingGoal: goal),
+                ),
+                IconButton(
                   tooltip: "Xóa mục tiêu",
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   onPressed: () => _deleteGoal(goal),
@@ -483,17 +488,25 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   }
 
   void _showAddGoalDialog(BuildContext context) {
+    _showGoalDialog(context);
+  }
+
+  void _showGoalDialog(BuildContext context, {SavingGoal? existingGoal}) {
     final nameController = TextEditingController();
     final amountController = TextEditingController();
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 30));
-    String selectedIcon = 'star';
-    String selectedColor = '#3498DB';
+    DateTime selectedDate =
+        existingGoal?.targetDate ?? DateTime.now().add(const Duration(days: 30));
+    String selectedIcon = existingGoal?.icon ?? 'star';
+    String selectedColor = existingGoal?.color ?? '#3498DB';
+    nameController.text = existingGoal?.name ?? '';
+    amountController.text = existingGoal?.targetAmount.toString() ?? '';
+    final isEditing = existingGoal != null;
 
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (stfCtx, setDialogState) => AlertDialog(
-          title: const Text("Mục tiêu mới"),
+          title: Text(isEditing ? "Sửa mục tiêu" : "Mục tiêu mới"),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -607,19 +620,30 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (nameController.text.isEmpty ||
-                    amountController.text.isEmpty)
+                    amountController.text.isEmpty) {
                   return;
+                }
+
+                final targetAmount = int.parse(amountController.text);
+                final currentAmount = existingGoal?.currentAmount ?? 0;
+                final existingStatus = existingGoal?.status ?? 'active';
+                final nextStatus =
+                    existingStatus == 'withdrawn' ||
+                        existingStatus == 'early_withdrawn'
+                    ? existingStatus
+                    : (currentAmount >= targetAmount ? 'completed' : 'active');
+
                 final newGoal = SavingGoal(
-                  id: const Uuid().v4(),
+                  id: existingGoal?.id ?? const Uuid().v4(),
                   name: nameController.text,
-                  targetAmount: int.parse(amountController.text),
-                  currentAmount: 0,
-                  startDate: DateTime.now(),
+                  targetAmount: targetAmount,
+                  currentAmount: currentAmount,
+                  startDate: existingGoal?.startDate ?? DateTime.now(),
                   targetDate: selectedDate,
                   icon: selectedIcon,
                   color: selectedColor,
-                  status: 'active',
-                  createdAt: DateTime.now(),
+                  status: nextStatus,
+                  createdAt: existingGoal?.createdAt ?? DateTime.now(),
                 );
                 await FirebaseFirestore.instance
                     .collection('users')
@@ -629,8 +653,17 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                     .set(newGoal.toMap());
                 if (!mounted) return;
                 Navigator.pop(dialogCtx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      isEditing
+                          ? "Đã cập nhật mục tiêu tiết kiệm."
+                          : "Đã tạo mục tiêu tiết kiệm.",
+                    ),
+                  ),
+                );
               },
-              child: const Text("Tạo ngay"),
+              child: Text(isEditing ? "Lưu thay đổi" : "Tạo ngay"),
             ),
           ],
         ),
