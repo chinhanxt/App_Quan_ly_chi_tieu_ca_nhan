@@ -1,0 +1,184 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\fs24
+\b PHAN TICH USE CASE TONG QUAT VA CAC CHUC NANG CHINH CUA HE THONG\b0\par
+\par
+\b 1. Gioi thieu tong quat\b0\par
+He thong hien tai duoc xay dung nhu mot ung dung quan ly tai chinh ca nhan, co hai actor chinh la User va Admin. User su dung he thong de quan ly thu chi, ngan sach, muc tieu tiet kiem, bao cao va cac tien ich AI/OCR. Admin su dung he thong de quan tri nguoi dung, cau hinh he thong, quan ly danh muc, thong bao, giam sat giao dich va bao cao tong hop.\par
+\par
+\b 2. Actor cua he thong\b0\par
+He thong co 2 actor chinh:\par
+- User\par
+- Admin\par
+\par
+\b 3. Muc tieu nghiep vu cua he thong\b0\par
+He thong phuc vu hai lop nhu cau chinh:\par
+- Doi voi User: ghi nhan giao dich thu chi, theo doi so du, lap ngan sach, tao muc tieu tiet kiem, xem bao cao va su dung AI/OCR de nhap lieu nhanh.\par
+- Doi voi Admin: quan tri nguoi dung, quan ly danh muc he thong, quan ly thong bao, cau hinh he thong, cau hinh AI, theo doi giao dich toan he thong va xem bao cao tong hop.\par
+\par
+\b 4. Use case tong quat cua he thong\b0\par
+He thong co the duoc mo ta tong quat nhu sau:\par
+\par
+User:\par
+- Dang ky, dang nhap, khoi phuc mat khau\par
+- Quan ly thong tin tai khoan\par
+- Quan ly giao dich thu nhap va chi tieu\par
+- Quan ly danh muc tuy chinh\par
+- Quan ly ngan sach theo thang\par
+- Quan ly muc tieu tiet kiem\par
+- Xem bao cao va xuat PDF\par
+- Su dung AI/OCR de ho tro nhap giao dich\par
+- Xem thong bao he thong\par
+- Cai dat giao dien va tuy chon ca nhan\par
+\par
+Admin:\par
+- Dang nhap cong quan tri\par
+- Quan ly nguoi dung\par
+- Quan ly danh muc he thong\par
+- Quan ly thong bao he thong\par
+- Quan ly cau hinh he thong\par
+- Quan ly cau hinh AI\par
+- Giam sat giao dich toan he thong\par
+- Xem bao cao tong hop\par
+\par
+\b 5. Cac chuc nang chinh cua actor User\b0\par
+\b 5.1. Quan ly tai khoan\b0\par
+- Dang ky tai khoan moi\par
+- Dang nhap he thong\par
+- Quen mat khau va dat lai mat khau\par
+- Xem thong tin ca nhan\par
+- Dang xuat\par
+- Bi chan truy cap neu tai khoan bi khoa hoac he thong dang bao tri\par
+\par
+\b 5.2. Quan ly giao dich ca nhan\b0\par
+- Them giao dich thu nhap\par
+- Them giao dich chi tieu\par
+- Nhap giao dich bang tay\par
+- Nhap giao dich tu anh hoa don bang OCR\par
+- Nhap giao dich bang AI chat\par
+- Chinh sua giao dich\par
+- Xoa giao dich\par
+- Tim kiem giao dich\par
+- Loc giao dich theo thang\par
+- Loc giao dich theo danh muc\par
+- Xem lich su giao dich\par
+\par
+\b 5.3. Quan ly danh muc ca nhan\b0\par
+- Tao danh muc tuy chinh\par
+- Sua danh muc tuy chinh\par
+- Xoa danh muc tuy chinh\par
+- Chon danh muc khi tao giao dich\par
+\par
+\b 5.4. Quan ly ngan sach\b0\par
+- Tao ngan sach theo thang\par
+- Thiet lap han muc theo danh muc\par
+- Theo doi so tien da chi so voi han muc\par
+- Xoa ngan sach\par
+\par
+\b 5.5. Quan ly muc tieu tiet kiem\b0\par
+- Tao muc tieu tiet kiem\par
+- Nhap so tien muc tieu va ngay hoan thanh\par
+- Nap tien tu vi chinh vao muc tieu\par
+- Theo doi tien do hoan thanh\par
+- Rut tien khi hoan thanh muc tieu\par
+- Rut tien som\par
+- Xoa muc tieu khi khong con so du trong muc tieu\par
+\par
+\b 5.6. Bao cao va phan tich\b0\par
+- Xem bao cao theo thang\par
+- So sanh thu nhap va chi tieu\par
+- Xem bieu do theo danh muc\par
+- Xem xu huong thu chi\par
+- Xem giao dich lon nhat va nho nhat\par
+- Xuat bao cao PDF\par
+- Chia se bao cao\par
+\par
+\b 5.7. Cai dat ca nhan\b0\par
+- Bat/tat che do toi\par
+- Xem thong tin ung dung\par
+- Xem thong tin lien he ho tro\par
+- Xem chinh sach bao mat\par
+\par
+\b 5.8. Tuong tac voi he thong\b0\par
+- Xem thong bao he thong\par
+- Nhan anh huong tu cau hinh he thong do Admin dat\par
+- Su dung AI theo runtime config do Admin cong bo\par
+\par
+\b 6. Cac chuc nang chinh cua actor Admin\b0\par
+\b 6.1. Quan tri truy cap Admin\b0\par
+- Dang nhap cong admin web\par
+- Duoc kiem tra role va permission\par
+- Dang xuat admin\par
+- Bi tu choi truy cap neu khong co quyen hoac bi khoa\par
+\par
+\b 6.2. Quan ly nguoi dung\b0\par
+- Xem danh sach nguoi dung\par
+- Xem trang thai tai khoan\par
+- Xem vai tro user/admin/super admin\par
+- Khoa tai khoan\par
+- Mo khoa tai khoan\par
+- Gan role admin\par
+- Phan quyen chi tiet cho admin\par
+- Xem thong tin tai chinh tong hop cua tung nguoi dung\par
+\par
+\b 6.3. Quan ly danh muc he thong\b0\par
+- Xem danh muc dung chung toan he thong\par
+- Tao danh muc he thong\par
+- Sua danh muc he thong\par
+- Xoa danh muc he thong\par
+\par
+\b 6.4. Quan ly thong bao he thong\b0\par
+- Tao thong bao he thong\par
+- Chinh sua thong bao\par
+- Bat/tat trang thai hoat dong cua thong bao\par
+- Xoa thong bao\par
+- Gui noi dung canh bao, huong dan, thong tin den nguoi dung\par
+\par
+\b 6.5. Quan ly cau hinh he thong\b0\par
+- Xem danh sach cau hinh he thong\par
+- Tao, cap nhat cau hinh he thong\par
+- Xoa cau hinh he thong\par
+- Cau hinh thong tin lien he ho tro\par
+- Cau hinh che do bao tri he thong\par
+\par
+\b 6.6. Quan ly cau hinh AI\b0\par
+- Xem runtime config AI dang duoc ap dung\par
+- Tao va luu ban nhap cau hinh AI\par
+- Publish cau hinh AI\par
+- Quan ly lexicon/dictionary cho AI xu ly giao dich\par
+- Ghi nhat ky thao tac quan tri AI\par
+\par
+\b 6.7. Giam sat giao dich toan he thong\b0\par
+- Xem danh sach giao dich toan he thong\par
+- Xem giao dich theo thang\par
+- Theo doi luong giao dich cua nguoi dung\par
+- Xoa giao dich o goc do quan tri neu can\par
+\par
+\b 6.8. Bao cao tong hop he thong\b0\par
+- Xem tong so nguoi dung\par
+- Xem so nguoi dung dang hoat dong, bi khoa, co quyen admin\par
+- Xem tong so danh muc he thong\par
+- Xem so thong bao dang hoat dong\par
+- Xem tong credit, debit va so du rong toan he thong\par
+- Xem bao cao thang\par
+- Xem top nguoi dung, top danh muc va tong so giao dich\par
+\par
+\b 7. Cac phan he chuc nang chinh cua he thong\b0\par
+He thong co the duoc chia thanh cac phan he sau:\par
+- Phan he xac thuc va phan quyen\par
+- Phan he quan ly giao dich ca nhan\par
+- Phan he quan ly danh muc\par
+- Phan he ngan sach\par
+- Phan he muc tieu tiet kiem\par
+- Phan he bao cao va xuat PDF\par
+- Phan he AI/OCR ho tro nhap lieu\par
+- Phan he cai dat ca nhan\par
+- Phan he thong bao he thong\par
+- Phan he quan tri nguoi dung\par
+- Phan he cau hinh he thong\par
+- Phan he cau hinh AI\par
+- Phan he giam sat va bao cao toan he thong\par
+\par
+\b 8. Ket luan\b0\par
+He thong duoc xay dung theo huong tach ro hai doi tuong su dung chinh la User va Admin. User tap trung vao cac chuc nang quan ly tai chinh ca nhan, trong khi Admin tap trung vao cong tac quan tri, van hanh va giam sat toan he thong. Cac chuc nang hien tai da bao phu kha day du cac nghiep vu chinh cua mot he thong quan ly tai chinh ca nhan co mo rong thanh cong quan tri tap trung.\par
+}
