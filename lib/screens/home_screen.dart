@@ -22,6 +22,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final userId = FirebaseAuth.instance.currentUser!.uid;
+  HeroFilterMode _heroFilterMode = HeroFilterMode.total;
+  DateTime _selectedPeriod = DateTime.now();
+
+  Future<void> _pickHeroPeriod() async {
+    if (_heroFilterMode == HeroFilterMode.total) return;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedPeriod,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('vi', 'VN'),
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedPeriod = picked;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,11 +141,24 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 18),
             const SystemBroadcastWidget(),
             const SizedBox(height: 18),
-            HeroCard(userId: userId),
+            HeroCard(
+              userId: userId,
+              filterMode: _heroFilterMode,
+              selectedPeriod: _selectedPeriod,
+              onFilterChanged: (mode) {
+                setState(() {
+                  _heroFilterMode = mode;
+                });
+              },
+              onPickPeriod: _pickHeroPeriod,
+            ),
             const SizedBox(height: 18),
             TopSavingGoalsWidget(userId: userId),
             const SizedBox(height: 18),
-            TransactionsCard(),
+            TransactionsCard(
+              filterMode: _heroFilterMode,
+              selectedPeriod: _selectedPeriod,
+            ),
           ],
         ),
       ),

@@ -37,10 +37,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
 
-  String _formatAmount(num value) {
-    return NumberFormat.decimalPattern('vi_VN').format(value);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -51,76 +47,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w600,
   );
-
-  Widget _buildTypeCard({
-    required String value,
-    required String title,
-    required String amountLabel,
-    required Color color,
-    required IconData icon,
-  }) {
-    final isSelected = _type == value;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: () {
-          setState(() {
-            _type = value;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: isSelected ? 0.18 : 0.10),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isSelected
-                  ? color.withValues(alpha: 0.65)
-                  : color.withValues(alpha: 0.18),
-              width: isSelected ? 1.6 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      amountLabel,
-                      style: TextStyle(
-                        color: color.withValues(alpha: 0.90),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: color),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   @override
   void dispose() {
@@ -150,63 +76,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
       });
     }
-  }
-
-  Widget _buildOverviewCards() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Row(
-        children: [
-          _buildTypeCard(
-            value: 'credit',
-            title: 'Thu Nhập',
-            amountLabel: '+0 VND',
-            color: const Color(0xFF1D9A63),
-            icon: Icons.arrow_upward_rounded,
-          ),
-          const SizedBox(width: 10),
-          _buildTypeCard(
-            value: 'debit',
-            title: 'Chi Tiêu',
-            amountLabel: '-0 VND',
-            color: const Color(0xFFC45A43),
-            icon: Icons.arrow_downward_rounded,
-          ),
-        ],
-      );
-    }
-
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data();
-        final totalCredit = (data?['totalCredit'] as num?) ?? 0;
-        final totalDebit = (data?['totalDebit'] as num?) ?? 0;
-
-        return Row(
-          children: [
-            _buildTypeCard(
-              value: 'credit',
-              title: 'Thu Nhập',
-              amountLabel: '+${_formatAmount(totalCredit)} VND',
-              color: const Color(0xFF1D9A63),
-              icon: Icons.arrow_upward_rounded,
-            ),
-            const SizedBox(width: 10),
-            _buildTypeCard(
-              value: 'debit',
-              title: 'Chi Tiêu',
-              amountLabel: '-${_formatAmount(totalDebit)} VND',
-              color: const Color(0xFFC45A43),
-              icon: Icons.arrow_downward_rounded,
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Future<void> _scanBill(ImageSource source) async {
@@ -414,8 +283,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         'Thêm khoản thu hoặc chi với đầy đủ nghiệp vụ cũ.',
                         style: TextStyle(color: AppColors.textMuted),
                       ),
-                      const SizedBox(height: 16),
-                      _buildOverviewCards(),
                       const SizedBox(height: 16),
                       Row(
                         children: [

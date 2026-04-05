@@ -64,6 +64,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
   bool _pushingRuntime = false;
   bool _syncingRuntimeEnabled = false;
   bool _runtimePreviewLoading = false;
+  bool _publishedRuntimeProbeLoading = false;
   bool _showApiKey = false;
 
   String? _message;
@@ -72,6 +73,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
   String? _runtimeMessage;
   String? _runtimePreviewMessage;
   Map<String, dynamic>? _runtimePreviewResult;
+  String? _publishedRuntimeProbeMessage;
+  Map<String, dynamic>? _publishedRuntimeProbeResult;
 
   bool get _hasUnsavedChanges => _buildRaw().trim() != _draftRaw.trim();
   bool get _runtimeHasUnsavedChanges =>
@@ -134,6 +137,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
       _runtimeMessage = null;
       _runtimePreviewMessage = null;
       _runtimePreviewResult = null;
+      _publishedRuntimeProbeMessage = null;
+      _publishedRuntimeProbeResult = null;
     });
   }
 
@@ -495,6 +500,47 @@ class _AiConfigPageState extends State<AiConfigPage> {
     }
   }
 
+  Future<void> _runPublishedRuntimeProbe() async {
+    final input = _runtimePreviewInputController.text.trim();
+    if (input.isEmpty) {
+      setState(() {
+        _publishedRuntimeProbeMessage =
+            'Nhập một câu để kiểm tra runtime đang publish.';
+      });
+      return;
+    }
+
+    setState(() {
+      _publishedRuntimeProbeLoading = true;
+      _publishedRuntimeProbeMessage = null;
+    });
+    try {
+      final result = await _aiService.processInput(
+        input,
+        runtimeOverride: _publishedRuntimeConfig,
+      );
+      if (!mounted) return;
+      setState(() {
+        _publishedRuntimeProbeResult = result;
+        _publishedRuntimeProbeMessage =
+            'Đã kiểm tra bằng runtime đang publish. Nếu nguồn trả về là remote_ai thì key live đang chạy được.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _publishedRuntimeProbeLoading = false;
+        });
+      }
+    }
+  }
+
+  String _runtimeHealthLabel(AiRuntimeConfig config) {
+    if (!config.enabled) return 'AI thật đang tắt';
+    if (!config.hasApiKey) return 'Thiếu API key';
+    if (!config.canUseRemoteAi) return 'Thiếu cấu hình runtime';
+    return 'Sẵn sàng gọi AI thật';
+  }
+
   Future<void> _showSectionDialog({
     _LexiconSection? section,
     int? index,
@@ -743,6 +789,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                     ? 'dang ap dung cho user'
                     : 'ban chay dang ${_publishedRuntimeConfig.enabled ? 'bat' : 'tat'}',
               ),
+              _CountPill(label: _runtimeHealthLabel(_publishedRuntimeConfig)),
               _CountPill(
                 label: runtimeDraft.hasApiKey
                     ? 'API key: ${runtimeDraft.maskedApiKey}'
@@ -880,7 +927,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                   decoration: InputDecoration(
                     labelText: 'Khóa API Groq',
                     helperText: runtimeDraft.hasApiKey
-                        ? 'Key hien tai: ${runtimeDraft.maskedApiKey}'
+                        ? 'Key hien tai: ${runtimeDraft.maskedApiKey}. Sau khi publish, dung nut kiem tra ben duoi de xac nhan app dang goi AI that.'
                         : 'Chua co key runtime',
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1202,11 +1249,26 @@ class _AiConfigPageState extends State<AiConfigPage> {
                     : const Icon(Icons.psychology_alt_outlined),
                 label: const Text('Xem trước runtime'),
               ),
+              FilledButton.tonalIcon(
+                onPressed: _publishedRuntimeProbeLoading
+                    ? null
+                    : _runPublishedRuntimeProbe,
+                icon: _publishedRuntimeProbeLoading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.wifi_tethering_rounded),
+                label: const Text('Kiểm tra bản chạy'),
+              ),
               OutlinedButton(
                 onPressed: () {
                   setState(() {
                     _runtimePreviewResult = null;
                     _runtimePreviewMessage = null;
+                    _publishedRuntimeProbeResult = null;
+                    _publishedRuntimeProbeMessage = null;
                   });
                 },
                 child: const Text('Xóa xem trước'),
@@ -1223,8 +1285,27 @@ class _AiConfigPageState extends State<AiConfigPage> {
               ),
             ),
           ],
+          if (_publishedRuntimeProbeMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _publishedRuntimeProbeMessage!,
+              style: const TextStyle(
+                color: Color(0xFF667085),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _PreviewResult(result: _runtimePreviewResult),
+          if (_publishedRuntimeProbeResult != null) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Kết quả runtime đang publish',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            _PreviewResult(result: _publishedRuntimeProbeResult),
+          ],
         ],
       ),
     );

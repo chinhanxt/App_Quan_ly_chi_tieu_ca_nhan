@@ -179,6 +179,33 @@ class TransactionDateTimeInference {
       }
     }
 
+    final monthOnlyMatch = RegExp(
+      r'\bthang\s+(\d{1,2})(?:\s+nam\s+(\d{2,4}))?\b',
+    ).firstMatch(normalized);
+    if (monthOnlyMatch != null && !normalized.contains('ngay ')) {
+      final month = int.tryParse(monthOnlyMatch.group(1)!);
+      final rawYear = monthOnlyMatch.group(2);
+      if (month != null && month >= 1 && month <= 12) {
+        final year = rawYear == null
+            ? _resolveYearForMonthOnly(month: month, now: now)
+            : (rawYear.length == 2
+                  ? 2000 + int.parse(rawYear)
+                  : int.parse(rawYear));
+        final parsed = _safeMonthAnchoredDate(
+          year: year,
+          month: month,
+          preferredDay: now.day,
+        );
+        if (parsed != null) {
+          return _DateResolution(
+            parsed,
+            isExplicit: true,
+            isFutureReference: parsed.isAfter(today),
+          );
+        }
+      }
+    }
+
     if (_containsAny(normalized, <String>['hom qua', 'toi qua', 'dem qua'])) {
       return _DateResolution(
         today.subtract(const Duration(days: 1)),
@@ -492,6 +519,26 @@ class TransactionDateTimeInference {
       }
     } catch (_) {}
     return null;
+  }
+
+  static DateTime? _safeMonthAnchoredDate({
+    required int year,
+    required int month,
+    required int preferredDay,
+  }) {
+    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
+    final day = preferredDay.clamp(1, lastDayOfMonth);
+    return _safeDate(year, month, day);
+  }
+
+  static int _resolveYearForMonthOnly({
+    required int month,
+    required DateTime now,
+  }) {
+    if (month > now.month) {
+      return now.year - 1;
+    }
+    return now.year;
   }
 
   static DateTime _dateOnly(DateTime value) {

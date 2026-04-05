@@ -8,6 +8,8 @@ class AIChatMessage {
   final List<Map<String, dynamic>> transactions;
   final String status;
   final bool isSaved;
+  final String source;
+  final String responseKind;
 
   const AIChatMessage({
     required this.id,
@@ -17,6 +19,8 @@ class AIChatMessage {
     this.transactions = const <Map<String, dynamic>>[],
     this.status = 'success',
     this.isSaved = false,
+    this.source = '',
+    this.responseKind = '',
   });
 
   bool get hasTransactions => transactions.isNotEmpty;
@@ -29,6 +33,8 @@ class AIChatMessage {
     List<Map<String, dynamic>>? transactions,
     String? status,
     bool? isSaved,
+    String? source,
+    String? responseKind,
   }) {
     return AIChatMessage(
       id: id ?? this.id,
@@ -38,6 +44,8 @@ class AIChatMessage {
       transactions: transactions ?? this.transactions,
       status: status ?? this.status,
       isSaved: isSaved ?? this.isSaved,
+      source: source ?? this.source,
+      responseKind: responseKind ?? this.responseKind,
     );
   }
 
@@ -50,6 +58,8 @@ class AIChatMessage {
       'transactions': transactions,
       'status': status,
       'isSaved': isSaved,
+      'source': source,
+      'responseKind': responseKind,
     };
   }
 
@@ -71,6 +81,8 @@ class AIChatMessage {
       transactions: transactions,
       status: json['status']?.toString() ?? 'success',
       isSaved: json['isSaved'] == true,
+      source: json['source']?.toString() ?? '',
+      responseKind: json['responseKind']?.toString() ?? '',
     );
   }
 

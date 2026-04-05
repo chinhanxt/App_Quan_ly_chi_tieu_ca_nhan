@@ -9,7 +9,6 @@ import 'package:app/widgets/add_category_dialog.dart';
 import 'package:app/widgets/category_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -78,159 +77,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w600,
   );
-
-  String _formatAmount(num value) {
-    return NumberFormat.decimalPattern('vi_VN').format(value);
-  }
-
-  Widget _buildTypeCard({
-    required String value,
-    required String title,
-    required String amountLabel,
-    required Color color,
-    required IconData icon,
-  }) {
-    final isSelected = _type == value;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: () {
-          setState(() {
-            _type = value;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: isSelected ? 0.18 : 0.10),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isSelected
-                  ? color.withValues(alpha: 0.65)
-                  : color.withValues(alpha: 0.18),
-              width: isSelected ? 1.6 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      amountLabel,
-                      style: TextStyle(
-                        color: color.withValues(alpha: 0.90),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: color),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOverviewCards() {
-    if (Firebase.apps.isEmpty) {
-      return Row(
-        children: [
-          _buildTypeCard(
-            value: 'credit',
-            title: 'Thu Nhập',
-            amountLabel: '+0 VND',
-            color: const Color(0xFF1D9A63),
-            icon: Icons.arrow_upward_rounded,
-          ),
-          const SizedBox(width: 10),
-          _buildTypeCard(
-            value: 'debit',
-            title: 'Chi Tiêu',
-            amountLabel: '-0 VND',
-            color: const Color(0xFFC45A43),
-            icon: Icons.arrow_downward_rounded,
-          ),
-        ],
-      );
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Row(
-        children: [
-          _buildTypeCard(
-            value: 'credit',
-            title: 'Thu Nhập',
-            amountLabel: '+0 VND',
-            color: const Color(0xFF1D9A63),
-            icon: Icons.arrow_upward_rounded,
-          ),
-          const SizedBox(width: 10),
-          _buildTypeCard(
-            value: 'debit',
-            title: 'Chi Tiêu',
-            amountLabel: '-0 VND',
-            color: const Color(0xFFC45A43),
-            icon: Icons.arrow_downward_rounded,
-          ),
-        ],
-      );
-    }
-
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data();
-        final totalCredit = (data?['totalCredit'] as num?) ?? 0;
-        final totalDebit = (data?['totalDebit'] as num?) ?? 0;
-
-        return Row(
-          children: [
-            _buildTypeCard(
-              value: 'credit',
-              title: 'Thu Nhập',
-              amountLabel: '+${_formatAmount(totalCredit)} VND',
-              color: const Color(0xFF1D9A63),
-              icon: Icons.arrow_upward_rounded,
-            ),
-            const SizedBox(width: 10),
-            _buildTypeCard(
-              value: 'debit',
-              title: 'Chi Tiêu',
-              amountLabel: '-${_formatAmount(totalDebit)} VND',
-              color: const Color(0xFFC45A43),
-              icon: Icons.arrow_downward_rounded,
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   Future<void> _selectDate() async {
     final now = DateTime.now();
@@ -326,9 +172,11 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         'iconName': categoryFromList['name'],
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'customCategories': FieldValue.arrayUnion([newCategory]),
-      });
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {
+          'customCategories': FieldValue.arrayUnion([newCategory]),
+        },
+      );
 
       if (!mounted) return;
       setState(() {
@@ -438,8 +286,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         'Cập nhật khoản thu hoặc chi với cùng trải nghiệm như màn hình thêm giao dịch.',
                         style: TextStyle(color: AppColors.textMuted),
                       ),
-                      const SizedBox(height: 16),
-                      _buildOverviewCards(),
                       const SizedBox(height: 16),
                       Row(
                         children: [

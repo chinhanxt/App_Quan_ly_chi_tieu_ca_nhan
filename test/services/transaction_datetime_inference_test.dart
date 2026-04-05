@@ -67,5 +67,25 @@ void main() {
 
       expect(refined['dateTime'], '19/03/2026 19:00');
     });
+
+    test('anchors month-only input to the current day in that month', () {
+      final refined = TransactionDateTimeInference.refineTransaction(
+        input: 'Thang 3 chi tieu an uong 400k',
+        transaction: <String, dynamic>{'title': 'An uong'},
+        now: now,
+      );
+
+      expect(refined['dateTime'], '20/03/2026 14:45');
+    });
+
+    test('maps future month name back to the previous year when needed', () {
+      final refined = TransactionDateTimeInference.refineTransaction(
+        input: 'Thang 12 mua ao 200k',
+        transaction: <String, dynamic>{'title': 'Mua ao'},
+        now: now,
+      );
+
+      expect(refined['dateTime'], '20/12/2025 14:45');
+    });
   });
 }

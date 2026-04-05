@@ -321,7 +321,7 @@ class _AIInputScreenState extends State<AIInputScreen>
       final effectiveTransactions = localTransactions.isNotEmpty
           ? localTransactions
           : <Map<String, dynamic>>[
-              if (manualCard case final manualCardValue?) manualCardValue,
+              ...?manualCard == null ? null : [manualCard],
             ];
 
       final reply = effectiveTransactions.isNotEmpty
@@ -1749,7 +1749,41 @@ class _AIInputScreenState extends State<AIInputScreen>
       timestamp: DateTime.now(),
       transactions: transactions,
       status: status,
+      source: result['source']?.toString() ?? '',
+      responseKind: result['responseKind']?.toString() ?? '',
     );
+  }
+
+  String _sourceLabel(String source) {
+    switch (source) {
+      case 'remote_ai':
+        return 'Trợ lý AI';
+      case 'remote_ai_vision':
+        return 'Trợ lý AI từ ảnh';
+      case 'remote_ai_recovered':
+        return 'Trợ lý AI hỗ trợ';
+      case 'local_fast_path':
+        return 'Trợ lý thông minh';
+      case 'local_parse':
+        return 'Phân tích nhanh';
+      default:
+        return source.trim().isEmpty ? 'Hệ thống xử lý' : source;
+    }
+  }
+
+  String _responseKindLabel(String responseKind) {
+    switch (responseKind) {
+      case 'card_ready':
+        return 'Có thẻ';
+      case 'clarification':
+        return 'Làm rõ';
+      case 'natural_reply':
+        return 'Trả lời tự nhiên';
+      case 'error':
+        return 'Lỗi';
+      default:
+        return responseKind.trim().isEmpty ? 'Không rõ kiểu' : responseKind;
+    }
   }
 
   List<Map<String, dynamic>> _normalizeTransactions(dynamic rawTransactions) {
@@ -2438,10 +2472,10 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Widget _buildHeader() {
-    final runtimeReady = _runtimeConfig.canUseRemoteAi;
     final modeLabel = _useRealAiMode ? 'Nâng cao' : 'Bình thường';
     final compact = _useCompactDensity(context);
     final compactWidth = _isCompactWidth(context);
+    final isOnline = _useRealAiMode;
     return Padding(
       padding: EdgeInsets.fromLTRB(16, compact ? 8 : 12, 16, 0),
       child: ClipRRect(
@@ -2542,14 +2576,16 @@ class _AIInputScreenState extends State<AIInputScreen>
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF4ADE80),
+                            decoration: BoxDecoration(
+                              color: isOnline
+                                  ? const Color(0xFF4ADE80)
+                                  : Colors.white.withValues(alpha: 0.5),
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Text(
-                            "Online",
+                          Text(
+                            isOnline ? "Online" : "Offline",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -2710,29 +2746,83 @@ class _AIInputScreenState extends State<AIInputScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!isUser)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tint.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: tint.withValues(alpha: 0.2)),
-                      ),
-                      child: Text(
-                        message.status == 'clarification'
-                            ? "Cần làm rõ"
-                            : message.status == 'error'
-                            ? "Có lỗi nhỏ"
-                            : "AI trả lời",
-                        style: TextStyle(
-                          color: tint,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: tint.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: tint.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Text(
+                            message.status == 'clarification'
+                                ? "Cần làm rõ"
+                                : message.status == 'error'
+                                ? "Có lỗi nhỏ"
+                                : "Trợ lý AI",
+                            style: TextStyle(
+                              color: tint,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (message.source.trim().isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Text(
+                              _sourceLabel(message.source),
+                              style: const TextStyle(
+                                color: _surfaceInk,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        if (message.responseKind.trim().isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Text(
+                              _responseKindLabel(message.responseKind),
+                              style: const TextStyle(
+                                color: _surfaceInk,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   Text(
                     _repairLegacyText(message.text),
@@ -3654,8 +3744,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                 SnackBar(
                   content: Text(
                     _useRealAiMode
-                        ? "AI thật đang bật. Tin nhắn và ảnh sẽ đi theo runtime config đã publish."
-                        : "AI thật đang tắt. App đang dùng parse hiện tại để bóc tách và lưu.",
+                        ? "Chế độ nâng cao: bạn có thể chat tự nhiên hơn, hỏi thêm ngữ cảnh và gửi ảnh để trợ lý hỗ trợ phân tích."
+                        : "Chế độ bình thường: hãy nhập ngắn gọn kiểu như ăn sáng 30k, đổ xăng 100k để app tách giao dịch và lưu nhanh hơn.",
                   ),
                 ),
               );
