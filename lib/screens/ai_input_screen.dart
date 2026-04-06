@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:app/models/ai_chat_message.dart';
@@ -13,6 +14,7 @@ import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/utils/ocr_helper.dart';
+import 'package:app/widgets/ai_transaction_draft_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +55,8 @@ class _AIInputScreenState extends State<AIInputScreen>
   final List<AIChatMessage> _messages = <AIChatMessage>[];
   final List<QuickTemplate> _quickTemplates = <QuickTemplate>[];
   final Set<String> _savingMessageIds = <String>{};
+  List<Map<String, dynamic>> _transactionCategoryOptions =
+      <Map<String, dynamic>>[];
 
   late AnimationController _pulseController;
   late Future<List<Map<String, dynamic>>> _transactionCategoryOptionsFuture;
@@ -73,6 +77,12 @@ class _AIInputScreenState extends State<AIInputScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     _transactionCategoryOptionsFuture = _loadTransactionCategoryOptions();
+    _transactionCategoryOptionsFuture.then((value) {
+      if (!mounted) return;
+      setState(() {
+        _transactionCategoryOptions = value;
+      });
+    });
     _restoreChatHistory();
     _loadQuickTemplates();
     _subscribeRuntimeConfig();
@@ -729,6 +739,32 @@ class _AIInputScreenState extends State<AIInputScreen>
     });
   }
 
+  void _dismissKeyboard() {
+    final currentFocus = FocusScope.of(context);
+    if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+      currentFocus.unfocus();
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _focusLatestTransactionFlow({bool dismissKeyboard = false}) {
+    if (dismissKeyboard) {
+      _dismissKeyboard();
+    }
+
+    _scrollToBottom();
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+    Future<void>.delayed(const Duration(milliseconds: 280), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+  }
+
   String _detectTransactionType(String text) {
     final normalized = text.toLowerCase();
     const creditHints = <String>[
@@ -902,6 +938,9 @@ class _AIInputScreenState extends State<AIInputScreen>
       }
 
       final result = await OcrHelper.scanImageFile(pickedFile.path);
+      if (!mounted) {
+        return;
+      }
 
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1060,6 +1099,8 @@ class _AIInputScreenState extends State<AIInputScreen>
     final text = (preset ?? _inputController.text).trim();
     if (text.isEmpty || _isProcessing) return;
 
+    _focusLatestTransactionFlow(dismissKeyboard: true);
+
     if (_useRealAiMode) {
       final canUseAdvanced = await _ensureLatestAdvancedModeAvailable();
       if (!mounted) return;
@@ -1083,7 +1124,7 @@ class _AIInputScreenState extends State<AIInputScreen>
       _isProcessing = true;
     });
     _persistChatHistory();
-    _scrollToBottom();
+    _focusLatestTransactionFlow();
 
     try {
       final result = await aiService.processInput(
@@ -1099,7 +1140,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         _messages.add(_buildAiMessage(result));
       });
       _persistChatHistory();
-      _scrollToBottom();
+      _focusLatestTransactionFlow();
     } catch (_) {
       if (!mounted) return;
 
@@ -1120,12 +1161,14 @@ class _AIInputScreenState extends State<AIInputScreen>
         );
       });
       _persistChatHistory();
-      _scrollToBottom();
+      _focusLatestTransactionFlow();
     }
   }
 
   Future<void> _applyQuickTemplate(QuickTemplate template) async {
     if (_isProcessing) return;
+
+    _focusLatestTransactionFlow(dismissKeyboard: true);
 
     final now = DateTime.now();
     Map<String, dynamic>? userData;
@@ -1190,7 +1233,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         ..add(aiMessage);
     });
     await _persistChatHistory();
-    _scrollToBottom();
+    _focusLatestTransactionFlow();
   }
 
   Future<QuickTemplate?> _showQuickTemplateForm({
@@ -1793,6 +1836,93 @@ class _AIInputScreenState extends State<AIInputScreen>
     }).toList();
   }
 
+  int _normalizeDraftAmountValue(dynamic value) {
+    return TransactionSummaryHelper.normalizeAmount(value);
+  }
+
+  DateTime _resolveDraftDateTime(Map<String, dynamic> tx) {
+    final dateTimeRaw = tx['dateTime']?.toString().trim() ?? '';
+    if (dateTimeRaw.isNotEmpty) {
+      try {
+        return DateFormat('dd/MM/yyyy HH:mm').parseStrict(dateTimeRaw);
+      } catch (_) {}
+    }
+
+    final dateRaw = tx['date']?.toString().trim() ?? '';
+    if (dateRaw.isNotEmpty) {
+      try {
+        return DateFormat('dd/MM/yyyy').parseStrict(dateRaw);
+      } catch (_) {}
+    }
+
+    return DateTime.now();
+  }
+
+  String _effectiveTransactionCategory(Map<String, dynamic> tx) {
+    final bool isNewCat = tx['isNewCategory'] == true;
+    final bool confirmCreateCategory = tx['confirmCreateCategory'] ?? true;
+    final fallbackCategory = tx['fallbackCategory']?.toString().trim() ?? '';
+
+    if (isNewCat && !confirmCreateCategory && fallbackCategory.isNotEmpty) {
+      return fallbackCategory;
+    }
+
+    final category = tx['category']?.toString().trim() ?? '';
+    return category.isEmpty ? 'Khác' : category;
+  }
+
+  String _effectiveTransactionIconName(Map<String, dynamic> tx) {
+    final bool isNewCat = tx['isNewCategory'] == true;
+    final bool confirmCreateCategory = tx['confirmCreateCategory'] ?? true;
+    final fallbackIconName = tx['fallbackIconName']?.toString().trim() ?? '';
+
+    if (isNewCat && !confirmCreateCategory && fallbackIconName.isNotEmpty) {
+      return fallbackIconName;
+    }
+
+    final suggestedIcon = tx['suggestedIcon']?.toString().trim() ?? '';
+    if (suggestedIcon.isNotEmpty) {
+      return suggestedIcon;
+    }
+
+    return tx['type'] == 'credit' ? 'moneyBillWave' : 'cartShopping';
+  }
+
+  Map<String, dynamic> _normalizeDraftTransaction(Map<String, dynamic> tx) {
+    final normalized = Map<String, dynamic>.from(tx);
+    final resolvedDateTime = _resolveDraftDateTime(normalized);
+    final effectiveCategory = _effectiveTransactionCategory(normalized);
+    final effectiveIconName = _effectiveTransactionIconName(normalized);
+    final title = normalized['title']?.toString().trim() ?? '';
+    final note = normalized['note']?.toString().trim() ?? '';
+
+    normalized['title'] = title;
+    normalized['note'] = note;
+    normalized['amount'] = _normalizeDraftAmountValue(normalized['amount']);
+    normalized['type'] =
+        normalized['type']?.toString() == 'credit' ? 'credit' : 'debit';
+    normalized['date'] = DateFormat('dd/MM/yyyy').format(resolvedDateTime);
+    normalized['time'] = DateFormat('HH:mm').format(resolvedDateTime);
+    normalized['dateTime'] = DateFormat(
+      'dd/MM/yyyy HH:mm',
+    ).format(resolvedDateTime);
+    normalized['selectedCategory'] = effectiveCategory;
+    normalized['selectedIconName'] = effectiveIconName;
+
+    if (normalized['isNewCategory'] == true &&
+        (normalized['confirmCreateCategory'] ?? true) == false) {
+      normalized['fallbackCategory'] = effectiveCategory;
+      normalized['fallbackIconName'] = effectiveIconName;
+    } else {
+      normalized['category'] = effectiveCategory;
+      normalized['suggestedIcon'] = effectiveIconName;
+      normalized['fallbackCategory'] = effectiveCategory;
+      normalized['fallbackIconName'] = effectiveIconName;
+    }
+
+    return normalized;
+  }
+
   void _updateTransactionField({
     required String messageId,
     required int transactionIndex,
@@ -1824,11 +1954,153 @@ class _AIInputScreenState extends State<AIInputScreen>
     _persistChatHistory();
   }
 
+  Future<void> _replaceTransactionDraft({
+    required String messageId,
+    required int transactionIndex,
+    required Map<String, dynamic> transaction,
+  }) async {
+    final messageIndex = _messages.indexWhere(
+      (message) => message.id == messageId,
+    );
+    if (messageIndex == -1) return;
+
+    final message = _messages[messageIndex];
+    final updatedTransactions = message.transactions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    if (transactionIndex < 0 ||
+        transactionIndex >= updatedTransactions.length) {
+      return;
+    }
+
+    updatedTransactions[transactionIndex] = _normalizeDraftTransaction(
+      transaction,
+    );
+
+    setState(() {
+      _messages[messageIndex] = message.copyWith(
+        transactions: updatedTransactions,
+      );
+    });
+    await _persistChatHistory();
+  }
+
+  Future<void> _removeTransactionDraft({
+    required String messageId,
+    required int transactionIndex,
+  }) async {
+    final messageIndex = _messages.indexWhere(
+      (message) => message.id == messageId,
+    );
+    if (messageIndex == -1) return;
+
+    final message = _messages[messageIndex];
+    if (message.isSaved) return;
+
+    final updatedTransactions = message.transactions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    if (transactionIndex < 0 ||
+        transactionIndex >= updatedTransactions.length) {
+      return;
+    }
+
+    updatedTransactions.removeAt(transactionIndex);
+
+    setState(() {
+      _messages[messageIndex] = message.copyWith(
+        transactions: updatedTransactions,
+      );
+    });
+    await _persistChatHistory();
+  }
+
+  Future<void> _editTransactionDraft({
+    required AIChatMessage message,
+    required int transactionIndex,
+    required Map<String, dynamic> transaction,
+  }) async {
+    if (message.isSaved) return;
+
+    final normalized = _normalizeDraftTransaction(transaction);
+    final selectedCategory = normalized['selectedCategory']?.toString() ?? '';
+    final selectedIconName =
+        normalized['selectedIconName']?.toString() ?? 'cartShopping';
+    var categoryOptions = List<Map<String, dynamic>>.from(
+      _transactionCategoryOptions,
+    );
+    if (categoryOptions.isEmpty) {
+      try {
+        categoryOptions = await _transactionCategoryOptionsFuture.timeout(
+          const Duration(seconds: 3),
+        );
+      } catch (_) {
+        categoryOptions = const <Map<String, dynamic>>[];
+      }
+    }
+
+    if (!mounted) return;
+
+    final mergedCategoryOptions = <Map<String, dynamic>>[
+      ...categoryOptions,
+      if (selectedCategory.isNotEmpty)
+        <String, dynamic>{
+          'name': selectedCategory,
+          'iconName': selectedIconName,
+        },
+    ];
+
+    final edited = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AITransactionDraftEditor(
+        initialTransaction: normalized,
+        categoryOptions: mergedCategoryOptions,
+      ),
+    );
+
+    if (edited == null || !mounted) {
+      return;
+    }
+
+    await _replaceTransactionDraft(
+      messageId: message.id,
+      transactionIndex: transactionIndex,
+      transaction: edited,
+    );
+  }
+
   Future<void> _saveTransactionsForMessage(AIChatMessage message) async {
     if (message.transactions.isEmpty || message.isSaved) return;
     if (_savingMessageIds.contains(message.id)) return;
 
-    for (final tx in message.transactions) {
+    final normalizedTransactions = message.transactions
+        .map(_normalizeDraftTransaction)
+        .toList(growable: false);
+    if (normalizedTransactions.isEmpty) return;
+
+    for (final tx in normalizedTransactions) {
+      final title = tx['title']?.toString().trim() ?? '';
+      if (title.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bạn nhập giúp mình tiêu đề trước khi lưu nhé.'),
+          ),
+        );
+        return;
+      }
+
+      final amount = _normalizeDraftAmountValue(tx['amount']);
+      if (amount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Số tiền của giao dịch phải lớn hơn 0.'),
+          ),
+        );
+        return;
+      }
+
       if (tx['isNewCategory'] == true &&
           (tx['confirmCreateCategory'] ?? true) == false) {
         final fallbackCategory =
@@ -1877,7 +2149,7 @@ class _AIInputScreenState extends State<AIInputScreen>
           userSnapshot.data()?['customCategories'] ?? [],
         );
 
-        for (final tx in message.transactions) {
+        for (final tx in normalizedTransactions) {
           final int amount = TransactionSummaryHelper.normalizeAmount(
             tx['amount'],
           );
@@ -1962,7 +2234,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               id: _uuid.v4(),
               sender: AIChatSender.ai,
               text: AIResponseEnhancement.saveSuccessMessage(
-                message.transactions.length,
+                normalizedTransactions.length,
               ),
               timestamp: DateTime.now(),
               status: 'success',
@@ -2477,27 +2749,28 @@ class _AIInputScreenState extends State<AIInputScreen>
     final compactWidth = _isCompactWidth(context);
     final isOnline = _useRealAiMode;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, compact ? 8 : 12, 16, 0),
+      padding: EdgeInsets.fromLTRB(16, compact ? 6 : 8, 16, 0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(compact ? 24 : 28),
+        borderRadius: BorderRadius.circular(compact ? 20 : 22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            padding: EdgeInsets.all(compact ? 14 : 18),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 14,
+              vertical: compact ? 8 : 10,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(compact ? 24 : 28),
+              borderRadius: BorderRadius.circular(compact ? 20 : 22),
               border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(
-              crossAxisAlignment: compact
-                  ? CrossAxisAlignment.start
-                  : CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 ScaleTransition(
                   scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
                   child: Container(
-                    padding: EdgeInsets.all(compact ? 12 : 14),
+                    padding: EdgeInsets.all(compact ? 9 : 10),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -2505,9 +2778,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.blue.withValues(alpha: 0.35),
-                          blurRadius: 26,
-                          spreadRadius: 4,
+                          color: Colors.blue.withValues(alpha: 0.28),
+                          blurRadius: 18,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
@@ -2516,22 +2789,34 @@ class _AIInputScreenState extends State<AIInputScreen>
                       child: Icon(
                         Icons.auto_awesome,
                         color: Colors.white,
-                        size: compact ? 24 : 30,
+                        size: compact ? 18 : 20,
                       ),
                     ),
                   ),
                 ),
-                SizedBox(width: compact ? 10 : 14),
+                SizedBox(width: compact ? 10 : 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         "Trợ lý thông minh",
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: compact ? 18 : 20,
+                          fontSize: compact ? 15 : 16,
                           fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Tạo nhanh giao dịch",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.62),
+                          fontSize: compact ? 10 : 11,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -2539,32 +2824,38 @@ class _AIInputScreenState extends State<AIInputScreen>
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Switch(
-                          value: _useRealAiMode,
-                          onChanged: _isLoadingRuntimeConfig
-                              ? null
-                              : (value) => _handleRealAiModeToggle(value),
-                          activeThumbColor: const Color(0xFF4ADE80),
+                        Transform.scale(
+                          scale: compact ? 0.74 : 0.8,
+                          child: Switch(
+                            value: _useRealAiMode,
+                            onChanged: _isLoadingRuntimeConfig
+                                ? null
+                                : (value) => _handleRealAiModeToggle(value),
+                            activeThumbColor: const Color(0xFF4ADE80),
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
                         Text(
                           modeLabel,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.88),
-                            fontSize: compact ? 11 : 12,
+                            fontSize: compact ? 10 : 11,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: compact ? 2 : 4),
+                    const SizedBox(height: 2),
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: compactWidth ? 8 : 10,
-                        vertical: compact ? 5 : 6,
+                        horizontal: compactWidth ? 7 : 8,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.1),
@@ -2588,7 +2879,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                             isOnline ? "Online" : "Offline",
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -2695,12 +2986,18 @@ class _AIInputScreenState extends State<AIInputScreen>
   Widget _buildMessageBubble(AIChatMessage message) {
     final isUser = message.sender == AIChatSender.user;
     final tint = _statusTint(message.status);
+    final isCardReviewBubble =
+        !isUser && message.hasTransactions && message.status != 'error';
+    final bubblePadding = isCardReviewBubble
+        ? const EdgeInsets.symmetric(horizontal: 14, vertical: 12)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          maxWidth: MediaQuery.of(context).size.width *
+              (isCardReviewBubble ? 0.74 : 0.78),
         ),
         child: Column(
           crossAxisAlignment: isUser
@@ -2708,7 +3005,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               : CrossAxisAlignment.start,
           children: [
             _buildGlassSurface(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: bubblePadding,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(22),
                 topRight: const Radius.circular(22),
@@ -2747,14 +3044,16 @@ class _AIInputScreenState extends State<AIInputScreen>
                 children: [
                   if (!isUser)
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         Container(
-                          margin: const EdgeInsets.only(bottom: 10),
+                          margin: EdgeInsets.only(
+                            bottom: isCardReviewBubble ? 6 : 10,
+                          ),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
+                            horizontal: 9,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: tint.withValues(alpha: 0.16),
@@ -2771,12 +3070,13 @@ class _AIInputScreenState extends State<AIInputScreen>
                                 : "Trợ lý AI",
                             style: TextStyle(
                               color: tint,
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        if (message.source.trim().isNotEmpty)
+                        if (!isCardReviewBubble &&
+                            message.source.trim().isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.symmetric(
@@ -2799,7 +3099,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                               ),
                             ),
                           ),
-                        if (message.responseKind.trim().isNotEmpty)
+                        if (!isCardReviewBubble &&
+                            message.responseKind.trim().isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.symmetric(
@@ -2828,10 +3129,12 @@ class _AIInputScreenState extends State<AIInputScreen>
                     _repairLegacyText(message.text),
                     style: TextStyle(
                       color: _surfaceInk,
-                      fontSize: 15,
-                      height: 1.45,
+                      fontSize: isCardReviewBubble ? 14 : 15,
+                      height: isCardReviewBubble ? 1.35 : 1.45,
                       fontWeight: isUser ? FontWeight.w500 : FontWeight.w400,
                     ),
+                    maxLines: isCardReviewBubble ? 3 : null,
+                    overflow: isCardReviewBubble ? TextOverflow.ellipsis : null,
                   ),
                   if (_shouldShowCategoryDecisionActions(message))
                     _buildCategoryDecisionActions(message),
@@ -2863,16 +3166,19 @@ class _AIInputScreenState extends State<AIInputScreen>
     final bool createNewCategory = tx['confirmCreateCategory'] ?? true;
     final bool isCredit = tx['type'] == 'credit';
     final bool showTypeChoice = _isImageDerivedTransaction(tx);
+    final effectiveCategory = _effectiveTransactionCategory(tx);
+    final effectiveIconName = _effectiveTransactionIconName(tx);
+    final normalizedAmount = _normalizeDraftAmountValue(tx['amount']);
     final accent = isCredit ? const Color(0xFF7EE787) : const Color(0xFFFF8A8A);
     final amountColor = isCredit
         ? const Color(0xFFB8FFD0)
         : const Color(0xFFFFB7B7);
 
     return Container(
-      margin: const EdgeInsets.only(top: 12),
+      margin: const EdgeInsets.only(top: 8),
       child: _buildGlassSurface(
-        padding: const EdgeInsets.all(18),
-        borderRadius: BorderRadius.circular(24),
+        padding: const EdgeInsets.all(14),
+        borderRadius: BorderRadius.circular(22),
         gradient: _glassGradient(
           accent: accent,
           baseAlpha: 0.2,
@@ -2903,18 +3209,20 @@ class _AIInputScreenState extends State<AIInputScreen>
                         style: const TextStyle(
                           color: _surfaceInk,
                           fontWeight: FontWeight.w700,
-                          fontSize: 17,
+                          fontSize: 16,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 7,
+                              horizontal: 9,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.14),
@@ -2927,21 +3235,17 @@ class _AIInputScreenState extends State<AIInputScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  appIcons.getIconData(
-                                    tx['suggestedIcon'] ?? "cartShopping",
-                                  ),
+                                  appIcons.getIconData(effectiveIconName),
                                   size: 14,
                                   color: _accentCyan,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _repairLegacyText(
-                                    tx['category']?.toString() ?? "Khác",
-                                  ),
+                                  _repairLegacyText(effectiveCategory),
                                   style: const TextStyle(
                                     color: _surfaceInk,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 12,
+                                    fontSize: 11.5,
                                   ),
                                 ),
                               ],
@@ -2950,8 +3254,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                           if (isNewCat)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 7,
+                                horizontal: 9,
+                                vertical: 6,
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(
@@ -2969,7 +3273,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                 style: TextStyle(
                                   color: Color(0xFFFFE4A3),
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                 ),
                               ),
                             ),
@@ -2979,42 +3283,105 @@ class _AIInputScreenState extends State<AIInputScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  "${isCredit ? '+' : '-'}${currencyFormat.format(tx['amount'])} đ",
-                  style: TextStyle(
-                    color: amountColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (!message.isSaved)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCardActionIcon(
+                            icon: Icons.edit_outlined,
+                            tooltip: 'Sửa card',
+                            onTap: () {
+                              _editTransactionDraft(
+                                message: message,
+                                transactionIndex: index,
+                                transaction: tx,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          _buildCardActionIcon(
+                            icon: Icons.delete_outline_rounded,
+                            tooltip: 'Xóa card',
+                            color: const Color(0xFFFFC0C0),
+                            onTap: () async {
+                              final shouldDelete = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Xóa card?'),
+                                  content: const Text(
+                                    'Bạn có muốn xóa card này không?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Không'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (shouldDelete != true || !mounted) {
+                                return;
+                              }
+
+                              await _removeTransactionDraft(
+                                messageId: message.id,
+                                transactionIndex: index,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    if (!message.isSaved) const SizedBox(height: 12),
+                    Text(
+                      "${isCredit ? '+' : '-'}${currencyFormat.format(normalizedAmount)} đ",
+                      style: TextStyle(
+                        color: amountColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             if (tx['note'] != null && tx['note'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 14),
+                padding: const EdgeInsets.only(top: 10),
                 child: Text(
                   "Ghi chú: ${_repairLegacyText(tx['note'].toString())}",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 13,
-                    height: 1.35,
+                    fontSize: 12.5,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             if (tx['dateTime'] != null && tx['dateTime'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   "Thời gian: ${_repairLegacyText(tx['dateTime'].toString())}",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.64),
-                    fontSize: 13,
+                    fontSize: 12,
                   ),
                 ),
               ),
             if (showTypeChoice)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3069,7 +3436,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             if (isNewCat)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: 12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -3194,6 +3561,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                     return DropdownMenuItem<String>(
                                       value: name,
                                       child: Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
                                             appIcons.getIconData(iconName),
@@ -3203,7 +3571,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                             ),
                                           ),
                                           const SizedBox(width: 10),
-                                          Expanded(
+                                          Flexible(
                                             child: Text(
                                               name,
                                               overflow: TextOverflow.ellipsis,
@@ -3256,6 +3624,291 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
+  Widget _buildCardActionIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    Color color = Colors.white,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Tooltip(
+            message: tooltip,
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _hasTransactionCardsInConversation() {
+    return _messages.any((message) => message.hasTransactions);
+  }
+
+  bool _showCompactComposerLayout() {
+    return _hasTransactionCardsInConversation();
+  }
+
+  Future<void> _showQuickTemplateOrbitMenu() async {
+    if (_quickTemplates.isEmpty) {
+      await _openQuickTemplateManager();
+      return;
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierLabel: 'quick_templates',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final visibleTemplates = _quickTemplates.take(6).toList(growable: false);
+        const radius = 108.0;
+        const itemWidth = 120.0;
+        const itemHeight = 44.0;
+        const centerSize = 68.0;
+
+        return SafeArea(
+          child: Material(
+            color: Colors.transparent,
+            child: Center(
+              child: SizedBox(
+                width: 320,
+                height: 320,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 256,
+                      height: 256,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.14),
+                            blurRadius: 28,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    for (var i = 0; i < visibleTemplates.length; i++)
+                      Builder(
+                        builder: (context) {
+                          final template = visibleTemplates[i];
+                          final angle = (-90 + ((360 / visibleTemplates.length) * i)) *
+                              (3.141592653589793 / 180);
+                          final dx = radius * cos(angle);
+                          final dy = radius * sin(angle);
+                          final accent = template.isCredit
+                              ? const Color(0xFF7EE787)
+                              : _suggestionAccents[i % _suggestionAccents.length];
+
+                          return Transform.translate(
+                            offset: Offset(dx, dy),
+                            child: SizedBox(
+                              width: itemWidth,
+                              height: itemHeight,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(999),
+                                  onTap: () async {
+                                    Navigator.of(context).pop();
+                                    await _applyQuickTemplate(template);
+                                  },
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      gradient: _glassGradient(
+                                        accent: accent,
+                                        baseAlpha: 0.2,
+                                        accentAlpha: 0.16,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: accent.withValues(alpha: 0.26),
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            appIcons.getIconData(template.iconName),
+                                            size: 15,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              template.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    Container(
+                      width: centerSize,
+                      height: centerSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF1C84FF), Color(0xFF4C42D4)],
+                        ),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF315EF6).withValues(alpha: 0.28),
+                            blurRadius: 22,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        tooltip: 'Đóng',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(
+              begin: 0.92,
+              end: 1,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutBack)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactReviewHint() {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: IconButton(
+            onPressed: _isProcessing ? null : _showQuickTemplateOrbitMenu,
+            icon: const Icon(Icons.touch_app_rounded, color: Colors.white, size: 20),
+            tooltip: 'Chọn nhanh',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: IconButton(
+            onPressed: _openQuickTemplateManager,
+            icon: const Icon(Icons.tune_rounded, color: Colors.white, size: 19),
+            tooltip: 'Thiết lập Chọn nhanh',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Text(
+              'Đang tạo giao dịch',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: _isProcessing ? null : _showImageImportOptions,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: const Icon(
+              Icons.camera_alt_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAiMessageContent(AIChatMessage message) {
     final isSaving = _savingMessageIds.contains(message.id);
 
@@ -3279,12 +3932,12 @@ class _AIInputScreenState extends State<AIInputScreen>
             ),
             if (message.hasTransactions)
               Padding(
-                padding: const EdgeInsets.only(top: 12, left: 4),
+                padding: const EdgeInsets.only(top: 8, left: 2),
                 child: message.isSaved
                     ? Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0x1A4ADE80),
@@ -3305,14 +3958,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
+                                fontSize: 13,
                               ),
                             ),
                           ],
                         ),
                       )
                     : SizedBox(
-                        width: 188,
-                        height: 48,
+                        width: 170,
+                        height: 42,
                         child: ElevatedButton(
                           onPressed: isSaving
                               ? null
@@ -3353,8 +4007,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                             child: Center(
                               child: isSaving
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2.4,
                                         color: Colors.white,
@@ -3364,7 +4018,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                       "Xác nhận & Lưu",
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 15,
+                                        fontSize: 13.5,
                                       ),
                                     ),
                             ),
@@ -3380,7 +4034,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildChatItem(AIChatMessage message) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 10),
       child: message.sender == AIChatSender.user
           ? _buildMessageBubble(message)
           : _buildAiMessageContent(message),
@@ -3400,7 +4054,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       itemCount: _messages.length + (_isProcessing ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _messages.length) {
@@ -3607,6 +4261,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
     final compact = _useCompactDensity(context);
+    final compactReview = _showCompactComposerLayout();
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -3614,7 +4269,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         16,
         0,
         16,
-        keyboardInset > 0 ? 12 : (compact ? 12 : 20),
+        keyboardInset > 0 ? 10 : (compact ? 10 : 14),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(compact ? 24 : 30),
@@ -3623,9 +4278,9 @@ class _AIInputScreenState extends State<AIInputScreen>
           child: Container(
             padding: EdgeInsets.fromLTRB(
               compact ? 14 : 16,
-              compact ? 12 : 16,
+              compactReview ? 10 : (compact ? 12 : 16),
               compact ? 14 : 16,
-              compact ? 12 : 14,
+              compactReview ? 10 : (compact ? 12 : 14),
             ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
@@ -3635,8 +4290,8 @@ class _AIInputScreenState extends State<AIInputScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSuggestionsSection(),
-                SizedBox(height: compact ? 10 : 14),
+                if (compactReview) _buildCompactReviewHint() else _buildSuggestionsSection(),
+                SizedBox(height: compactReview ? 8 : (compact ? 10 : 14)),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -3671,7 +4326,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: compact ? 14 : 16,
-                              vertical: compact ? 12 : 14,
+                              vertical: compactReview ? 10 : (compact ? 12 : 14),
                             ),
                           ),
                         ),
@@ -3839,9 +4494,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                     child: Container(
                       margin: EdgeInsets.fromLTRB(
                         16,
-                        compact ? 12 : 16,
+                        compact ? 8 : 10,
                         16,
-                        shortHeight || largeText ? 8 : 12,
+                        shortHeight || largeText ? 6 : 8,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.04),

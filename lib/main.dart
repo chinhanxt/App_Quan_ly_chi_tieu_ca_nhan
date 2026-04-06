@@ -1,7 +1,10 @@
 import 'package:app/firebase_options.dart';
 import 'package:app/providers/settings_provider.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:app/widgets/auth_gate.dart';
+import 'package:app/widgets/global_assistive_touch.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -198,12 +201,21 @@ class MyApp extends StatelessWidget {
       builder: (context, settingsProvider, child) {
         return MaterialApp(
           title: 'App Demo',
+          navigatorKey: appNavigatorKey,
           builder: (context, child) {
             return MediaQuery(
               data: MediaQuery.of(
                 context,
               ).copyWith(textScaler: const TextScaler.linear(1.0)),
-              child: child!,
+              child: Stack(
+                children: [
+                  child!,
+                  if (FirebaseAuth.instance.currentUser != null)
+                    const Positioned.fill(
+                      child: GlobalAssistiveTouch(),
+                    ),
+                ],
+              ),
             );
           },
           theme: _buildTheme(Brightness.light),

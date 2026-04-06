@@ -1,6 +1,3 @@
-import 'package:app/screens/add_transaction_screen.dart';
-import 'package:app/screens/ai_input_screen.dart';
-import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/hero_card.dart';
@@ -45,80 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final compact = MobileAdaptive.useCompactLayout(context);
-    final fabBottomPadding = MediaQuery.of(context).padding.bottom + 84;
 
     return AppScaffold(
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: fabBottomPadding),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            SizedBox(
-              width: compact ? 48 : 56,
-              height: compact ? 48 : 56,
-              child: FloatingActionButton(
-                mini: compact,
-                heroTag: 'ai_button',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AIInputScreen(),
-                    ),
-                  );
-                },
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                child: Ink(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.gold, AppColors.accentStrong],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Container(
-                    constraints: BoxConstraints(
-                      minWidth: compact ? 48.0 : 56.0,
-                      minHeight: compact ? 48.0 : 56.0,
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: compact ? 20 : 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: compact ? 12 : 16),
-            SizedBox(
-              width: compact ? 48 : 56,
-              height: compact ? 48 : 56,
-              child: FloatingActionButton(
-                mini: compact,
-                heroTag: 'add_button',
-                backgroundColor: AppColors.primary,
-                onPressed: (() {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddTransactionScreen(),
-                    ),
-                  );
-                }),
-                child: Icon(
-                  Icons.add,
-                  color: Colors.white,
-                  size: compact ? 22 : 28,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
       appBar: AppBar(
         title: const Text("Trang chủ"),
         automaticallyImplyLeading: false,
