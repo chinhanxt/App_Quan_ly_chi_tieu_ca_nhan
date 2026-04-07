@@ -1,7 +1,6 @@
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/hero_card.dart';
-import 'package:app/widgets/system_broadcast_widget.dart';
 import 'package:app/widgets/top_saving_goals_widget.dart';
 import 'package:app/widgets/transactions_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -63,8 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
               subtitle:
                   "Tổng quan đẹp mắt, rõ ràng và vẫn giữ nguyên mọi chức năng đang dùng.",
             ),
-            const SizedBox(height: 18),
-            const SystemBroadcastWidget(),
             const SizedBox(height: 18),
             HeroCard(
               userId: userId,

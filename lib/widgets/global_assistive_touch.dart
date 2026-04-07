@@ -51,8 +51,8 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
 
   void _ensureInitialPosition(Size size, EdgeInsets padding) {
     _position ??= Offset(
-      size.width - _buttonSize - 18,
-      size.height - _buttonSize - padding.bottom - 120,
+      size.width - _buttonSize - 14,
+      size.height - _buttonSize - padding.bottom - 124,
     );
   }
 
@@ -251,7 +251,27 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                           ),
                         ],
                       ),
-                      child: Icon(action.icon, color: Colors.white, size: 26),
+                      child: Icon(
+                        action.icon,
+                        color: Colors.white.withValues(alpha: isActive ? 1 : 0.96),
+                        size: isActive ? 29 : 27,
+                        shadows: [
+                          Shadow(
+                            color: Colors.white.withValues(
+                              alpha: isActive ? 0.48 : 0.22,
+                            ),
+                            blurRadius: isActive ? 14 : 6,
+                            offset: const Offset(0, 0),
+                          ),
+                          Shadow(
+                            color: Colors.white.withValues(
+                              alpha: isActive ? 0.18 : 0,
+                            ),
+                            blurRadius: isActive ? 24 : 0,
+                            offset: const Offset(0, 0),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -286,21 +306,23 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withValues(alpha: 0.22),
-                      Colors.white.withValues(alpha: 0.12),
+                      Colors.white.withValues(alpha: 0.16),
+                      AppColors.primary.withValues(alpha: 0.10),
+                      const Color(0xFF140A35).withValues(alpha: 0.18),
                     ],
+                    stops: const [0, 0.5, 1],
                   ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 2),
+                      color: Colors.white.withValues(alpha: 0.05),
+                      blurRadius: 14,
+                      offset: const Offset(0, 1),
                     ),
                     BoxShadow(
-                      color: AppColors.primaryDark.withValues(alpha: 0.12),
-                      blurRadius: 34,
-                      offset: const Offset(0, 18),
+                      color: AppColors.primaryDark.withValues(alpha: 0.10),
+                      blurRadius: 28,
+                      offset: const Offset(0, 14),
                     ),
                   ],
                 ),
@@ -360,8 +382,17 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                     letterSpacing: -0.15,
                     shadows: [
                       Shadow(
-                        color: Colors.white.withValues(alpha: 0.26),
-                        blurRadius: 12,
+                        color: Colors.white.withValues(
+                          alpha: _previewLabel == null ? 0.26 : 0.42,
+                        ),
+                        blurRadius: _previewLabel == null ? 12 : 18,
+                        offset: const Offset(0, 1),
+                      ),
+                      Shadow(
+                        color: Colors.white.withValues(
+                          alpha: _previewLabel == null ? 0.08 : 0.22,
+                        ),
+                        blurRadius: _previewLabel == null ? 3 : 8,
                         offset: const Offset(0, 1),
                       ),
                     ],
