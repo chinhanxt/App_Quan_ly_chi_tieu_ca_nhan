@@ -4,6 +4,7 @@ import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/services/transaction_summary_helper.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -198,6 +199,9 @@ class BroadcastRecord {
     required this.content,
     required this.type,
     required this.status,
+    required this.deliveryMode,
+    required this.autoStartAt,
+    required this.autoEndAt,
     required this.createdAt,
     required this.updatedAt,
     required this.createdByEmail,
@@ -208,9 +212,23 @@ class BroadcastRecord {
   final String content;
   final String type;
   final String status;
+  final String deliveryMode;
+  final Timestamp? autoStartAt;
+  final Timestamp? autoEndAt;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
   final String createdByEmail;
+
+  bool get isScheduled => deliveryMode == 'scheduled';
+
+  bool isVisibleAt(DateTime now) {
+    return isBroadcastVisible(<String, dynamic>{
+      'status': status,
+      'deliveryMode': deliveryMode,
+      'autoStartAt': autoStartAt,
+      'autoEndAt': autoEndAt,
+    }, now: now);
+  }
 
   factory BroadcastRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
@@ -220,6 +238,9 @@ class BroadcastRecord {
       content: data['content']?.toString() ?? '',
       type: data['type']?.toString() ?? 'info',
       status: data['status']?.toString() ?? 'inactive',
+      deliveryMode: data['deliveryMode']?.toString() ?? 'manual',
+      autoStartAt: _readTimestamp(data['autoStartAt']),
+      autoEndAt: _readTimestamp(data['autoEndAt']),
       createdAt: _readTimestamp(data['createdAt']),
       updatedAt: _readTimestamp(data['updatedAt']),
       createdByEmail: data['createdByEmail']?.toString() ?? '',
@@ -572,6 +593,9 @@ class AdminWebRepository {
     required String content,
     required String type,
     required bool active,
+    String deliveryMode = 'manual',
+    DateTime? autoStartAt,
+    DateTime? autoEndAt,
     String? actorEmail,
   }) async {
     final payload = <String, dynamic>{
@@ -579,6 +603,9 @@ class AdminWebRepository {
       'content': content,
       'type': type,
       'status': active ? 'active' : 'inactive',
+      'deliveryMode': deliveryMode,
+      'autoStartAt': autoStartAt == null ? null : Timestamp.fromDate(autoStartAt),
+      'autoEndAt': autoEndAt == null ? null : Timestamp.fromDate(autoEndAt),
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -943,10 +970,14 @@ class AdminWebRepository {
     final categoriesSnapshot = await _firestore.collection('categories').get();
     final broadcastsSnapshot = await _firestore
         .collection('system_broadcasts')
-        .where('status', isEqualTo: 'active')
         .get();
 
     final users = usersSnapshot.docs.map(AdminUserRecord.fromDoc).toList();
+    final now = DateTime.now();
+    final activeBroadcasts = broadcastsSnapshot.docs
+        .map(BroadcastRecord.fromDoc)
+        .where((item) => item.isVisibleAt(now))
+        .length;
 
     return AdminOverviewStats(
       totalUsers: users.length,
@@ -954,7 +985,7 @@ class AdminWebRepository {
       adminUsers: users.where((user) => user.role != 'user').length,
       lockedUsers: users.where((user) => user.status == 'locked').length,
       systemCategories: categoriesSnapshot.size,
-      activeBroadcasts: broadcastsSnapshot.size,
+      activeBroadcasts: activeBroadcasts,
       transactionsThisMonth: 0,
       totalCredit: users.fold<int>(
         0,
@@ -1013,9 +1044,7 @@ class AdminWebRepository {
       adminUsers: users.where((user) => user.role != 'user').length,
       lockedUsers: users.where((user) => user.status == 'locked').length,
       systemCategories: categoriesSnapshot.size,
-      activeBroadcasts: broadcasts
-          .where((item) => item.status == 'active')
-          .length,
+      activeBroadcasts: broadcasts.where((item) => item.isVisibleAt(now)).length,
       transactionsThisMonth: monthTransactions.length,
       totalCredit: users.fold<int>(
         0,

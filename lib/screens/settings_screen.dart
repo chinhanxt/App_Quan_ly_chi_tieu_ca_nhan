@@ -68,6 +68,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
 
+                _buildSectionHeader('Thông Báo'),
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: user == null
+                      ? null
+                      : FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(user!.uid)
+                            .snapshots(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data?.data() ?? const <String, dynamic>{};
+                    final preferences =
+                        data['notificationPreferences'] as Map<String, dynamic>? ??
+                        const <String, dynamic>{};
+                    final appNotificationsEnabled =
+                        preferences['appNotificationsEnabled'] != false;
+
+                    return SwitchListTile(
+                      secondary: const Icon(Icons.notifications_active_outlined),
+                      title: const Text('Thông báo ứng dụng'),
+                      subtitle: const Text(
+                        'Khi tắt, các thông báo từ ứng dụng sẽ bị ẩn và bạn sẽ không nhận thêm nhắc nhở trong app.',
+                      ),
+                      value: appNotificationsEnabled,
+                      onChanged: user == null
+                          ? null
+                          : (value) async {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user!.uid)
+                                  .set(<String, dynamic>{
+                                    'notificationPreferences': <String, dynamic>{
+                                      'appNotificationsEnabled': value,
+                                    },
+                                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                                  }, SetOptions(merge: true));
+                            },
+                    );
+                  },
+                ),
+
                 // Về ứng dụng
                 _buildSectionHeader('Về Ứng Dụng'),
                 ListTile(

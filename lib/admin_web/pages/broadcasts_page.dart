@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:app/admin_web/admin_web_repository.dart';
 import 'package:app/admin_web/admin_web_widgets.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -15,6 +18,50 @@ class BroadcastsPage extends StatefulWidget {
 class _BroadcastsPageState extends State<BroadcastsPage> {
   String _statusFilter = 'all';
   String _typeFilter = 'all';
+  Timer? _refreshTimer;
+  DateTime? _scheduledTick;
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleRealtimeRefresh(List<BroadcastRecord> items) {
+    final now = DateTime.now();
+    final nextTick = earliestTransition(
+      items.map(
+        (item) => nextBroadcastTransitionAt(<String, dynamic>{
+          'deliveryMode': item.deliveryMode,
+          'autoStartAt': item.autoStartAt,
+          'autoEndAt': item.autoEndAt,
+        }, now: now),
+      ),
+    );
+
+    if (_scheduledTick == nextTick) {
+      return;
+    }
+
+    _refreshTimer?.cancel();
+    _scheduledTick = nextTick;
+    if (nextTick == null) {
+      return;
+    }
+
+    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    _refreshTimer = Timer(
+      delay.isNegative ? const Duration(seconds: 1) : delay,
+      () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _scheduledTick = null;
+        });
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,17 +78,23 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
         }
 
         final allItems = snapshot.data!;
+        _scheduleRealtimeRefresh(allItems);
+        final now = DateTime.now();
         final items = allItems
             .where((item) {
-              final statusOk =
-                  _statusFilter == 'all' || item.status == _statusFilter;
+              final isVisible = item.isVisibleAt(now);
+              final statusOk = switch (_statusFilter) {
+                'active' => isVisible,
+                'inactive' => !isVisible,
+                _ => true,
+              };
               final typeOk = _typeFilter == 'all' || item.type == _typeFilter;
               return statusOk && typeOk;
             })
             .toList(growable: false);
 
         final activeCount = allItems
-            .where((item) => item.status == 'active')
+            .where((item) => item.isVisibleAt(now))
             .length;
         final inactiveCount = allItems.length - activeCount;
 
@@ -184,9 +237,15 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                                 final item = items[index];
                                 return _BroadcastRow(
                                   item: item,
-                                  onToggle: (value) => widget.repository
-                                      .toggleBroadcastStatus(item.id, value),
+                                  onToggle: item.isScheduled
+                                      ? null
+                                      : (value) => widget.repository
+                                            .toggleBroadcastStatus(item.id, value),
                                   onEdit: () => _showBroadcastDialog(
+                                    context,
+                                    record: item,
+                                  ),
+                                  onSchedule: () => _showBroadcastScheduleDialog(
                                     context,
                                     record: item,
                                   ),
@@ -277,6 +336,9 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
               content: contentController.text.trim(),
               type: type,
               status: active ? 'active' : 'inactive',
+              deliveryMode: record?.deliveryMode ?? 'manual',
+              autoStartAt: record?.autoStartAt,
+              autoEndAt: record?.autoEndAt,
               createdAt: record?.createdAt,
               updatedAt: record?.updatedAt,
               createdByEmail: record?.createdByEmail ?? '',
@@ -353,16 +415,32 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                           child: SwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             value: active,
-                            onChanged: (value) {
-                              setDialogState(() {
-                                active = value;
-                              });
-                            },
-                            title: const Text('Hiển thị ngay sau khi lưu'),
+                            onChanged: (record?.isScheduled ?? false)
+                                ? null
+                                : (value) {
+                                    setDialogState(() {
+                                      active = value;
+                                    });
+                                  },
+                            title: Text(
+                              record?.isScheduled == true
+                                  ? 'Bản này đang dùng lịch riêng'
+                                  : 'Hiển thị ngay sau khi lưu',
+                            ),
                           ),
                         ),
                       ],
                     ),
+                    if (record?.isScheduled == true) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Thông báo này đang dùng lịch tự động. Muốn đổi giờ bật/tắt, dùng nút "Lịch" trong danh sách.',
+                        style: const TextStyle(
+                          color: Color(0xFF667085),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     if (errorText != null) ...[
                       const SizedBox(height: 12),
                       Text(
@@ -407,12 +485,234 @@ class _BroadcastsPageState extends State<BroadcastsPage> {
                       content: content,
                       type: type,
                       active: active,
+                      deliveryMode: record?.deliveryMode ?? 'manual',
+                      autoStartAt: record?.autoStartAt?.toDate(),
+                      autoEndAt: record?.autoEndAt?.toDate(),
                     );
                     if (context.mounted) {
                       Navigator.of(context).pop();
                     }
                   },
                   child: const Text('Lưu'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _pickDateTime(
+    BuildContext context, {
+    required DateTime initialValue,
+    required String helpText,
+  }) async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialValue,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+      locale: const Locale('vi', 'VN'),
+      helpText: helpText,
+    );
+    if (pickedDate == null || !context.mounted) {
+      return null;
+    }
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialValue),
+      helpText: helpText,
+    );
+    if (pickedTime == null) {
+      return null;
+    }
+
+    return DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+  }
+
+  Future<void> _showBroadcastScheduleDialog(
+    BuildContext context, {
+    required BroadcastRecord record,
+  }) async {
+    var deliveryMode = record.deliveryMode;
+    DateTime? startAt = record.autoStartAt?.toDate();
+    DateTime? endAt = record.autoEndAt?.toDate();
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.schedule_rounded, color: Color(0xFF155EEF)),
+                  SizedBox(width: 12),
+                  Text('Lịch hiển thị thông báo'),
+                ],
+              ),
+              content: SizedBox(
+                width: 620,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: deliveryMode,
+                      decoration: const InputDecoration(
+                        labelText: 'Chế độ hiển thị',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'manual',
+                          child: Text('Bật/tắt thủ công'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'scheduled',
+                          child: Text('Theo lịch bắt đầu/kết thúc'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() {
+                          deliveryMode = value;
+                          errorText = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (deliveryMode == 'scheduled') ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final picked = await _pickDateTime(
+                                  dialogContext,
+                                  initialValue: startAt ?? DateTime.now(),
+                                  helpText: 'Chọn thời điểm bắt đầu',
+                                );
+                                if (picked == null) return;
+                                setDialogState(() {
+                                  startAt = picked;
+                                  errorText = null;
+                                });
+                              },
+                              icon: const Icon(Icons.play_circle_outline_rounded),
+                              label: Text(
+                                startAt == null
+                                    ? 'Chọn giờ bắt đầu'
+                                    : DateFormat('HH:mm dd/MM/yyyy').format(startAt!),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final picked = await _pickDateTime(
+                                  dialogContext,
+                                  initialValue:
+                                      endAt ??
+                                      (startAt ?? DateTime.now()).add(
+                                        const Duration(hours: 1),
+                                      ),
+                                  helpText: 'Chọn thời điểm kết thúc',
+                                );
+                                if (picked == null) return;
+                                setDialogState(() {
+                                  endAt = picked;
+                                  errorText = null;
+                                });
+                              },
+                              icon: const Icon(Icons.stop_circle_outlined),
+                              label: Text(
+                                endAt == null
+                                    ? 'Chọn giờ kết thúc'
+                                    : DateFormat('HH:mm dd/MM/yyyy').format(endAt!),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        startAt != null && endAt != null
+                            ? 'Khung hiện tại: ${DateFormat('HH:mm dd/MM/yyyy').format(startAt!)} -> ${DateFormat('HH:mm dd/MM/yyyy').format(endAt!)}'
+                            : 'Cần chọn đủ thời điểm bắt đầu và kết thúc.',
+                        style: const TextStyle(
+                          color: Color(0xFF475467),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ] else
+                      const Text(
+                        'Ở chế độ thủ công, bạn tiếp tục dùng công tắc bật/tắt ngay trong danh sách.',
+                        style: TextStyle(
+                          color: Color(0xFF475467),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Color(0xFFD92D20),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Hủy'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (deliveryMode == 'scheduled') {
+                      if (startAt == null || endAt == null) {
+                        setDialogState(() {
+                          errorText = 'Cần chọn đủ giờ bắt đầu và kết thúc.';
+                        });
+                        return;
+                      }
+                      if (!endAt!.isAfter(startAt!)) {
+                        setDialogState(() {
+                          errorText = 'Giờ kết thúc phải sau giờ bắt đầu.';
+                        });
+                        return;
+                      }
+                    }
+
+                    await widget.repository.saveBroadcast(
+                      id: record.id,
+                      title: record.title,
+                      content: record.content,
+                      type: record.type,
+                      active: deliveryMode == 'scheduled'
+                          ? false
+                          : record.status == 'active',
+                      deliveryMode: deliveryMode,
+                      autoStartAt: deliveryMode == 'scheduled' ? startAt : null,
+                      autoEndAt: deliveryMode == 'scheduled' ? endAt : null,
+                    );
+                    if (!dialogContext.mounted) return;
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Lưu lịch'),
                 ),
               ],
             );
@@ -428,18 +728,26 @@ class _BroadcastRow extends StatelessWidget {
     required this.item,
     required this.onToggle,
     required this.onEdit,
+    required this.onSchedule,
     required this.onDelete,
   });
 
   final BroadcastRecord item;
-  final ValueChanged<bool> onToggle;
+  final ValueChanged<bool>? onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onSchedule;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final headline = item.title.trim().isNotEmpty ? item.title : item.content;
     final timestamp = item.updatedAt ?? item.createdAt;
+    final now = DateTime.now();
+    final isVisible = item.isVisibleAt(now);
+    final scheduleSummary =
+        item.isScheduled && item.autoStartAt != null && item.autoEndAt != null
+        ? '${DateFormat('HH:mm dd/MM').format(item.autoStartAt!.toDate())} -> ${DateFormat('HH:mm dd/MM').format(item.autoEndAt!.toDate())}'
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -486,7 +794,10 @@ class _BroadcastRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Switch(value: item.status == 'active', onChanged: onToggle),
+              Switch(
+                value: item.isScheduled ? isVisible : item.status == 'active',
+                onChanged: onToggle,
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -496,19 +807,36 @@ class _BroadcastRow extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _TagPill(
-                label: item.status == 'active' ? 'Đang hiển thị' : 'Tạm ẩn',
-                background: item.status == 'active'
+                label: isVisible ? 'Đang hiển thị' : 'Tạm ẩn',
+                background: isVisible
                     ? const Color(0xFFECFDF3)
                     : const Color(0xFFFFF6ED),
-                foreground: item.status == 'active'
+                foreground: isVisible
                     ? const Color(0xFF039855)
                     : const Color(0xFFDC6803),
+              ),
+              _TagPill(
+                label: item.isScheduled ? 'Theo lịch' : 'Thủ công',
+                background: item.isScheduled
+                    ? const Color(0xFFEFF8FF)
+                    : const Color(0xFFF2F4F7),
+                foreground: item.isScheduled
+                    ? const Color(0xFF175CD3)
+                    : const Color(0xFF344054),
               ),
               _TagPill(
                 label: _broadcastTypeLabel(item.type),
                 background: broadcastColor(item.type).withValues(alpha: 0.12),
                 foreground: broadcastColor(item.type),
               ),
+              if (scheduleSummary != null)
+                Text(
+                  scheduleSummary,
+                  style: const TextStyle(
+                    color: Color(0xFF155EEF),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               if (timestamp != null)
                 Text(
                   DateFormat('HH:mm - dd/MM/yyyy').format(timestamp.toDate()),
@@ -518,6 +846,11 @@ class _BroadcastRow extends StatelessWidget {
                   ),
                 ),
               OutlinedButton(onPressed: onEdit, child: const Text('Sửa')),
+              OutlinedButton.icon(
+                onPressed: onSchedule,
+                icon: const Icon(Icons.schedule_rounded, size: 16),
+                label: const Text('Lịch'),
+              ),
               FilledButton.tonal(onPressed: onDelete, child: const Text('Xóa')),
             ],
           ),

@@ -6,6 +6,7 @@ import 'package:app/screens/budget_screen.dart';
 import 'package:app/screens/notifications_screen.dart';
 import 'package:app/screens/saving_goals_screen.dart';
 import 'package:app/utils/app_navigation.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -30,11 +31,13 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notificationSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _broadcastSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _budgetSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _transactionSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _savingGoalSubscription;
   Timer? _syncDebounceTimer;
+  Timer? _broadcastTransitionTimer;
   Timer? _headsUpTimer;
   Timer? _headsUpGateTimer;
   Timer? _dayRolloverTimer;
@@ -42,6 +45,7 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
   String? _currentUserId;
   List<AppNotification> _notifications = const <AppNotification>[];
   AppNotification? _currentHeadsUp;
+  bool _appNotificationsEnabled = true;
   DateTime? _headsUpBlockedUntil;
   final List<AppNotification> _headsUpQueue = <AppNotification>[];
   final Set<String> _queuedHeadsUpIds = <String>{};
@@ -49,13 +53,16 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
   List<AppNotification> get notifications => _notifications;
   AppNotification? get currentHeadsUp => _currentHeadsUp;
-  bool get hasUnread => _notifications.any((item) => item.isUnread);
+  bool get hasUnread =>
+      _notifications.any((item) => item.isUnread && _isNotificationVisible(item));
   bool get isSignedIn => _currentUserId != null;
+  bool get appNotificationsEnabled => _appNotificationsEnabled;
 
   List<AppNotification> get activeNotifications {
     final now = DateTime.now();
     final items = _notifications
         .where((item) => item.isActiveAt(now))
+        .where(_isNotificationVisible)
         .toList(growable: false);
     items.sort((left, right) => right.createdAt.compareTo(left.createdAt));
     return items;
@@ -129,8 +136,10 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       await _syncBroadcastNotifications(userId);
-      await _syncBudgetNotifications(userId);
-      await _syncDailyNotifications(userId);
+      if (_appNotificationsEnabled) {
+        await _syncBudgetNotifications(userId);
+        await _syncDailyNotifications(userId);
+      }
       _scheduleDayRolloverSync();
     } catch (error, stackTrace) {
       debugPrint('Notification sync failed: $error');
@@ -143,11 +152,13 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
     _notificationSubscription?.cancel();
+    _userSubscription?.cancel();
     _broadcastSubscription?.cancel();
     _budgetSubscription?.cancel();
     _transactionSubscription?.cancel();
     _savingGoalSubscription?.cancel();
     _syncDebounceTimer?.cancel();
+    _broadcastTransitionTimer?.cancel();
     _headsUpTimer?.cancel();
     _headsUpGateTimer?.cancel();
     _dayRolloverTimer?.cancel();
@@ -168,6 +179,7 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     _currentUserId = user?.uid;
     _notifications = const <AppNotification>[];
     _currentHeadsUp = null;
+    _appNotificationsEnabled = true;
     _headsUpBlockedUntil = null;
     _headsUpQueue.clear();
     _queuedHeadsUpIds.clear();
@@ -185,9 +197,14 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
         .snapshots()
         .listen(_handleNotificationSnapshot);
 
+    _userSubscription = _firestore
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen(_handleUserSnapshot);
+
     _broadcastSubscription = _firestore
         .collection('system_broadcasts')
-        .where('status', isEqualTo: 'active')
         .snapshots()
         .listen((_) => _scheduleSync());
 
@@ -217,16 +234,19 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _clearListeners() async {
     await _notificationSubscription?.cancel();
+    await _userSubscription?.cancel();
     await _broadcastSubscription?.cancel();
     await _budgetSubscription?.cancel();
     await _transactionSubscription?.cancel();
     await _savingGoalSubscription?.cancel();
     _notificationSubscription = null;
+    _userSubscription = null;
     _broadcastSubscription = null;
     _budgetSubscription = null;
     _transactionSubscription = null;
     _savingGoalSubscription = null;
     _syncDebounceTimer?.cancel();
+    _broadcastTransitionTimer?.cancel();
     _headsUpTimer?.cancel();
     _headsUpGateTimer?.cancel();
     _dayRolloverTimer?.cancel();
@@ -253,6 +273,29 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void _handleUserSnapshot(DocumentSnapshot<Map<String, dynamic>> snapshot) {
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    final preferences =
+        data['notificationPreferences'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final enabled = preferences['appNotificationsEnabled'] != false;
+    if (_appNotificationsEnabled == enabled) {
+      return;
+    }
+
+    _appNotificationsEnabled = enabled;
+    _headsUpQueue.removeWhere((item) => !_isNotificationVisible(item));
+    _queuedHeadsUpIds
+      ..clear()
+      ..addAll(_headsUpQueue.map((item) => item.id));
+    if (_currentHeadsUp != null && !_isNotificationVisible(_currentHeadsUp!)) {
+      _currentHeadsUp = null;
+      _headsUpTimer?.cancel();
+    }
+    _processHeadsUpQueue();
+    notifyListeners();
+  }
+
   void _enqueueHeadsUpNotifications() {
     final now = DateTime.now();
     final blockedUntil = _headsUpBlockedUntil;
@@ -261,7 +304,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     for (final item in _notifications) {
-      if (!item.isActiveAt(now) || item.isSuppressedAt(now)) {
+      if (!item.isActiveAt(now) ||
+          item.isSuppressedAt(now) ||
+          !_isNotificationVisible(item)) {
         continue;
       }
       final alreadyShown = item.isSystemNotification
@@ -316,14 +361,17 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _syncBroadcastNotifications(String userId) async {
-    final snapshot = await _firestore
-        .collection('system_broadcasts')
-        .where('status', isEqualTo: 'active')
-        .get();
+    final snapshot = await _firestore.collection('system_broadcasts').get();
     final activeNotificationIds = <String>{};
+    final now = DateTime.now();
+    final transitionCandidates = <DateTime?>[];
 
     for (final doc in snapshot.docs) {
       final data = doc.data();
+      transitionCandidates.add(nextBroadcastTransitionAt(data, now: now));
+      if (!isBroadcastVisible(data, now: now)) {
+        continue;
+      }
       final broadcastId = doc.id;
       final title = (data['title']?.toString().trim() ?? '');
       final body = (data['content']?.toString().trim() ?? '');
@@ -359,6 +407,8 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     for (final item in staleSystemNotifications) {
       await _hideNotification(userId, item.id);
     }
+
+    _scheduleBroadcastTransitionSync(earliestTransition(transitionCandidates));
   }
 
   Future<void> _syncBudgetNotifications(String userId) async {
@@ -648,7 +698,6 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
             readAt: existing.readAt,
             deletedAt: existing.deletedAt,
             headsUpShownAt: existing.headsUpShownAt,
-            occurrenceCount: existing.occurrenceCount,
             suppressedUntil: existing.suppressedUntil,
           );
       await docRef.set(mergedNotification.toFirestore(), SetOptions(merge: true));
@@ -658,7 +707,6 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
     final mergedNotification = notification
         .copyWith(
-          occurrenceCount: existing.occurrenceCount + 1,
           clearReadAt: true,
           clearDeletedAt: true,
           clearHeadsUpShownAt: true,
@@ -756,6 +804,23 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     _notifications = items;
     _enqueueHeadsUpNotifications();
     notifyListeners();
+  }
+
+  bool _isNotificationVisible(AppNotification notification) {
+    return _appNotificationsEnabled || notification.isSystemNotification;
+  }
+
+  void _scheduleBroadcastTransitionSync(DateTime? nextTick) {
+    _broadcastTransitionTimer?.cancel();
+    if (nextTick == null || _currentUserId == null) {
+      return;
+    }
+
+    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    _broadcastTransitionTimer = Timer(
+      delay.isNegative ? const Duration(seconds: 1) : delay,
+      () => unawaited(syncNow()),
+    );
   }
 
   void _updateLocalNotification(

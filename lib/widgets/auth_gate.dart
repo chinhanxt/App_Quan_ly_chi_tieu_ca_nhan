@@ -1,15 +1,58 @@
+import 'dart:async';
+
 import 'package:app/screens/admin/admin_dashboard.dart';
 import 'package:app/screens/admin/mobile_admin_redirect.dart';
 import 'package:app/screens/dashboard.dart';
 import 'package:app/screens/login_screen.dart';
 import 'package:app/screens/system_access_blocked_screen.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  Timer? _maintenanceRefreshTimer;
+  DateTime? _scheduledMaintenanceTick;
+
+  @override
+  void dispose() {
+    _maintenanceRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleMaintenanceRefresh(Map<String, dynamic> controls) {
+    final nextTick = nextMaintenanceTransitionAt(controls);
+    if (_scheduledMaintenanceTick == nextTick) {
+      return;
+    }
+
+    _maintenanceRefreshTimer?.cancel();
+    _scheduledMaintenanceTick = nextTick;
+    if (nextTick == null) {
+      return;
+    }
+
+    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    _maintenanceRefreshTimer = Timer(
+      delay.isNegative ? const Duration(seconds: 1) : delay,
+      () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _scheduledMaintenanceTick = null;
+        });
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +85,9 @@ class AuthGate extends StatelessWidget {
             final appControls = canReadAppControls
                 ? appControlSnapshot.data?.data() ?? const <String, dynamic>{}
                 : const <String, dynamic>{};
+            _scheduleMaintenanceRefresh(appControls);
             final maintenanceMode =
-                canReadAppControls && appControls['maintenanceMode'] == true;
+                canReadAppControls && isMaintenanceActive(appControls);
 
             if (maintenanceMode) {
               return SystemAccessBlockedScreen(

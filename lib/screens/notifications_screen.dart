@@ -125,25 +125,6 @@ class _NotificationExpansionCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (notification.occurrenceCount > 1)
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentSoft,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '${notification.occurrenceCount}',
-                        style: const TextStyle(
-                          color: AppColors.accentStrong,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
                   AnimatedRotation(
                     duration: const Duration(milliseconds: 180),
                     turns: isExpanded ? 0.5 : 0,

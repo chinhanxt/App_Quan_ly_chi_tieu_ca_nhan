@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:flutter/material.dart';
 
 // Model SystemMessage đã được định nghĩa trong system_settings_screen.dart
@@ -15,11 +18,49 @@ class SystemBroadcastWidget extends StatefulWidget {
 class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  Timer? _refreshTimer;
+  DateTime? _scheduledTick;
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _scheduleRealtimeRefresh(QuerySnapshot snapshot) {
+    final now = DateTime.now();
+    final nextTick = earliestTransition(
+      snapshot.docs.map(
+        (doc) => nextBroadcastTransitionAt(
+          doc.data() as Map<String, dynamic>,
+          now: now,
+        ),
+      ),
+    );
+
+    if (_scheduledTick == nextTick) {
+      return;
+    }
+
+    _refreshTimer?.cancel();
+    _scheduledTick = nextTick;
+    if (nextTick == null) {
+      return;
+    }
+
+    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    _refreshTimer = Timer(
+      delay.isNegative ? const Duration(seconds: 1) : delay,
+      () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _scheduledTick = null;
+        });
+      },
+    );
   }
 
   @override
@@ -27,18 +68,28 @@ class _SystemBroadcastWidgetState extends State<SystemBroadcastWidget> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('system_broadcasts')
-          .where('status', isEqualTo: 'active')
           .orderBy('createdAt', descending: true)
-          // Xóa limit(1) để lấy tất cả thông báo active
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
         }
 
+        _scheduleRealtimeRefresh(snapshot.data!);
+
         final messages = snapshot.data!.docs
+            .where(
+              (doc) => isBroadcastVisible(
+                doc.data() as Map<String, dynamic>,
+                now: DateTime.now(),
+              ),
+            )
             .map((doc) => SystemMessage.fromFirestore(doc))
             .toList();
+
+        if (messages.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
         return Column(
           children: [
