@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
+import 'package:app/screens/dashboard.dart';
+import 'package:app/screens/saving_goals_screen.dart';
 import 'package:app/models/voice_transaction_interpretation.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
@@ -29,6 +32,8 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
+enum _AiScreenMode { transaction, assistant }
 
 class AIInputScreen extends StatefulWidget {
   const AIInputScreen({super.key});
@@ -82,6 +87,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   String _liveVoiceTranscript = '';
   String _lastStableVoiceTranscript = '';
   String? _voiceStatusMessage;
+  _AiScreenMode _screenMode = _AiScreenMode.transaction;
   @override
   void initState() {
     super.initState();
@@ -122,6 +128,11 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   bool _useCompactDensity(BuildContext context) =>
       MobileAdaptive.useCompactLayout(context);
+
+  bool get _assistantModeAvailable =>
+      _useRealAiMode && _runtimeConfig.canUseAssistantRemoteAi;
+
+  bool get _isAssistantMode => _screenMode == _AiScreenMode.assistant;
 
   bool _hasSuspiciousEncoding(String text) {
     return RegExp(r'(Ã.|Ä.|Æ.|áº|á»|â€)').hasMatch(text);
@@ -187,6 +198,18 @@ class _AIInputScreenState extends State<AIInputScreen>
     return message.copyWith(
       text: _repairLegacyText(message.text),
       transactions: message.transactions.map(_repairLegacyTransaction).toList(),
+      assistantActions: message.assistantActions
+          .map(
+            (item) => AssistantActionSuggestion(
+              id: item.id,
+              label: _repairLegacyText(item.label),
+              type: item.type,
+              payload: item.payload == null
+                  ? null
+                  : _repairLegacyText(item.payload!),
+            ),
+          )
+          .toList(growable: false),
       voiceInterpretation: _repairLegacyVoiceInterpretation(
         message.voiceInterpretation,
       ),
@@ -820,6 +843,35 @@ class _AIInputScreenState extends State<AIInputScreen>
     _lastStableVoiceTranscript = '';
   }
 
+  void _ensureAssistantModeStillAvailable() {
+    if (_screenMode == _AiScreenMode.assistant && !_assistantModeAvailable) {
+      _screenMode = _AiScreenMode.transaction;
+    }
+  }
+
+  void _setScreenMode(_AiScreenMode mode) {
+    if (mode == _AiScreenMode.assistant && !_assistantModeAvailable) {
+      _showAssistantModeDisabledMessage();
+      return;
+    }
+
+    setState(() {
+      _screenMode = mode;
+      if (mode == _AiScreenMode.assistant) {
+        _clearVoiceSessionUi();
+      }
+    });
+  }
+
+  void _showAssistantModeDisabledMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('AI hỗ trợ hiện đang tắt từ cấu hình quản trị.'),
+      ),
+    );
+  }
+
   String _detectTransactionType(String text) {
     final normalized = text.toLowerCase();
     const creditHints = <String>[
@@ -1204,12 +1256,18 @@ class _AIInputScreenState extends State<AIInputScreen>
     _focusLatestTransactionFlow();
 
     try {
-      final result = await aiService.processInput(
-        text,
-        runtimeOverride: _useRealAiMode
-            ? _runtimeConfig
-            : _runtimeConfig.copyWith(enabled: false),
-      );
+      final effectiveRuntimeConfig = _useRealAiMode
+          ? _runtimeConfig
+          : _runtimeConfig.copyWith(enabled: false, assistantEnabled: false);
+      final result = _isAssistantMode
+          ? await aiService.processAssistantInput(
+              text,
+              runtimeOverride: effectiveRuntimeConfig,
+            )
+          : await aiService.processTransactionInput(
+              text,
+              runtimeOverride: effectiveRuntimeConfig,
+            );
       if (!mounted) return;
 
       setState(() {
@@ -1243,6 +1301,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Future<void> _toggleVoiceCapture() async {
+    if (_isAssistantMode) return;
     if (_isVoiceBusy) return;
     if (_isListeningToVoice) {
       await _stopVoiceCaptureAndProcess();
@@ -2152,6 +2211,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   AIChatMessage _buildAiMessage(Map<String, dynamic> result) {
     final transactions = _normalizeTransactions(result['transactions']);
+    final assistantActions = _normalizeAssistantActions(result['suggestions']);
     final status =
         result['status']?.toString() ??
         (result['success'] == true
@@ -2179,6 +2239,7 @@ class _AIInputScreenState extends State<AIInputScreen>
       status: status,
       source: result['source']?.toString() ?? '',
       responseKind: result['responseKind']?.toString() ?? '',
+      assistantActions: assistantActions,
     );
   }
 
@@ -2194,6 +2255,10 @@ class _AIInputScreenState extends State<AIInputScreen>
         return 'Trợ lý AI từ ảnh';
       case 'remote_ai_recovered':
         return 'Trợ lý AI hỗ trợ';
+      case 'remote_ai_assistant':
+        return 'AI hỗ trợ';
+      case 'assistant_local':
+        return 'Hỗ trợ cục bộ';
       case 'local_fast_path':
         return 'Trợ lý thông minh';
       case 'local_parse':
@@ -2221,6 +2286,10 @@ class _AIInputScreenState extends State<AIInputScreen>
         return 'Làm rõ';
       case 'natural_reply':
         return 'Trả lời tự nhiên';
+      case 'assistant_reply':
+        return 'Trợ lý hỗ trợ';
+      case 'assistant_action_suggestion':
+        return 'Gợi ý thao tác';
       case 'error':
         return 'Lỗi';
       default:
@@ -2233,6 +2302,18 @@ class _AIInputScreenState extends State<AIInputScreen>
     return rawTransactions.whereType<Map>().map<Map<String, dynamic>>((item) {
       return Map<String, dynamic>.from(item);
     }).toList();
+  }
+
+  List<AssistantActionSuggestion> _normalizeAssistantActions(dynamic rawActions) {
+    if (rawActions is! List) {
+      return const <AssistantActionSuggestion>[];
+    }
+
+    return rawActions.whereType<Map>().map<AssistantActionSuggestion>((item) {
+      return AssistantActionSuggestion.fromJson(
+        Map<String, dynamic>.from(item),
+      );
+    }).toList(growable: false);
   }
 
   int _normalizeDraftAmountValue(dynamic value) {
@@ -2946,14 +3027,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                 previousConfig.enabled &&
                 !nextConfig.enabled;
 
-            setState(() {
-              _runtimeConfig = nextConfig;
-              _isLoadingRuntimeConfig = false;
-              if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
-                _useRealAiMode = false;
-              }
-              _hasReceivedRuntimeConfigSnapshot = true;
-            });
+              setState(() {
+                _runtimeConfig = nextConfig;
+                _isLoadingRuntimeConfig = false;
+                if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
+                  _useRealAiMode = false;
+                }
+                _ensureAssistantModeStillAvailable();
+                _hasReceivedRuntimeConfigSnapshot = true;
+              });
 
             if ((justLockedByAdmin || wasUsingAdvanced) &&
                 !nextConfig.enabled) {
@@ -2963,12 +3045,13 @@ class _AIInputScreenState extends State<AIInputScreen>
           onError: (_) async {
             final config = await aiService.loadPublishedRuntimeConfig();
             if (!mounted) return;
-            setState(() {
-              _runtimeConfig = config;
-              _useRealAiMode = config.enabled && config.canUseRemoteAi;
-              _isLoadingRuntimeConfig = false;
-              _hasReceivedRuntimeConfigSnapshot = true;
-            });
+              setState(() {
+                _runtimeConfig = config;
+                _useRealAiMode = config.enabled && config.canUseRemoteAi;
+                _isLoadingRuntimeConfig = false;
+                _ensureAssistantModeStillAvailable();
+                _hasReceivedRuntimeConfigSnapshot = true;
+              });
           },
         );
   }
@@ -2995,6 +3078,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     setState(() {
       _runtimeConfig = latestConfig;
       _isLoadingRuntimeConfig = false;
+      _ensureAssistantModeStillAvailable();
     });
 
     if (adminDisabled) {
@@ -3031,6 +3115,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     if (!value) {
       setState(() {
         _useRealAiMode = false;
+        _ensureAssistantModeStillAvailable();
       });
       return;
     }
@@ -3042,6 +3127,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     setState(() {
       _useRealAiMode = allowed;
+      _ensureAssistantModeStillAvailable();
     });
   }
 
@@ -3170,131 +3256,318 @@ class _AIInputScreenState extends State<AIInputScreen>
               borderRadius: BorderRadius.circular(compact ? 20 : 22),
               border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            child: Column(
               children: [
-                ScaleTransition(
-                  scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
-                  child: Container(
-                    padding: EdgeInsets.all(compact ? 9 : 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.blue[400]!, Colors.purple[400]!],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withValues(alpha: 0.28),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Hero(
-                      tag: 'ai_button',
-                      child: Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white,
-                        size: compact ? 18 : 20,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: compact ? 10 : 12),
-                Expanded(
-                  child: Column(
+                if (compactWidth) ...[
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        "Trợ lý thông minh",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact ? 15 : 16,
-                          fontWeight: FontWeight.w700,
+                      _buildAiHeaderIcon(compact: compact),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Trợ lý thông minh",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isAssistantMode
+                                  ? "Hỗ trợ người dùng"
+                                  : "Tạo giao dịch",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.62),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        "Tạo nhanh giao dịch",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.62),
-                          fontSize: compact ? 10 : 11,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      _buildAiModeSwitch(
+                        compact: compact,
+                        modeLabel: modeLabel,
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Transform.scale(
-                          scale: compact ? 0.74 : 0.8,
-                          child: Switch(
-                            value: _useRealAiMode,
-                            onChanged: _isLoadingRuntimeConfig
-                                ? null
-                                : (value) => _handleRealAiModeToggle(value),
-                            activeThumbColor: const Color(0xFF4ADE80),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            _buildAiModeOption(
+                              label: 'Giao dịch',
+                              isSelected: !_isAssistantMode,
+                              onTap: () => _setScreenMode(_AiScreenMode.transaction),
+                            ),
+                            _buildAiModeOption(
+                              label: 'Hỗ trợ',
+                              isSelected: _isAssistantMode,
+                              isEnabled: _assistantModeAvailable,
+                              onTap: () => _setScreenMode(_AiScreenMode.assistant),
+                            ),
+                          ],
                         ),
-                        Text(
-                          modeLabel,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.88),
-                            fontSize: compact ? 10 : 11,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildOnlineStatusBadge(
+                        compactWidth: compactWidth,
+                        isOnline: isOnline,
+                      ),
+                    ],
+                  ),
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _buildAiHeaderIcon(compact: compact),
+                      SizedBox(width: compact ? 8 : 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Trợ lý thông minh",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: compact ? 13 : 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isAssistantMode
+                                  ? "Hỗ trợ người dùng"
+                                  : "Tạo giao dịch",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.62),
+                                fontSize: compact ? 10 : 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compactWidth ? 7 : 8,
-                        vertical: 4,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: isOnline
-                                  ? const Color(0xFF4ADE80)
-                                  : Colors.white.withValues(alpha: 0.5),
-                              shape: BoxShape.circle,
-                            ),
+                          _buildAiModeSwitch(
+                            compact: compact,
+                            modeLabel: modeLabel,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isOnline ? "Online" : "Offline",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          const SizedBox(height: 3),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              _buildAiModeOption(
+                                label: 'Giao dịch',
+                                isSelected: !_isAssistantMode,
+                                onTap: () => _setScreenMode(_AiScreenMode.transaction),
+                              ),
+                              _buildAiModeOption(
+                                label: 'Hỗ trợ',
+                                isSelected: _isAssistantMode,
+                                isEnabled: _assistantModeAvailable,
+                                onTap: () => _setScreenMode(_AiScreenMode.assistant),
+                              ),
+                              _buildOnlineStatusBadge(
+                                compactWidth: compactWidth,
+                                isOnline: isOnline,
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiHeaderIcon({required bool compact}) {
+    return ScaleTransition(
+      scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
+      child: Container(
+        padding: EdgeInsets.all(compact ? 8 : 10),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Colors.blue[400]!, Colors.purple[400]!],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withValues(alpha: 0.28),
+              blurRadius: 18,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Hero(
+          tag: 'ai_button',
+          child: Icon(
+            Icons.auto_awesome,
+            color: Colors.white,
+            size: compact ? 16 : 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiModeSwitch({
+    required bool compact,
+    required String modeLabel,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Transform.scale(
+          scale: compact ? 0.66 : 0.8,
+          child: Switch(
+            value: _useRealAiMode,
+            onChanged: _isLoadingRuntimeConfig
+                ? null
+                : (value) => _handleRealAiModeToggle(value),
+            activeThumbColor: const Color(0xFF4ADE80),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        Text(
+          modeLabel,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.88),
+            fontSize: compact ? 9 : 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOnlineStatusBadge({
+    required bool compactWidth,
+    required bool isOnline,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compactWidth ? 6 : 8,
+        vertical: compactWidth ? 3 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isOnline
+                  ? const Color(0xFF4ADE80)
+                  : Colors.white.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isOnline ? "Online" : "Offline",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: compactWidth ? 9 : 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiModeOption({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isEnabled = true,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isEnabled ? onTap : _showAssistantModeDisabledMessage,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: !isEnabled
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.07),
+                      Colors.white.withValues(alpha: 0.04),
+                    ],
+                  )
+                : isSelected
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF1C84FF),
+                      Color(0xFF315EF6),
+                      Color(0xFF4C42D4),
+                    ],
+                  )
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.12),
+                      Colors.white.withValues(alpha: 0.06),
+                    ],
+                  ),
+            border: Border.all(
+              color: !isEnabled
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : isSelected
+                  ? Colors.white.withValues(alpha: 0.22)
+                  : Colors.white.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isEnabled
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.42),
+              fontWeight: FontWeight.w700,
+              fontSize: 10.5,
             ),
           ),
         ),
@@ -3342,9 +3615,11 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
-              textAlign: TextAlign.center,
+              Text(
+                _isAssistantMode
+                    ? "Hãy hỏi như: 'Tháng này mình chi bao nhiêu?', 'Ngân sách đang thế nào?' hoặc 'Cách thêm giao dịch ra sao?'"
+                    : "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
+                textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 14,
@@ -3559,6 +3834,87 @@ class _AIInputScreenState extends State<AIInputScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _handleAssistantAction(
+    AssistantActionSuggestion action,
+  ) async {
+    switch (action.type) {
+      case AssistantActionType.openBudget:
+        await _replaceWithDashboardTab(2);
+        break;
+      case AssistantActionType.openSavings:
+        await _replaceWithScreen(const SavingGoalsScreen());
+        break;
+      case AssistantActionType.switchToTransaction:
+        _setScreenMode(_AiScreenMode.transaction);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã chuyển sang AI thêm giao dịch.')),
+        );
+        break;
+      case AssistantActionType.openAddTransaction:
+        _setScreenMode(_AiScreenMode.transaction);
+        break;
+    }
+  }
+
+  Future<void> _replaceWithScreen(Widget screen) async {
+    if (!mounted) return;
+    await Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  Future<void> _replaceWithDashboardTab(int index) async {
+    if (!mounted) return;
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => Dashboard(initialIndex: index)),
+    );
+  }
+
+  Widget _buildAssistantActionChips(AIChatMessage message) {
+    if (message.assistantActions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 2),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: message.assistantActions.map((action) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => _handleAssistantAction(action),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Text(
+                  action.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(growable: false),
       ),
     );
   }
@@ -4063,7 +4419,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   bool _showCompactComposerLayout() {
-    return _hasTransactionCardsInConversation();
+    return !_isAssistantMode && _hasTransactionCardsInConversation();
   }
 
   Future<void> _showQuickTemplateOrbitMenu() async {
@@ -4342,6 +4698,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                 onChooseOption: (option) =>
                     _applyVoiceRecommendation(message, option),
               ),
+            if (message.assistantActions.isNotEmpty)
+              _buildAssistantActionChips(message),
             if (message.hasTransactions)
               Padding(
                 padding: const EdgeInsets.only(top: 8, left: 2),
@@ -4480,6 +4838,27 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Widget _buildSuggestionsSection() {
+    if (_isAssistantMode) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Text(
+          'Bạn có thể hỏi về cách dùng app, thu chi tháng này, ngân sách, hoặc mục tiêu tiết kiệm.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.82),
+            fontSize: 12,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
     final compact = _useCompactDensity(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4672,7 +5051,8 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
-    final canToggleVoice = !_isProcessing && !_isVoiceBusy;
+    final canToggleVoice =
+        !_isAssistantMode && !_isProcessing && !_isVoiceBusy;
     final compact = _useCompactDensity(context);
     final compactReview = _showCompactComposerLayout();
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
@@ -4700,18 +5080,20 @@ class _AIInputScreenState extends State<AIInputScreen>
               borderRadius: BorderRadius.circular(compact ? 24 : 30),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AiVoiceSessionPanel(
-                  isListening: _isListeningToVoice,
-                  transcript: _liveVoiceTranscript,
-                  statusMessage: _voiceStatusMessage,
-                ),
-                if (_isListeningToVoice ||
-                    _liveVoiceTranscript.trim().isNotEmpty ||
-                    (_voiceStatusMessage?.trim().isNotEmpty ?? false))
-                  SizedBox(height: compact ? 10 : 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                if (!_isAssistantMode) ...[
+                  AiVoiceSessionPanel(
+                    isListening: _isListeningToVoice,
+                    transcript: _liveVoiceTranscript,
+                    statusMessage: _voiceStatusMessage,
+                  ),
+                  if (_isListeningToVoice ||
+                      _liveVoiceTranscript.trim().isNotEmpty ||
+                      (_voiceStatusMessage?.trim().isNotEmpty ?? false))
+                    SizedBox(height: compact ? 10 : 12),
+                ],
                 if (compactReview) _buildCompactReviewHint() else _buildSuggestionsSection(),
                 SizedBox(height: compactReview ? 8 : (compact ? 10 : 14)),
                 Row(
@@ -4741,7 +5123,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                           onSubmitted: (_) => _submitInput(),
                           decoration: InputDecoration(
                             filled: false,
-                            hintText: "Nhắn khoản thu/chi của bạn...",
+                            hintText: _isAssistantMode
+                                ? "Hỏi về app, ngân sách, tiết kiệm..."
+                                : "Nhắn khoản thu/chi của bạn...",
                             hintStyle: TextStyle(
                               color: Colors.white.withValues(alpha: 0.62),
                             ),
@@ -4769,36 +5153,38 @@ class _AIInputScreenState extends State<AIInputScreen>
                         ),
                       ),
                     ),
-                    SizedBox(width: compact ? 10 : 12),
-                    SizedBox(
-                      width: compact ? 48 : 54,
-                      height: compact ? 48 : 54,
-                      child: ElevatedButton(
-                        onPressed: canToggleVoice ? _toggleVoiceCapture : null,
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          backgroundColor: _isListeningToVoice
-                              ? const Color(0xFFB84B5F)
-                              : Colors.white.withValues(alpha: 0.12),
-                          disabledBackgroundColor: Colors.white.withValues(
-                            alpha: 0.1,
-                          ),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              compact ? 16 : 18,
+                    if (!_isAssistantMode) ...[
+                      SizedBox(width: compact ? 10 : 12),
+                      SizedBox(
+                        width: compact ? 48 : 54,
+                        height: compact ? 48 : 54,
+                        child: ElevatedButton(
+                          onPressed: canToggleVoice ? _toggleVoiceCapture : null,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            backgroundColor: _isListeningToVoice
+                                ? const Color(0xFFB84B5F)
+                                : Colors.white.withValues(alpha: 0.12),
+                            disabledBackgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                compact ? 16 : 18,
+                              ),
                             ),
                           ),
-                        ),
-                        child: Icon(
-                          _isListeningToVoice
-                              ? Icons.stop_rounded
-                              : Icons.mic_none_rounded,
-                          color: Colors.white,
-                          size: compact ? 20 : 22,
+                          child: Icon(
+                            _isListeningToVoice
+                                ? Icons.stop_rounded
+                                : Icons.mic_none_rounded,
+                            color: Colors.white,
+                            size: compact ? 20 : 22,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                     SizedBox(width: compact ? 10 : 12),
                     SizedBox(
                       width: compact ? 48 : 54,
@@ -4865,7 +5251,9 @@ class _AIInputScreenState extends State<AIInputScreen>
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    _useRealAiMode
+                    _isAssistantMode
+                        ? "AI hỗ trợ giúp trả lời về cách dùng app, thu chi tháng này, ngân sách và tiết kiệm. Các nút gợi ý chỉ điều hướng khi bạn bấm vào."
+                        : _useRealAiMode
                         ? "Chế độ nâng cao: bạn có thể chat tự nhiên hơn, hỏi thêm ngữ cảnh và gửi ảnh để trợ lý hỗ trợ phân tích."
                         : "Chế độ bình thường: hãy nhập ngắn gọn kiểu như ăn sáng 30k, đổ xăng 100k để app tách giao dịch và lưu nhanh hơn.",
                   ),

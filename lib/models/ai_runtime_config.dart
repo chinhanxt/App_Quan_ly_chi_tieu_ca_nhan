@@ -14,6 +14,16 @@ class AiRuntimeConfig {
     required this.conversationRulesPrompt,
     required this.abbreviationRulesPrompt,
     required this.apiKey,
+    this.assistantEnabled = false,
+    this.assistantProvider = '',
+    this.assistantModel = '',
+    this.assistantEndpoint = '',
+    this.assistantRolePrompt = '',
+    this.assistantTaskPrompt = '',
+    this.assistantConversationRulesPrompt = '',
+    this.assistantAbbreviationRulesPrompt = '',
+    this.assistantAdvancedReasoningPrompt = '',
+    this.assistantApiKey = '',
   });
 
   final bool enabled;
@@ -28,6 +38,16 @@ class AiRuntimeConfig {
   final String conversationRulesPrompt;
   final String abbreviationRulesPrompt;
   final String apiKey;
+  final bool assistantEnabled;
+  final String assistantProvider;
+  final String assistantModel;
+  final String assistantEndpoint;
+  final String assistantRolePrompt;
+  final String assistantTaskPrompt;
+  final String assistantConversationRulesPrompt;
+  final String assistantAbbreviationRulesPrompt;
+  final String assistantAdvancedReasoningPrompt;
+  final String assistantApiKey;
 
   static const String defaultEndpoint =
       'https://api.groq.com/openai/v1/chat/completions';
@@ -148,6 +168,33 @@ class AiRuntimeConfig {
           'Khi có danh mục mới, message phải nói rõ theo kiểu hỏi lại: bạn có muốn tạo danh mục mới này không. '
           'Không bỏ qua tiếng lóng, tiếng địa phương, câu không dấu, câu đứt đoạn, hoặc câu viết tắt dày đặc; luôn thử chuẩn hóa rồi mới kết luận.',
       apiKey: '',
+      assistantEnabled: false,
+      assistantProvider: 'groq',
+      assistantModel: 'llama-3.1-8b-instant',
+      assistantEndpoint: defaultEndpoint,
+      assistantRolePrompt:
+          'Bạn là trợ lý hỗ trợ người dùng ứng dụng quản lý tài chính cá nhân bằng tiếng Việt. '
+          'Bạn trả lời rõ ràng, ngắn gọn, hữu ích, thân thiện và chỉ dùng dữ liệu ngữ cảnh được cung cấp.',
+      assistantTaskPrompt:
+          'Bạn hỗ trợ giải thích cách dùng app, trả lời câu hỏi về thu chi tháng này, ngân sách, tiết kiệm, '
+          'và đề xuất hành động điều hướng an toàn trong app. '
+          'Bạn không được tạo card giao dịch trong chế độ trợ lý hỗ trợ.',
+      assistantConversationRulesPrompt:
+          'Chỉ trả lời trong phạm vi trợ lý hỗ trợ. '
+          'Nếu người dùng muốn ghi giao dịch, hãy gợi ý chuyển sang chế độ AI thêm giao dịch thay vì tự tạo card. '
+          'Bạn có thể đề xuất các hành động an toàn như mở ngân sách, mở tiết kiệm, hoặc chuyển sang AI thêm giao dịch. '
+          'Không tự thực thi hành động thay người dùng.',
+      assistantAbbreviationRulesPrompt:
+          'Tầng 4 - Chuẩn hóa tiếng lóng, viết tắt, sai chính tả, và câu không dấu trước khi trả lời. '
+          'Phải hiểu cách nói đời thường như bn, bnh, khum, hông, dc, z, dz, cf, ck, tk, ls, ns, '
+          'cũng như các câu thiếu dấu hoặc gõ sai chính tả. '
+          'Nếu một từ có nhiều nghĩa thì phải chọn nghĩa hợp lý nhất theo toàn câu và ngữ cảnh ứng dụng.',
+      assistantAdvancedReasoningPrompt:
+          'Tầng 5 - Xử lý thật thông minh và khôn khéo trong các tình huống quá nghiệp vụ hoặc quá rộng. '
+          'Khi câu hỏi vượt ngoài dữ liệu đang có, phải nói rõ giới hạn, chia nhỏ vấn đề, '
+          'đưa ra hướng dẫn an toàn và câu trả lời hữu ích nhất có thể thay vì trả lời vòng vo. '
+          'Nếu cần, hãy đề xuất bước tiếp theo rõ ràng cho người dùng.',
+      assistantApiKey: '',
     );
   }
 
@@ -158,6 +205,25 @@ class AiRuntimeConfig {
       model.trim().isNotEmpty &&
       endpoint.trim().isNotEmpty &&
       hasApiKey;
+
+  String get effectiveAssistantProvider =>
+      assistantProvider.trim().isNotEmpty ? assistantProvider.trim() : provider;
+
+  String get effectiveAssistantModel =>
+      assistantModel.trim().isNotEmpty ? assistantModel.trim() : model;
+
+  String get effectiveAssistantEndpoint =>
+      assistantEndpoint.trim().isNotEmpty ? assistantEndpoint.trim() : endpoint;
+
+  String get effectiveAssistantApiKey =>
+      assistantApiKey.trim().isNotEmpty ? assistantApiKey.trim() : apiKey;
+
+  bool get canUseAssistantRemoteAi =>
+      assistantEnabled &&
+      effectiveAssistantProvider.trim().isNotEmpty &&
+      effectiveAssistantModel.trim().isNotEmpty &&
+      effectiveAssistantEndpoint.trim().isNotEmpty &&
+      effectiveAssistantApiKey.trim().isNotEmpty;
 
   String get maskedApiKey {
     final trimmed = apiKey.trim();
@@ -187,6 +253,16 @@ class AiRuntimeConfig {
     String? conversationRulesPrompt,
     String? abbreviationRulesPrompt,
     String? apiKey,
+    bool? assistantEnabled,
+    String? assistantProvider,
+    String? assistantModel,
+    String? assistantEndpoint,
+    String? assistantRolePrompt,
+    String? assistantTaskPrompt,
+    String? assistantConversationRulesPrompt,
+    String? assistantAbbreviationRulesPrompt,
+    String? assistantAdvancedReasoningPrompt,
+    String? assistantApiKey,
   }) {
     return AiRuntimeConfig(
       enabled: enabled ?? this.enabled,
@@ -203,6 +279,22 @@ class AiRuntimeConfig {
       abbreviationRulesPrompt:
           abbreviationRulesPrompt ?? this.abbreviationRulesPrompt,
       apiKey: apiKey ?? this.apiKey,
+      assistantEnabled: assistantEnabled ?? this.assistantEnabled,
+      assistantProvider: assistantProvider ?? this.assistantProvider,
+      assistantModel: assistantModel ?? this.assistantModel,
+      assistantEndpoint: assistantEndpoint ?? this.assistantEndpoint,
+      assistantRolePrompt: assistantRolePrompt ?? this.assistantRolePrompt,
+      assistantTaskPrompt: assistantTaskPrompt ?? this.assistantTaskPrompt,
+      assistantConversationRulesPrompt:
+          assistantConversationRulesPrompt ??
+          this.assistantConversationRulesPrompt,
+      assistantAbbreviationRulesPrompt:
+          assistantAbbreviationRulesPrompt ??
+          this.assistantAbbreviationRulesPrompt,
+      assistantAdvancedReasoningPrompt:
+          assistantAdvancedReasoningPrompt ??
+          this.assistantAdvancedReasoningPrompt,
+      assistantApiKey: assistantApiKey ?? this.assistantApiKey,
     );
   }
 
@@ -220,6 +312,16 @@ class AiRuntimeConfig {
       'conversationRulesPrompt': conversationRulesPrompt,
       'abbreviationRulesPrompt': abbreviationRulesPrompt,
       'apiKey': apiKey,
+      'assistantEnabled': assistantEnabled,
+      'assistantProvider': assistantProvider,
+      'assistantModel': assistantModel,
+      'assistantEndpoint': assistantEndpoint,
+      'assistantRolePrompt': assistantRolePrompt,
+      'assistantTaskPrompt': assistantTaskPrompt,
+      'assistantConversationRulesPrompt': assistantConversationRulesPrompt,
+      'assistantAbbreviationRulesPrompt': assistantAbbreviationRulesPrompt,
+      'assistantAdvancedReasoningPrompt': assistantAdvancedReasoningPrompt,
+      'assistantApiKey': assistantApiKey,
     };
   }
 
@@ -265,6 +367,43 @@ class AiRuntimeConfig {
           ? data['abbreviationRulesPrompt'].toString()
           : defaults.abbreviationRulesPrompt,
       apiKey: data['apiKey']?.toString() ?? '',
+      assistantEnabled: data['assistantEnabled'] == true,
+      assistantProvider:
+          data['assistantProvider']?.toString().trim().isNotEmpty == true
+          ? data['assistantProvider'].toString().trim()
+          : '',
+      assistantModel:
+          data['assistantModel']?.toString().trim().isNotEmpty == true
+          ? data['assistantModel'].toString().trim()
+          : '',
+      assistantEndpoint:
+          data['assistantEndpoint']?.toString().trim().isNotEmpty == true
+          ? data['assistantEndpoint'].toString().trim()
+          : '',
+      assistantRolePrompt:
+          data['assistantRolePrompt']?.toString().trim().isNotEmpty == true
+          ? data['assistantRolePrompt'].toString()
+          : defaults.assistantRolePrompt,
+      assistantTaskPrompt:
+          data['assistantTaskPrompt']?.toString().trim().isNotEmpty == true
+          ? data['assistantTaskPrompt'].toString()
+          : defaults.assistantTaskPrompt,
+      assistantConversationRulesPrompt:
+          data['assistantConversationRulesPrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantConversationRulesPrompt'].toString()
+          : defaults.assistantConversationRulesPrompt,
+      assistantAbbreviationRulesPrompt:
+          data['assistantAbbreviationRulesPrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantAbbreviationRulesPrompt'].toString()
+          : defaults.assistantAbbreviationRulesPrompt,
+      assistantAdvancedReasoningPrompt:
+          data['assistantAdvancedReasoningPrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantAdvancedReasoningPrompt'].toString()
+          : defaults.assistantAdvancedReasoningPrompt,
+      assistantApiKey: data['assistantApiKey']?.toString() ?? '',
     );
   }
 
@@ -324,6 +463,64 @@ Quy tắc bắt buộc:
 - Với thời gian, phải bám theo ngữ nghĩa tiếng Việt đời thường: hôm qua và ngày cụ thể thì tự tính; còn hôm trước, hôm kia, tuần trước, tháng trước, năm ngoái thì phải hỏi lại ngày chính xác trước khi lên card.
 - Với giờ, nếu không có giờ rõ ràng thì lấy giờ hiện tại. Nếu chỉ có mốc như sáng, trưa, chiều, tối, khuya thì quy về giờ mặc định tương ứng. Nếu có giờ cụ thể như 8h, 8:30, 19h15 thì phải dùng đúng giờ đó.
 - data phải giống transactions.
+'''
+        .trim();
+  }
+
+  String buildAssistantSystemPrompt({
+    required String contextSummary,
+    DateTime? now,
+  }) {
+    final current = now ?? DateTime.now();
+    final nowText = DateFormat('dd/MM/yyyy HH:mm').format(current);
+    final role = assistantRolePrompt.trim().isNotEmpty
+        ? assistantRolePrompt.trim()
+        : rolePrompt.trim();
+    final task = assistantTaskPrompt.trim().isNotEmpty
+        ? assistantTaskPrompt.trim()
+        : taskPrompt.trim();
+    final conversation = assistantConversationRulesPrompt.trim().isNotEmpty
+        ? assistantConversationRulesPrompt.trim()
+        : conversationRulesPrompt.trim();
+    final abbreviation = assistantAbbreviationRulesPrompt.trim();
+    final advanced = assistantAdvancedReasoningPrompt.trim();
+
+    return '''
+$role
+
+$task
+
+$conversation
+
+${abbreviation.isNotEmpty ? '\n$abbreviation\n' : ''}
+
+${advanced.isNotEmpty ? '\n$advanced\n' : ''}
+
+Ngữ cảnh ứng dụng và người dùng:
+- Hôm nay là: $nowText
+$contextSummary
+
+Contract đầu ra JSON:
+{
+  "status": "success|clarification|error",
+  "responseKind": "assistant_reply|assistant_action_suggestion|error",
+  "message": "string",
+  "suggestions": [
+    {
+      "id": "string",
+      "label": "string",
+      "type": "open_budget|open_savings|switch_to_transaction|open_add_transaction",
+      "payload": "string"
+    }
+  ]
+}
+
+Quy tắc bắt buộc:
+- Không tạo transaction card trong chế độ trợ lý hỗ trợ.
+- Chỉ trả lời dựa trên ngữ cảnh được cung cấp và câu hỏi của người dùng.
+- Nếu dữ liệu ngữ cảnh không đủ chắc để kết luận, phải nói rõ giới hạn đó.
+- Chỉ đề xuất hành động an toàn; không giả định rằng app đã tự thực thi hành động.
+- Nếu người dùng đang muốn ghi giao dịch, ưu tiên gợi ý chuyển sang AI thêm giao dịch.
 '''
         .trim();
   }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/transaction_amount_parser.dart';
@@ -9,6 +10,7 @@ import 'package:app/services/transaction_confidence.dart';
 import 'package:app/services/transaction_datetime_inference.dart';
 import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:app/services/transaction_segmenter.dart';
+import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/services/transaction_type_inference.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/ocr_helper.dart';
@@ -24,6 +26,7 @@ class AIService {
     required String status,
     required String message,
     List<Map<String, dynamic>> transactions = const <Map<String, dynamic>>[],
+    List<Map<String, dynamic>> suggestions = const <Map<String, dynamic>>[],
     String source = 'local_parse',
     String? responseKind,
   }) {
@@ -33,6 +36,7 @@ class AIService {
       'message': message,
       'transactions': transactions,
       'data': transactions,
+      'suggestions': suggestions,
       'source': source,
       ...?responseKind == null
           ? null
@@ -606,6 +610,34 @@ class AIService {
     return questionHints.any((hint) => normalized.contains(hint));
   }
 
+  bool _looksLikeTransactionEntryRequest(String input) {
+    final normalized = TransactionTypeInference.normalizeText(input);
+    if (normalized.isEmpty) return false;
+    if (TransactionAmountParser.hasAmount(input)) return true;
+
+    const hints = <String>[
+      'an sang',
+      'an trua',
+      'an toi',
+      'uong cafe',
+      'ca phe',
+      'tra sua',
+      'do xang',
+      'gui xe',
+      'grab',
+      'mua do',
+      'luong ve',
+      'nhan luong',
+      'chuyen khoan',
+      'thu tien',
+      'chi tien',
+      'mua',
+      'tra',
+      'thu',
+    ];
+    return hints.any((item) => normalized.contains(item));
+  }
+
   String _ensureNewCategoryPrompt(
     String message,
     List<Map<String, dynamic>> transactions,
@@ -963,7 +995,450 @@ class AIService {
     }
   }
 
-  Future<Map<String, dynamic>> processInput(
+  List<Map<String, dynamic>> _normalizeAssistantSuggestions(dynamic raw) {
+    if (raw is! List) return const <Map<String, dynamic>>[];
+
+    final allowedTypes = <String>{
+      'open_budget',
+      'open_savings',
+      'switch_to_transaction',
+      'open_add_transaction',
+    };
+
+    return raw.whereType<Map>().map<Map<String, dynamic>>((item) {
+      final mapped = Map<String, dynamic>.from(item);
+      final type = mapped['type']?.toString().trim() ?? '';
+      final id = mapped['id']?.toString().trim() ?? '';
+      final label = mapped['label']?.toString().trim() ?? '';
+      if (!allowedTypes.contains(type) || label.isEmpty) {
+        return const <String, dynamic>{};
+      }
+
+      return <String, dynamic>{
+        'id': id.isNotEmpty ? id : type,
+        'label': label,
+        'type': type,
+        'payload': mapped['payload']?.toString(),
+      };
+    }).where((item) => item.isNotEmpty).toList(growable: false);
+  }
+
+  Future<_AssistantContext> _loadAssistantContext() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final now = DateTime.now();
+    final monthLabel = '${now.month} ${now.year}';
+    if (user == null) {
+      return _AssistantContext.empty(now: now);
+    }
+
+    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final userSnapshot = await userRef.get();
+    final userData = userSnapshot.data() ?? const <String, dynamic>{};
+    final monthStart = DateTime(now.year, now.month, 1);
+    final monthEnd = DateTime(now.year, now.month + 1, 1);
+
+    final txSnapshot = await userRef
+        .collection('transactions')
+        .where(
+          'timestamp',
+          isGreaterThanOrEqualTo: monthStart.millisecondsSinceEpoch,
+        )
+        .where('timestamp', isLessThan: monthEnd.millisecondsSinceEpoch)
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    final monthTransactions = txSnapshot.docs
+        .map((doc) => doc.data())
+        .toList(growable: false);
+    final monthSummary = TransactionSummaryHelper.reconcileFromTransactions(
+      monthTransactions,
+    );
+
+    final spentByCategory = <String, int>{};
+    for (final tx in monthTransactions) {
+      final amount = TransactionSummaryHelper.normalizeAmount(tx['amount']);
+      final type = tx['type']?.toString() == 'credit' ? 'credit' : 'debit';
+      final category = tx['category']?.toString().trim().isNotEmpty == true
+          ? tx['category'].toString().trim()
+          : 'Khác';
+      if (type == 'debit') {
+        spentByCategory[category] = (spentByCategory[category] ?? 0) + amount;
+      }
+
+    }
+
+    final recentTransactions = <Map<String, dynamic>>[];
+    for (final tx in monthTransactions.take(5)) {
+      final amount = TransactionSummaryHelper.normalizeAmount(tx['amount']);
+      final type = tx['type']?.toString() == 'credit' ? 'credit' : 'debit';
+      final category = tx['category']?.toString().trim().isNotEmpty == true
+          ? tx['category'].toString().trim()
+          : 'Khác';
+      recentTransactions.add(<String, dynamic>{
+        'title': tx['title']?.toString() ?? '',
+        'amount': amount,
+        'type': type,
+        'category': category,
+      });
+    }
+
+    final budgetsSnapshot = await userRef
+        .collection('budgets')
+        .where('monthyear', isEqualTo: monthLabel)
+        .get();
+    final budgets = budgetsSnapshot.docs.map((doc) {
+      final data = doc.data();
+      final categoryName = data['categoryName']?.toString().trim().isNotEmpty ==
+              true
+          ? data['categoryName'].toString().trim()
+          : 'Khác';
+      final limitAmount =
+          TransactionSummaryHelper.normalizeAmount(data['limitAmount']);
+      final spent = spentByCategory[categoryName] ?? 0;
+      return _AssistantBudgetSummary(
+        categoryName: categoryName,
+        limitAmount: limitAmount,
+        spentAmount: spent,
+      );
+    }).toList(growable: false)
+      ..sort((left, right) => right.progress.compareTo(left.progress));
+
+    final savingGoalsSnapshot = await userRef.collection('saving_goals').get();
+    final savingGoals = savingGoalsSnapshot.docs.map((doc) {
+      final data = doc.data();
+      final name = data['goal_name']?.toString().trim().isNotEmpty == true
+          ? data['goal_name'].toString().trim()
+          : data['name']?.toString().trim() ?? 'Mục tiêu tiết kiệm';
+      final target = TransactionSummaryHelper.normalizeAmount(
+        data['target_amount'] ?? data['targetAmount'],
+      );
+      final current = TransactionSummaryHelper.normalizeAmount(
+        data['current_amount'] ?? data['currentAmount'],
+      );
+      final status = data['status']?.toString().trim().isNotEmpty == true
+          ? data['status'].toString().trim()
+          : 'active';
+      return _AssistantSavingGoalSummary(
+        name: name,
+        targetAmount: target,
+        currentAmount: current,
+        status: status,
+      );
+    }).where((item) => item.status != 'withdrawn').toList(growable: false);
+
+    return _AssistantContext(
+      now: now,
+      monthLabel: monthLabel,
+      totalCredit: monthSummary.totalCredit,
+      totalDebit: monthSummary.totalDebit,
+      remainingAmount: monthSummary.remainingAmount,
+      budgets: budgets,
+      savingGoals: savingGoals,
+      recentTransactions: recentTransactions,
+      appHelpTopics: const <String>[
+        'Thêm giao dịch',
+        'Ngân sách',
+        'Mục tiêu tiết kiệm',
+        'Phân loại thu chi',
+      ],
+      userDisplayName: userData['name']?.toString().trim(),
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    return NumberFormat.decimalPattern('vi_VN').format(amount);
+  }
+
+  Map<String, dynamic> _buildAssistantResponse({
+    required String status,
+    required String message,
+    List<AssistantActionSuggestion> suggestions =
+        const <AssistantActionSuggestion>[],
+    String source = 'remote_ai_assistant',
+    String responseKind = 'assistant_reply',
+  }) {
+    return _buildResponse(
+      status: status,
+      message: message,
+      transactions: const <Map<String, dynamic>>[],
+      suggestions: suggestions.map((item) => item.toJson()).toList(growable: false),
+      source: source,
+      responseKind: responseKind,
+    );
+  }
+
+  Future<Map<String, dynamic>> _callRemoteAssistantAi({
+    required String input,
+    required AiRuntimeConfig runtimeConfig,
+    required _AssistantContext context,
+  }) async {
+    final prompt = runtimeConfig.buildAssistantSystemPrompt(
+      contextSummary: context.toPromptSummary(),
+    );
+    final payload = <String, dynamic>{
+      'model': runtimeConfig.effectiveAssistantModel,
+      'messages': <Map<String, String>>[
+        <String, String>{'role': 'system', 'content': prompt},
+        <String, String>{'role': 'user', 'content': input},
+      ],
+      'temperature': 0.3,
+      'response_format': <String, dynamic>{'type': 'json_object'},
+    };
+
+    final response = await http.post(
+      Uri.parse(runtimeConfig.effectiveAssistantEndpoint),
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${runtimeConfig.effectiveAssistantApiKey}',
+      },
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}: ${response.body}');
+    }
+
+    final rawResponse = jsonDecode(response.body);
+    final content = _extractMessageContent(rawResponse);
+    final decoded = _extractJsonPayload(content);
+    final suggestions = _normalizeAssistantSuggestions(decoded['suggestions']);
+    final responseKind = decoded['responseKind']?.toString().trim() ==
+            'assistant_action_suggestion'
+        ? 'assistant_action_suggestion'
+        : decoded['status']?.toString() == 'error'
+        ? 'error'
+        : 'assistant_reply';
+
+    return _buildResponse(
+      status: decoded['status']?.toString() == 'error' ? 'error' : 'success',
+      message: decoded['message']?.toString().trim().isNotEmpty == true
+          ? decoded['message'].toString()
+          : 'Mình đang hỗ trợ bạn đây. Bạn nói rõ thêm điều bạn muốn hỏi nhé.',
+      transactions: const <Map<String, dynamic>>[],
+      suggestions: suggestions,
+      source: 'remote_ai_assistant',
+      responseKind: responseKind,
+    );
+  }
+
+  Future<Map<String, dynamic>> _processLocalAssistantInput(
+    String input,
+    _AssistantContext context,
+  ) async {
+    final normalized = TransactionTypeInference.normalizeText(input);
+
+    if (_looksLikeTransactionEntryRequest(input)) {
+      return _buildAssistantResponse(
+        status: 'success',
+        message:
+            'Câu này nghe giống nhu cầu ghi giao dịch hơn. Bạn chuyển sang AI thêm giao dịch để mình dựng card xác nhận giúp nhé.',
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'switch_to_transaction',
+            label: 'Chuyển sang thêm giao dịch',
+            type: AssistantActionType.switchToTransaction,
+          ),
+        ],
+        source: 'assistant_local',
+        responseKind: 'assistant_action_suggestion',
+      );
+    }
+
+    if (normalized.contains('ngan sach')) {
+      final message = context.budgets.isEmpty
+          ? 'Tháng ${context.monthLabel} bạn chưa có ngân sách nào đang hoạt động. Nếu muốn, mình có thể đưa bạn tới màn Ngân sách để tạo mới.'
+          : _buildBudgetBreakdownMessage(context);
+      return _buildAssistantResponse(
+        status: 'success',
+        message: message,
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'open_budget',
+            label: 'Đi tới ngân sách',
+            type: AssistantActionType.openBudget,
+          ),
+        ],
+        source: 'assistant_local',
+        responseKind: 'assistant_action_suggestion',
+      );
+    }
+
+    if (normalized.contains('tiet kiem') || normalized.contains('muc tieu')) {
+      final activeGoals = context.savingGoals
+          .where((item) => item.status == 'active')
+          .toList(growable: false);
+      final message = activeGoals.isEmpty
+          ? 'Hiện bạn chưa có mục tiêu tiết kiệm nào đang hoạt động.'
+          : _buildSavingGoalsMessage(context);
+      return _buildAssistantResponse(
+        status: 'success',
+        message: message,
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'open_savings',
+            label: 'Đi tới tiết kiệm',
+            type: AssistantActionType.openSavings,
+          ),
+        ],
+        source: 'assistant_local',
+        responseKind: 'assistant_action_suggestion',
+      );
+    }
+
+    if ((normalized.contains('thang nay') &&
+            (normalized.contains('thu') ||
+                normalized.contains('chi') ||
+                normalized.contains('bao nhieu'))) ||
+        normalized.contains('tong ket')) {
+      return _buildAssistantResponse(
+        status: 'success',
+        message:
+            'Tháng ${context.monthLabel} hiện tại bạn đã thu ${_formatCurrency(context.totalCredit)} đ, chi ${_formatCurrency(context.totalDebit)} đ, còn lại ${_formatCurrency(context.remainingAmount)} đ.',
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'open_budget',
+            label: 'Đi tới ngân sách',
+            type: AssistantActionType.openBudget,
+          ),
+          AssistantActionSuggestion(
+            id: 'open_savings',
+            label: 'Đi tới tiết kiệm',
+            type: AssistantActionType.openSavings,
+          ),
+        ],
+        source: 'assistant_local',
+        responseKind: 'assistant_action_suggestion',
+      );
+    }
+
+    if (normalized.contains('cach them') ||
+        normalized.contains('them giao dich') ||
+        normalized.contains('su dung app') ||
+        normalized.contains('huong dan')) {
+      return _buildAssistantResponse(
+        status: 'success',
+        message:
+            'Bạn có thể thêm giao dịch bằng cách nhập câu ngắn như "ăn sáng 30k", dùng nút mic để nói, hoặc nhập từ ảnh. Nếu muốn ghi ngay bây giờ, mình có thể chuyển bạn sang AI thêm giao dịch.',
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'switch_to_transaction',
+            label: 'Chuyển sang thêm giao dịch',
+            type: AssistantActionType.switchToTransaction,
+          ),
+        ],
+        source: 'assistant_local',
+        responseKind: 'assistant_action_suggestion',
+      );
+    }
+
+    return _buildAssistantResponse(
+      status: 'success',
+      message:
+          'Mình có thể hỗ trợ bạn về cách dùng app, thu chi tháng này, ngân sách, hoặc mục tiêu tiết kiệm. Bạn thử hỏi cụ thể hơn một chút nhé.',
+        suggestions: const <AssistantActionSuggestion>[
+          AssistantActionSuggestion(
+            id: 'open_budget',
+            label: 'Đi tới ngân sách',
+            type: AssistantActionType.openBudget,
+          ),
+          AssistantActionSuggestion(
+            id: 'open_savings',
+            label: 'Đi tới tiết kiệm',
+            type: AssistantActionType.openSavings,
+          ),
+          AssistantActionSuggestion(
+            id: 'switch_to_transaction',
+            label: 'Chuyển sang thêm giao dịch',
+          type: AssistantActionType.switchToTransaction,
+        ),
+      ],
+      source: 'assistant_local',
+      responseKind: 'assistant_action_suggestion',
+    );
+  }
+
+  Future<Map<String, dynamic>> processAssistantInput(
+    String input, {
+    AiRuntimeConfig? runtimeOverride,
+  }) async {
+    final runtimeConfig = runtimeOverride ?? await loadPublishedRuntimeConfig();
+    final context = await _loadAssistantContext();
+    final normalized = TransactionTypeInference.normalizeText(input);
+
+    if (_shouldUseDeterministicAssistantResponse(normalized)) {
+      return _processLocalAssistantInput(input, context);
+    }
+
+    if (runtimeConfig.canUseAssistantRemoteAi) {
+      try {
+        return await _callRemoteAssistantAi(
+          input: input,
+          runtimeConfig: runtimeConfig,
+          context: context,
+        );
+      } catch (_) {
+        return _processLocalAssistantInput(input, context);
+      }
+    }
+
+    return _processLocalAssistantInput(input, context);
+  }
+
+  bool _shouldUseDeterministicAssistantResponse(String normalized) {
+    return normalized.contains('ngan sach') ||
+        normalized.contains('tiet kiem') ||
+        normalized.contains('muc tieu') ||
+        normalized.contains('tong ket') ||
+        (normalized.contains('thang nay') &&
+            (normalized.contains('thu') ||
+                normalized.contains('chi') ||
+                normalized.contains('bao nhieu')));
+  }
+
+  String _buildBudgetBreakdownMessage(_AssistantContext context) {
+    final buffer = StringBuffer()
+      ..writeln('Ngân sách tháng ${context.monthLabel} của bạn như sau:');
+
+    for (final budget in context.budgets) {
+      if (budget.overAmount > 0) {
+        buffer.writeln(
+          '- ${budget.categoryName}: đã chi ${_formatCurrency(budget.spentAmount)} / ${_formatCurrency(budget.limitAmount)} đ, vượt mức chi tiêu ${_formatCurrency(budget.overAmount)} đ.',
+        );
+        continue;
+      }
+
+      buffer.writeln(
+        '- ${budget.categoryName}: đã chi ${_formatCurrency(budget.spentAmount)} / ${_formatCurrency(budget.limitAmount)} đ (${budget.progressPercent}%), còn ${_formatCurrency(budget.remainingAmount)} đ.',
+      );
+    }
+
+    final overCount = context.budgets.where((item) => item.overAmount > 0).length;
+    if (overCount > 0) {
+      buffer.writeln('Hiện có $overCount mục đang vượt ngân sách.');
+    } else {
+      buffer.writeln('Hiện chưa có mục nào vượt ngân sách.');
+    }
+
+    return buffer.toString().trim();
+  }
+
+  String _buildSavingGoalsMessage(_AssistantContext context) {
+    final activeGoals = context.savingGoals
+        .where((item) => item.status == 'active')
+        .toList(growable: false);
+    final buffer = StringBuffer()
+      ..writeln('Bạn đang có ${activeGoals.length} mục tiêu tiết kiệm hoạt động:');
+
+    for (final goal in activeGoals) {
+      buffer.writeln(
+        '- ${goal.name}: đã đạt ${goal.progressPercent}% với ${_formatCurrency(goal.currentAmount)} / ${_formatCurrency(goal.targetAmount)} đ, còn thiếu ${_formatCurrency(goal.remainingAmount)} đ.',
+      );
+    }
+
+    return buffer.toString().trim();
+  }
+
+  Future<Map<String, dynamic>> processTransactionInput(
     String input, {
     AiRuntimeConfig? runtimeOverride,
   }) async {
@@ -987,6 +1462,13 @@ class AIService {
       return _processRemoteInput(input, runtimeConfig);
     }
     return _processLocalInput(input);
+  }
+
+  Future<Map<String, dynamic>> processInput(
+    String input, {
+    AiRuntimeConfig? runtimeOverride,
+  }) {
+    return processTransactionInput(input, runtimeOverride: runtimeOverride);
   }
 
   Future<Map<String, dynamic>> processImageOcrInput(
@@ -1052,5 +1534,162 @@ class AIService {
 
     final ocrResult = await OcrHelper.scanImageFile(imagePath);
     return processImageOcrInput(ocrResult, runtimeOverride: runtimeConfig);
+  }
+}
+
+class _AssistantContext {
+  const _AssistantContext({
+    required this.now,
+    required this.monthLabel,
+    required this.totalCredit,
+    required this.totalDebit,
+    required this.remainingAmount,
+    required this.budgets,
+    required this.savingGoals,
+    required this.recentTransactions,
+    required this.appHelpTopics,
+    this.userDisplayName,
+  });
+
+  factory _AssistantContext.empty({required DateTime now}) {
+    return _AssistantContext(
+      now: now,
+      monthLabel: '${now.month} ${now.year}',
+      totalCredit: 0,
+      totalDebit: 0,
+      remainingAmount: 0,
+      budgets: const <_AssistantBudgetSummary>[],
+      savingGoals: const <_AssistantSavingGoalSummary>[],
+      recentTransactions: const <Map<String, dynamic>>[],
+      appHelpTopics: const <String>[
+        'Thêm giao dịch',
+        'Ngân sách',
+        'Mục tiêu tiết kiệm',
+      ],
+    );
+  }
+
+  final DateTime now;
+  final String monthLabel;
+  final int totalCredit;
+  final int totalDebit;
+  final int remainingAmount;
+  final List<_AssistantBudgetSummary> budgets;
+  final List<_AssistantSavingGoalSummary> savingGoals;
+  final List<Map<String, dynamic>> recentTransactions;
+  final List<String> appHelpTopics;
+  final String? userDisplayName;
+
+  String toPromptSummary() {
+    final buffer = StringBuffer()
+      ..writeln('- Người dùng: ${userDisplayName?.trim().isNotEmpty == true ? userDisplayName!.trim() : 'Chưa rõ tên'}')
+      ..writeln('- Tháng đang xét: $monthLabel')
+      ..writeln('- Tổng thu tháng này: $totalCredit')
+      ..writeln('- Tổng chi tháng này: $totalDebit')
+      ..writeln('- Số dư còn lại: $remainingAmount');
+
+    if (budgets.isEmpty) {
+      buffer.writeln('- Ngân sách: Chưa có ngân sách hoạt động');
+    } else {
+      buffer.writeln('- Ngân sách:');
+      for (final budget in budgets.take(5)) {
+        buffer.writeln(
+          budget.overAmount > 0
+              ? '  - ${budget.categoryName}: đã chi ${budget.spentAmount}/${budget.limitAmount}, vượt mức chi tiêu ${budget.overAmount}'
+              : '  - ${budget.categoryName}: đã chi ${budget.spentAmount}/${budget.limitAmount} (${budget.progressPercent}%), ${budget.statusLabel}',
+        );
+      }
+    }
+
+    final activeGoals = savingGoals
+        .where((item) => item.status == 'active')
+        .toList(growable: false);
+    if (activeGoals.isEmpty) {
+      buffer.writeln('- Tiết kiệm: Chưa có mục tiêu hoạt động');
+    } else {
+      buffer.writeln('- Mục tiêu tiết kiệm:');
+      for (final goal in activeGoals.take(5)) {
+        buffer.writeln(
+          '  - ${goal.name}: ${goal.currentAmount}/${goal.targetAmount} (${goal.progressPercent}%), còn thiếu ${goal.remainingAmount}',
+        );
+      }
+    }
+
+    if (recentTransactions.isNotEmpty) {
+      buffer.writeln('- Giao dịch gần đây:');
+      for (final tx in recentTransactions.take(5)) {
+        buffer.writeln(
+          '  - ${tx['title']} | ${tx['type']} | ${tx['amount']} | ${tx['category']}',
+        );
+      }
+    }
+
+    buffer.writeln('- Chủ đề trợ giúp app: ${appHelpTopics.join(', ')}');
+    return buffer.toString().trim();
+  }
+}
+
+class _AssistantBudgetSummary {
+  const _AssistantBudgetSummary({
+    required this.categoryName,
+    required this.limitAmount,
+    required this.spentAmount,
+  });
+
+  final String categoryName;
+  final int limitAmount;
+  final int spentAmount;
+
+  double get progress {
+    if (limitAmount <= 0) return 0.0;
+    return spentAmount / limitAmount;
+  }
+
+  int get progressPercent => (progress * 100).round();
+
+  int get remainingAmount {
+    final remaining = limitAmount - spentAmount;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  int get overAmount {
+    final over = spentAmount - limitAmount;
+    return over > 0 ? over : 0;
+  }
+
+  String get statusLabel {
+    if (limitAmount <= 0) {
+      return 'chưa có hạn mức hợp lệ';
+    }
+    if (overAmount > 0) {
+      return 'vượt $overAmount';
+    }
+    return 'còn $remainingAmount';
+  }
+}
+
+class _AssistantSavingGoalSummary {
+  const _AssistantSavingGoalSummary({
+    required this.name,
+    required this.targetAmount,
+    required this.currentAmount,
+    required this.status,
+  });
+
+  final String name;
+  final int targetAmount;
+  final int currentAmount;
+  final String status;
+
+  double get progress {
+    if (targetAmount <= 0) return 0.0;
+    return currentAmount / targetAmount;
+  }
+
+  int get progressPercent => (progress * 100).round();
+
+  int get remainingAmount {
+    final remaining = targetAmount - currentAmount;
+    return remaining > 0 ? remaining : 0;
   }
 }

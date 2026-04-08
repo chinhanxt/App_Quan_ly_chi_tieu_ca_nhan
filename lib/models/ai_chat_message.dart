@@ -1,3 +1,4 @@
+import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/voice_transaction_interpretation.dart';
 
 enum AIChatSender { user, ai }
@@ -13,6 +14,7 @@ class AIChatMessage {
   final String source;
   final String responseKind;
   final VoiceTransactionInterpretation? voiceInterpretation;
+  final List<AssistantActionSuggestion> assistantActions;
 
   const AIChatMessage({
     required this.id,
@@ -25,6 +27,7 @@ class AIChatMessage {
     this.source = '',
     this.responseKind = '',
     this.voiceInterpretation,
+    this.assistantActions = const <AssistantActionSuggestion>[],
   });
 
   bool get hasTransactions => transactions.isNotEmpty;
@@ -40,6 +43,7 @@ class AIChatMessage {
     String? source,
     String? responseKind,
     VoiceTransactionInterpretation? voiceInterpretation,
+    List<AssistantActionSuggestion>? assistantActions,
   }) {
     return AIChatMessage(
       id: id ?? this.id,
@@ -52,6 +56,7 @@ class AIChatMessage {
       source: source ?? this.source,
       responseKind: responseKind ?? this.responseKind,
       voiceInterpretation: voiceInterpretation ?? this.voiceInterpretation,
+      assistantActions: assistantActions ?? this.assistantActions,
     );
   }
 
@@ -67,6 +72,7 @@ class AIChatMessage {
       'source': source,
       'responseKind': responseKind,
       'voiceInterpretation': voiceInterpretation?.toJson(),
+      'assistantActions': assistantActions.map((item) => item.toJson()).toList(),
     };
   }
 
@@ -79,6 +85,14 @@ class AIChatMessage {
         : const <Map<String, dynamic>>[];
 
     final voiceInterpretationRaw = json['voiceInterpretation'];
+    final assistantActionsRaw = json['assistantActions'];
+    final assistantActions = assistantActionsRaw is List
+        ? assistantActionsRaw.whereType<Map>().map<AssistantActionSuggestion>((item) {
+            return AssistantActionSuggestion.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+          }).toList()
+        : const <AssistantActionSuggestion>[];
 
     return AIChatMessage(
       id: json['id']?.toString() ?? '',
@@ -97,6 +111,7 @@ class AIChatMessage {
               Map<String, dynamic>.from(voiceInterpretationRaw),
             )
           : null,
+      assistantActions: assistantActions,
     );
   }
 
