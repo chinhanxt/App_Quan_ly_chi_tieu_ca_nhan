@@ -1,3 +1,5 @@
+import 'package:app/models/voice_transaction_interpretation.dart';
+
 enum AIChatSender { user, ai }
 
 class AIChatMessage {
@@ -10,6 +12,7 @@ class AIChatMessage {
   final bool isSaved;
   final String source;
   final String responseKind;
+  final VoiceTransactionInterpretation? voiceInterpretation;
 
   const AIChatMessage({
     required this.id,
@@ -21,6 +24,7 @@ class AIChatMessage {
     this.isSaved = false,
     this.source = '',
     this.responseKind = '',
+    this.voiceInterpretation,
   });
 
   bool get hasTransactions => transactions.isNotEmpty;
@@ -35,6 +39,7 @@ class AIChatMessage {
     bool? isSaved,
     String? source,
     String? responseKind,
+    VoiceTransactionInterpretation? voiceInterpretation,
   }) {
     return AIChatMessage(
       id: id ?? this.id,
@@ -46,6 +51,7 @@ class AIChatMessage {
       isSaved: isSaved ?? this.isSaved,
       source: source ?? this.source,
       responseKind: responseKind ?? this.responseKind,
+      voiceInterpretation: voiceInterpretation ?? this.voiceInterpretation,
     );
   }
 
@@ -60,6 +66,7 @@ class AIChatMessage {
       'isSaved': isSaved,
       'source': source,
       'responseKind': responseKind,
+      'voiceInterpretation': voiceInterpretation?.toJson(),
     };
   }
 
@@ -70,6 +77,8 @@ class AIChatMessage {
             return Map<String, dynamic>.from(item);
           }).toList()
         : const <Map<String, dynamic>>[];
+
+    final voiceInterpretationRaw = json['voiceInterpretation'];
 
     return AIChatMessage(
       id: json['id']?.toString() ?? '',
@@ -83,6 +92,11 @@ class AIChatMessage {
       isSaved: json['isSaved'] == true,
       source: json['source']?.toString() ?? '',
       responseKind: json['responseKind']?.toString() ?? '',
+      voiceInterpretation: voiceInterpretationRaw is Map
+          ? VoiceTransactionInterpretation.fromJson(
+              Map<String, dynamic>.from(voiceInterpretationRaw),
+            )
+          : null,
     );
   }
 

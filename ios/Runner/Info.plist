@@ -22,6 +22,8 @@
 		<string>????</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Camera permission for OCR</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Microphone permission for voice transaction entry</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Gallery permission for OCR</string>
 		<key>CFBundleVersion</key>

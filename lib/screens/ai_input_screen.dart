@@ -6,14 +6,19 @@ import 'dart:ui';
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
+import 'package:app/models/voice_transaction_interpretation.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
+import 'package:app/services/speech_capture_service.dart';
 import 'package:app/services/transaction_amount_parser.dart';
 import 'package:app/services/transaction_summary_helper.dart';
+import 'package:app/services/voice_transaction_interpreter.dart';
 import 'package:app/utils/app_colors.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/utils/ocr_helper.dart';
+import 'package:app/widgets/ai_voice_recommendation_panel.dart';
+import 'package:app/widgets/ai_voice_session_panel.dart';
 import 'package:app/widgets/ai_transaction_draft_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -50,6 +56,8 @@ class _AIInputScreenState extends State<AIInputScreen>
   final ScrollController _scrollController = ScrollController();
   final currencyFormat = NumberFormat.decimalPattern('vi_VN');
   final aiService = AIService();
+  final _speechCaptureService = SpeechCaptureService();
+  final _voiceInterpreter = const VoiceTransactionInterpreter();
   final appIcons = AppIcons();
   final Uuid _uuid = const Uuid();
   final List<AIChatMessage> _messages = <AIChatMessage>[];
@@ -64,11 +72,16 @@ class _AIInputScreenState extends State<AIInputScreen>
   _runtimeConfigSubscription;
 
   bool _isProcessing = false;
+  bool _isVoiceBusy = false;
   bool _isRestoringHistory = true;
   bool _isLoadingRuntimeConfig = true;
   bool _useRealAiMode = false;
   AiRuntimeConfig _runtimeConfig = AiRuntimeConfig.defaults();
   bool _hasReceivedRuntimeConfigSnapshot = false;
+  bool _isListeningToVoice = false;
+  String _liveVoiceTranscript = '';
+  String _lastStableVoiceTranscript = '';
+  String? _voiceStatusMessage;
   @override
   void initState() {
     super.initState();
@@ -91,6 +104,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   @override
   void dispose() {
     _runtimeConfigSubscription?.cancel();
+    unawaited(_speechCaptureService.cancelListening());
     _inputController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
@@ -137,10 +151,45 @@ class _AIInputScreenState extends State<AIInputScreen>
     return repaired;
   }
 
+  VoiceTransactionInterpretation? _repairLegacyVoiceInterpretation(
+    VoiceTransactionInterpretation? interpretation,
+  ) {
+    if (interpretation == null) return null;
+
+    final repairedDrafts = interpretation.draftTransactions
+        .map(_repairLegacyTransaction)
+        .toList(growable: false);
+    final repairedRecommendations = interpretation.recommendations
+        .map(
+          (option) => VoiceRecommendationOption(
+            id: option.id,
+            title: _repairLegacyText(option.title),
+            subtitle: _repairLegacyText(option.subtitle),
+            transactions: option.transactions
+                .map(_repairLegacyTransaction)
+                .toList(growable: false),
+            missingFields: option.missingFields,
+            requiresEdit: option.requiresEdit,
+          ),
+        )
+        .toList(growable: false);
+
+    return interpretation.copyWith(
+      rawTranscript: _repairLegacyText(interpretation.rawTranscript),
+      normalizedTranscript: _repairLegacyText(interpretation.normalizedTranscript),
+      message: _repairLegacyText(interpretation.message),
+      draftTransactions: repairedDrafts,
+      recommendations: repairedRecommendations,
+    );
+  }
+
   AIChatMessage _repairLegacyMessage(AIChatMessage message) {
     return message.copyWith(
       text: _repairLegacyText(message.text),
       transactions: message.transactions.map(_repairLegacyTransaction).toList(),
+      voiceInterpretation: _repairLegacyVoiceInterpretation(
+        message.voiceInterpretation,
+      ),
     );
   }
 
@@ -765,6 +814,12 @@ class _AIInputScreenState extends State<AIInputScreen>
     });
   }
 
+  void _clearVoiceSessionUi() {
+    _voiceStatusMessage = null;
+    _liveVoiceTranscript = '';
+    _lastStableVoiceTranscript = '';
+  }
+
   String _detectTransactionType(String text) {
     final normalized = text.toLowerCase();
     const creditHints = <String>[
@@ -885,6 +940,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     setState(() {
       _isProcessing = true;
+      _clearVoiceSessionUi();
     });
 
     try {
@@ -1088,8 +1144,18 @@ class _AIInputScreenState extends State<AIInputScreen>
       return;
     }
 
+    if (_isListeningToVoice) {
+      await _speechCaptureService.cancelListening();
+      if (!mounted) return;
+    }
+
     setState(() {
       _messages.clear();
+      _isListeningToVoice = false;
+      _isVoiceBusy = false;
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
+      _voiceStatusMessage = null;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_storageKey());
@@ -1098,6 +1164,14 @@ class _AIInputScreenState extends State<AIInputScreen>
   Future<void> _submitInput({String? preset}) async {
     final text = (preset ?? _inputController.text).trim();
     if (text.isEmpty || _isProcessing) return;
+
+    if (_isListeningToVoice) {
+      await _speechCaptureService.cancelListening();
+      if (!mounted) return;
+      setState(() {
+        _isListeningToVoice = false;
+      });
+    }
 
     _focusLatestTransactionFlow(dismissKeyboard: true);
 
@@ -1122,6 +1196,9 @@ class _AIInputScreenState extends State<AIInputScreen>
     setState(() {
       _messages.add(userMessage);
       _isProcessing = true;
+      _voiceStatusMessage = null;
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
     });
     _persistChatHistory();
     _focusLatestTransactionFlow();
@@ -1162,6 +1239,313 @@ class _AIInputScreenState extends State<AIInputScreen>
       });
       _persistChatHistory();
       _focusLatestTransactionFlow();
+    }
+  }
+
+  Future<void> _toggleVoiceCapture() async {
+    if (_isVoiceBusy) return;
+    if (_isListeningToVoice) {
+      await _stopVoiceCaptureAndProcess();
+      return;
+    }
+    await _startVoiceCapture();
+  }
+
+  Future<void> _startVoiceCapture() async {
+    if (_isProcessing || _isVoiceBusy) return;
+
+    final permissionState = await _speechCaptureService.ensureMicrophonePermission();
+    if (!mounted) return;
+
+    if (permissionState != SpeechPermissionState.granted) {
+      final message =
+          permissionState == SpeechPermissionState.permanentlyDenied
+          ? 'Quyền micro đang bị chặn. Bạn mở cài đặt ứng dụng để cấp lại giúp mình nhé.'
+          : 'Bạn cần cấp quyền micro để nhập giao dịch bằng giọng nói.';
+      setState(() {
+        _voiceStatusMessage = message;
+        _isListeningToVoice = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: permissionState == SpeechPermissionState.permanentlyDenied
+              ? SnackBarAction(
+                  label: 'Mở cài đặt',
+                  onPressed: openAppSettings,
+                )
+              : null,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _voiceStatusMessage = 'Đang nghe, bạn nói xong thì bấm mic lần nữa để chốt.';
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
+      _isVoiceBusy = false;
+    });
+
+    final started = await _speechCaptureService.startListening(
+      onTranscript: (update) {
+        if (!mounted) return;
+        setState(() {
+          _liveVoiceTranscript = update.transcript;
+          if (update.isFinal && update.transcript.trim().isNotEmpty) {
+            _lastStableVoiceTranscript = update.transcript.trim();
+          }
+        });
+      },
+      onError: (message) {
+        if (!mounted) return;
+        setState(() {
+          _voiceStatusMessage = message;
+          _isListeningToVoice = false;
+          _isVoiceBusy = false;
+        });
+      },
+      onStatusChanged: (isListening) {
+        if (!mounted) return;
+        setState(() {
+          _isListeningToVoice = isListening;
+          if (!isListening && _liveVoiceTranscript.trim().isEmpty) {
+            _voiceStatusMessage ??=
+                'Mình chưa nghe rõ nội dung nào. Bạn có thể thử lại ngay.';
+          }
+        });
+      },
+    );
+
+    if (!mounted) return;
+    if (!started) {
+      setState(() {
+        _isListeningToVoice = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isListeningToVoice = true;
+    });
+  }
+
+  Future<void> _stopVoiceCaptureAndProcess() async {
+    if (_isVoiceBusy) return;
+    setState(() {
+      _isVoiceBusy = true;
+      _voiceStatusMessage = 'Đang phân tích lời nói vừa nghe được...';
+    });
+
+    await _speechCaptureService.stopListening();
+    if (!mounted) return;
+
+    setState(() {
+      _isListeningToVoice = false;
+    });
+
+    final transcript = _lastStableVoiceTranscript.trim().isNotEmpty
+        ? _lastStableVoiceTranscript.trim()
+        : _liveVoiceTranscript.trim();
+    if (transcript.isEmpty) {
+      setState(() {
+        _isVoiceBusy = false;
+        _voiceStatusMessage =
+            'Mình chưa nghe đủ rõ để tạo bản nháp. Bạn thử nói lại giúp mình nhé.';
+        _liveVoiceTranscript = '';
+        _lastStableVoiceTranscript = '';
+      });
+      return;
+    }
+
+    await _processVoiceTranscript(transcript);
+  }
+
+  Future<void> _processVoiceTranscript(String transcript) async {
+    _focusLatestTransactionFlow(dismissKeyboard: true);
+
+    final userMessage = AIChatMessage(
+      id: _uuid.v4(),
+      sender: AIChatSender.user,
+      text: transcript,
+      timestamp: DateTime.now(),
+      status: 'user',
+      source: 'voice_capture',
+      responseKind: 'voice_transcript',
+    );
+
+    setState(() {
+      _messages.add(userMessage);
+    });
+    await _persistChatHistory();
+
+    try {
+      var categories = List<Map<String, dynamic>>.from(_transactionCategoryOptions);
+      if (categories.isEmpty) {
+        categories = await _transactionCategoryOptionsFuture;
+      }
+      final interpretation = await _voiceInterpreter.interpret(
+        transcript: transcript,
+        availableCategories: categories,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(_buildVoiceAiMessage(interpretation));
+        _isVoiceBusy = false;
+        _voiceStatusMessage = null;
+        _liveVoiceTranscript = '';
+        _lastStableVoiceTranscript = '';
+      });
+      await _persistChatHistory();
+      _focusLatestTransactionFlow();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          AIChatMessage(
+            id: _uuid.v4(),
+            sender: AIChatSender.ai,
+            text:
+                'Mình bị khựng khi phân tích giọng nói. Bạn thử lại hoặc nhập tay giúp mình nhé.',
+            timestamp: DateTime.now(),
+            status: 'error',
+            source: 'voice_parse',
+            responseKind: 'voice_error',
+          ),
+        );
+        _isVoiceBusy = false;
+        _voiceStatusMessage =
+            'Mình chưa xử lý trọn lời nói vừa rồi. Bạn có thể thử lại ngay.';
+      });
+      await _persistChatHistory();
+      _focusLatestTransactionFlow();
+    }
+  }
+
+  AIChatMessage _buildVoiceAiMessage(
+    VoiceTransactionInterpretation interpretation,
+  ) {
+    final status = switch (interpretation.reviewStatus) {
+      VoiceReviewStatus.ready => 'success',
+      VoiceReviewStatus.error || VoiceReviewStatus.permissionDenied => 'error',
+      _ => 'clarification',
+    };
+
+    return AIChatMessage(
+      id: _uuid.v4(),
+      sender: AIChatSender.ai,
+      text: interpretation.message,
+      timestamp: DateTime.now(),
+      transactions: interpretation.reviewStatus == VoiceReviewStatus.ready
+          ? _normalizeTransactions(interpretation.draftTransactions)
+          : const <Map<String, dynamic>>[],
+      status: status,
+      source: 'voice_parse',
+      responseKind: interpretation.reviewStatus == VoiceReviewStatus.ready
+          ? 'voice_ready'
+          : interpretation.hasRecommendations
+          ? 'voice_review'
+          : 'voice_clarification',
+      voiceInterpretation: interpretation,
+    );
+  }
+
+  Future<void> _applyVoiceRecommendation(
+    AIChatMessage message,
+    VoiceRecommendationOption option,
+  ) async {
+    final messageIndex = _messages.indexWhere((item) => item.id == message.id);
+    if (messageIndex == -1) return;
+
+    if (option.transactions.isEmpty) {
+      final currentInterpretation = message.voiceInterpretation;
+      final updatedInterpretation = currentInterpretation?.copyWith(
+        recommendations: const <VoiceRecommendationOption>[],
+      );
+      setState(() {
+        _inputController.text =
+            message.voiceInterpretation?.rawTranscript ?? message.text;
+        _inputController.selection = TextSelection.collapsed(
+          offset: _inputController.text.length,
+        );
+        _messages[messageIndex] = message.copyWith(
+          voiceInterpretation: updatedInterpretation,
+        );
+        _clearVoiceSessionUi();
+      });
+      _focusLatestTransactionFlow();
+      return;
+    }
+
+    final normalizedTransactions = option.transactions
+        .map(_normalizeDraftTransaction)
+        .toList(growable: false);
+    final incompleteTransactions = normalizedTransactions
+        .where(_isIncompleteDraftTransaction)
+        .toList(growable: false);
+    final completeTransactions = normalizedTransactions
+        .where((tx) => !_isIncompleteDraftTransaction(tx))
+        .toList(growable: false);
+    final hasIncompleteTransactions = normalizedTransactions.any(
+      _isIncompleteDraftTransaction,
+    );
+    final shouldPushIncompleteToComposer =
+        option.id == 'split_guess' && incompleteTransactions.isNotEmpty;
+    final composerSeedText = shouldPushIncompleteToComposer
+        ? incompleteTransactions
+              .map((tx) => tx['note']?.toString().trim() ?? '')
+              .where((item) => item.isNotEmpty)
+              .join(' ')
+        : '';
+    final currentInterpretation = message.voiceInterpretation;
+    final updatedInterpretation = currentInterpretation?.copyWith(
+      reviewStatus: hasIncompleteTransactions
+          ? VoiceReviewStatus.needsReview
+          : VoiceReviewStatus.ready,
+      recommendations: const <VoiceRecommendationOption>[],
+      draftTransactions: shouldPushIncompleteToComposer
+          ? completeTransactions
+          : normalizedTransactions,
+      missingFields: hasIncompleteTransactions
+          ? const <String>['amount']
+          : const <String>[],
+      message: shouldPushIncompleteToComposer
+          ? 'Mình đã tách phần chắc chắn thành thẻ riêng. Phần còn thiếu mình đưa xuống ô nhập để bạn chỉnh tiếp nhé.'
+          : hasIncompleteTransactions
+          ? 'Mình đã tách các ý chính rồi. Bạn bổ sung phần còn thiếu trước khi lưu nhé.'
+          : option.requiresEdit
+          ? 'Mình đã áp dụng gợi ý gần đúng. Bạn chỉnh lại thẻ trước khi lưu nhé.'
+          : currentInterpretation.message,
+    );
+
+    setState(() {
+      if (shouldPushIncompleteToComposer && composerSeedText.isNotEmpty) {
+        _inputController.text = composerSeedText;
+        _inputController.selection = TextSelection.collapsed(
+          offset: _inputController.text.length,
+        );
+      }
+      _messages[messageIndex] = message.copyWith(
+        text: updatedInterpretation?.message ?? message.text,
+        transactions: shouldPushIncompleteToComposer
+            ? completeTransactions
+            : normalizedTransactions,
+        status: hasIncompleteTransactions ? 'clarification' : 'success',
+        responseKind: hasIncompleteTransactions ? 'voice_review' : 'voice_ready',
+        voiceInterpretation: updatedInterpretation,
+      );
+      _clearVoiceSessionUi();
+    });
+    await _persistChatHistory();
+    _focusLatestTransactionFlow();
+
+    if (!mounted || !option.requiresEdit || normalizedTransactions.isEmpty) {
+      return;
+    }
+
+    if (shouldPushIncompleteToComposer) {
+      return;
     }
   }
 
@@ -1228,6 +1612,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     if (!mounted) return;
     setState(() {
+      _clearVoiceSessionUi();
       _messages
         ..add(userMessage)
         ..add(aiMessage);
@@ -1799,6 +2184,10 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   String _sourceLabel(String source) {
     switch (source) {
+      case 'voice_capture':
+        return 'Giọng nói';
+      case 'voice_parse':
+        return 'Phân tích giọng nói';
       case 'remote_ai':
         return 'Trợ lý AI';
       case 'remote_ai_vision':
@@ -1816,6 +2205,16 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   String _responseKindLabel(String responseKind) {
     switch (responseKind) {
+      case 'voice_transcript':
+        return 'Lời đã nghe';
+      case 'voice_ready':
+        return 'Đã tạo thẻ từ giọng nói';
+      case 'voice_review':
+        return 'Giọng nói cần xem lại';
+      case 'voice_clarification':
+        return 'Giọng nói cần làm rõ';
+      case 'voice_error':
+        return 'Lỗi xử lý giọng nói';
       case 'card_ready':
         return 'Có thẻ';
       case 'clarification':
@@ -1921,6 +2320,13 @@ class _AIInputScreenState extends State<AIInputScreen>
     }
 
     return normalized;
+  }
+
+  bool _isIncompleteDraftTransaction(Map<String, dynamic> tx) {
+    final amount = _normalizeDraftAmountValue(tx['amount']);
+    final title = tx['title']?.toString().trim() ?? '';
+    final category = _effectiveTransactionCategory(tx).trim();
+    return amount <= 0 || title.isEmpty || category.isEmpty;
   }
 
   void _updateTransactionField({
@@ -3930,6 +4336,12 @@ class _AIInputScreenState extends State<AIInputScreen>
                 message.transactions[index],
               ),
             ),
+            if (message.voiceInterpretation?.hasRecommendations == true)
+              AiVoiceRecommendationPanel(
+                interpretation: message.voiceInterpretation!,
+                onChooseOption: (option) =>
+                    _applyVoiceRecommendation(message, option),
+              ),
             if (message.hasTransactions)
               Padding(
                 padding: const EdgeInsets.only(top: 8, left: 2),
@@ -4260,6 +4672,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
+    final canToggleVoice = !_isProcessing && !_isVoiceBusy;
     final compact = _useCompactDensity(context);
     final compactReview = _showCompactComposerLayout();
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
@@ -4290,6 +4703,15 @@ class _AIInputScreenState extends State<AIInputScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                AiVoiceSessionPanel(
+                  isListening: _isListeningToVoice,
+                  transcript: _liveVoiceTranscript,
+                  statusMessage: _voiceStatusMessage,
+                ),
+                if (_isListeningToVoice ||
+                    _liveVoiceTranscript.trim().isNotEmpty ||
+                    (_voiceStatusMessage?.trim().isNotEmpty ?? false))
+                  SizedBox(height: compact ? 10 : 12),
                 if (compactReview) _buildCompactReviewHint() else _buildSuggestionsSection(),
                 SizedBox(height: compactReview ? 8 : (compact ? 10 : 14)),
                 Row(
@@ -4324,11 +4746,56 @@ class _AIInputScreenState extends State<AIInputScreen>
                               color: Colors.white.withValues(alpha: 0.62),
                             ),
                             border: InputBorder.none,
+                            suffixIcon: _inputController.text.trim().isEmpty
+                                ? null
+                                : IconButton(
+                                    splashRadius: 18,
+                                    tooltip: 'Xóa nội dung',
+                                    onPressed: () {
+                                      _inputController.clear();
+                                      setState(() {});
+                                    },
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      color: Colors.white.withValues(alpha: 0.72),
+                                      size: compact ? 18 : 20,
+                                    ),
+                                  ),
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: compact ? 14 : 16,
                               vertical: compactReview ? 10 : (compact ? 12 : 14),
                             ),
                           ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: compact ? 10 : 12),
+                    SizedBox(
+                      width: compact ? 48 : 54,
+                      height: compact ? 48 : 54,
+                      child: ElevatedButton(
+                        onPressed: canToggleVoice ? _toggleVoiceCapture : null,
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: _isListeningToVoice
+                              ? const Color(0xFFB84B5F)
+                              : Colors.white.withValues(alpha: 0.12),
+                          disabledBackgroundColor: Colors.white.withValues(
+                            alpha: 0.1,
+                          ),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              compact ? 16 : 18,
+                            ),
+                          ),
+                        ),
+                        child: Icon(
+                          _isListeningToVoice
+                              ? Icons.stop_rounded
+                              : Icons.mic_none_rounded,
+                          color: Colors.white,
+                          size: compact ? 20 : 22,
                         ),
                       ),
                     ),
