@@ -1,26 +1,44 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui';
 
+import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
+import 'package:app/screens/add_transaction_screen.dart';
+import 'package:app/screens/budget_screen.dart';
+import 'package:app/screens/category_management_screen.dart';
+import 'package:app/screens/notifications_screen.dart';
+import 'package:app/screens/saving_goals_screen.dart';
+import 'package:app/screens/search_screen.dart';
+import 'package:app/models/voice_transaction_interpretation.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
+import 'package:app/services/speech_capture_service.dart';
 import 'package:app/services/transaction_amount_parser.dart';
 import 'package:app/services/transaction_summary_helper.dart';
+import 'package:app/services/voice_transaction_interpreter.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/utils/ocr_helper.dart';
+import 'package:app/widgets/ai_voice_recommendation_panel.dart';
+import 'package:app/widgets/ai_voice_session_panel.dart';
+import 'package:app/widgets/ai_transaction_draft_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
+enum _AiScreenMode { transaction, assistant }
 
 class AIInputScreen extends StatefulWidget {
   const AIInputScreen({super.key});
@@ -48,11 +66,15 @@ class _AIInputScreenState extends State<AIInputScreen>
   final ScrollController _scrollController = ScrollController();
   final currencyFormat = NumberFormat.decimalPattern('vi_VN');
   final aiService = AIService();
+  final _speechCaptureService = SpeechCaptureService();
+  final _voiceInterpreter = const VoiceTransactionInterpreter();
   final appIcons = AppIcons();
   final Uuid _uuid = const Uuid();
   final List<AIChatMessage> _messages = <AIChatMessage>[];
   final List<QuickTemplate> _quickTemplates = <QuickTemplate>[];
   final Set<String> _savingMessageIds = <String>{};
+  List<Map<String, dynamic>> _transactionCategoryOptions =
+      <Map<String, dynamic>>[];
 
   late AnimationController _pulseController;
   late Future<List<Map<String, dynamic>>> _transactionCategoryOptionsFuture;
@@ -60,11 +82,17 @@ class _AIInputScreenState extends State<AIInputScreen>
   _runtimeConfigSubscription;
 
   bool _isProcessing = false;
+  bool _isVoiceBusy = false;
   bool _isRestoringHistory = true;
   bool _isLoadingRuntimeConfig = true;
   bool _useRealAiMode = false;
   AiRuntimeConfig _runtimeConfig = AiRuntimeConfig.defaults();
   bool _hasReceivedRuntimeConfigSnapshot = false;
+  bool _isListeningToVoice = false;
+  String _liveVoiceTranscript = '';
+  String _lastStableVoiceTranscript = '';
+  String? _voiceStatusMessage;
+  _AiScreenMode _screenMode = _AiScreenMode.transaction;
   @override
   void initState() {
     super.initState();
@@ -73,6 +101,12 @@ class _AIInputScreenState extends State<AIInputScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     _transactionCategoryOptionsFuture = _loadTransactionCategoryOptions();
+    _transactionCategoryOptionsFuture.then((value) {
+      if (!mounted) return;
+      setState(() {
+        _transactionCategoryOptions = value;
+      });
+    });
     _restoreChatHistory();
     _loadQuickTemplates();
     _subscribeRuntimeConfig();
@@ -81,6 +115,7 @@ class _AIInputScreenState extends State<AIInputScreen>
   @override
   void dispose() {
     _runtimeConfigSubscription?.cancel();
+    unawaited(_speechCaptureService.cancelListening());
     _inputController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
@@ -98,6 +133,11 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   bool _useCompactDensity(BuildContext context) =>
       MobileAdaptive.useCompactLayout(context);
+
+  bool get _assistantModeAvailable =>
+      _useRealAiMode && _runtimeConfig.canUseAssistantRemoteAi;
+
+  bool get _isAssistantMode => _screenMode == _AiScreenMode.assistant;
 
   bool _hasSuspiciousEncoding(String text) {
     return RegExp(r'(Ã.|Ä.|Æ.|áº|á»|â€)').hasMatch(text);
@@ -127,10 +167,59 @@ class _AIInputScreenState extends State<AIInputScreen>
     return repaired;
   }
 
+  VoiceTransactionInterpretation? _repairLegacyVoiceInterpretation(
+    VoiceTransactionInterpretation? interpretation,
+  ) {
+    if (interpretation == null) return null;
+
+    final repairedDrafts = interpretation.draftTransactions
+        .map(_repairLegacyTransaction)
+        .toList(growable: false);
+    final repairedRecommendations = interpretation.recommendations
+        .map(
+          (option) => VoiceRecommendationOption(
+            id: option.id,
+            title: _repairLegacyText(option.title),
+            subtitle: _repairLegacyText(option.subtitle),
+            transactions: option.transactions
+                .map(_repairLegacyTransaction)
+                .toList(growable: false),
+            missingFields: option.missingFields,
+            requiresEdit: option.requiresEdit,
+          ),
+        )
+        .toList(growable: false);
+
+    return interpretation.copyWith(
+      rawTranscript: _repairLegacyText(interpretation.rawTranscript),
+      normalizedTranscript: _repairLegacyText(
+        interpretation.normalizedTranscript,
+      ),
+      message: _repairLegacyText(interpretation.message),
+      draftTransactions: repairedDrafts,
+      recommendations: repairedRecommendations,
+    );
+  }
+
   AIChatMessage _repairLegacyMessage(AIChatMessage message) {
     return message.copyWith(
       text: _repairLegacyText(message.text),
       transactions: message.transactions.map(_repairLegacyTransaction).toList(),
+      assistantActions: message.assistantActions
+          .map(
+            (item) => AssistantActionSuggestion(
+              id: item.id,
+              label: _repairLegacyText(item.label),
+              type: item.type,
+              payload: item.payload == null
+                  ? null
+                  : _repairLegacyText(item.payload!),
+            ),
+          )
+          .toList(growable: false),
+      voiceInterpretation: _repairLegacyVoiceInterpretation(
+        message.voiceInterpretation,
+      ),
     );
   }
 
@@ -729,6 +818,67 @@ class _AIInputScreenState extends State<AIInputScreen>
     });
   }
 
+  void _dismissKeyboard() {
+    final currentFocus = FocusScope.of(context);
+    if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+      currentFocus.unfocus();
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _focusLatestTransactionFlow({bool dismissKeyboard = false}) {
+    if (dismissKeyboard) {
+      _dismissKeyboard();
+    }
+
+    _scrollToBottom();
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+    Future<void>.delayed(const Duration(milliseconds: 280), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+  }
+
+  void _clearVoiceSessionUi() {
+    _voiceStatusMessage = null;
+    _liveVoiceTranscript = '';
+    _lastStableVoiceTranscript = '';
+  }
+
+  void _ensureAssistantModeStillAvailable() {
+    if (_screenMode == _AiScreenMode.assistant && !_assistantModeAvailable) {
+      _screenMode = _AiScreenMode.transaction;
+    }
+  }
+
+  void _setScreenMode(_AiScreenMode mode) {
+    if (mode == _AiScreenMode.assistant && !_assistantModeAvailable) {
+      _showAssistantModeDisabledMessage();
+      return;
+    }
+
+    setState(() {
+      _screenMode = mode;
+      if (mode == _AiScreenMode.assistant) {
+        _clearVoiceSessionUi();
+      }
+    });
+  }
+
+  void _showAssistantModeDisabledMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('AI hỗ trợ hiện đang tắt từ cấu hình quản trị.'),
+      ),
+    );
+  }
+
   String _detectTransactionType(String text) {
     final normalized = text.toLowerCase();
     const creditHints = <String>[
@@ -849,6 +999,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     setState(() {
       _isProcessing = true;
+      _clearVoiceSessionUi();
     });
 
     try {
@@ -902,6 +1053,9 @@ class _AIInputScreenState extends State<AIInputScreen>
       }
 
       final result = await OcrHelper.scanImageFile(pickedFile.path);
+      if (!mounted) {
+        return;
+      }
 
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1049,8 +1203,18 @@ class _AIInputScreenState extends State<AIInputScreen>
       return;
     }
 
+    if (_isListeningToVoice) {
+      await _speechCaptureService.cancelListening();
+      if (!mounted) return;
+    }
+
     setState(() {
       _messages.clear();
+      _isListeningToVoice = false;
+      _isVoiceBusy = false;
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
+      _voiceStatusMessage = null;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_storageKey());
@@ -1059,6 +1223,16 @@ class _AIInputScreenState extends State<AIInputScreen>
   Future<void> _submitInput({String? preset}) async {
     final text = (preset ?? _inputController.text).trim();
     if (text.isEmpty || _isProcessing) return;
+
+    if (_isListeningToVoice) {
+      await _speechCaptureService.cancelListening();
+      if (!mounted) return;
+      setState(() {
+        _isListeningToVoice = false;
+      });
+    }
+
+    _focusLatestTransactionFlow(dismissKeyboard: true);
 
     if (_useRealAiMode) {
       final canUseAdvanced = await _ensureLatestAdvancedModeAvailable();
@@ -1081,17 +1255,26 @@ class _AIInputScreenState extends State<AIInputScreen>
     setState(() {
       _messages.add(userMessage);
       _isProcessing = true;
+      _voiceStatusMessage = null;
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
     });
     _persistChatHistory();
-    _scrollToBottom();
+    _focusLatestTransactionFlow();
 
     try {
-      final result = await aiService.processInput(
-        text,
-        runtimeOverride: _useRealAiMode
-            ? _runtimeConfig
-            : _runtimeConfig.copyWith(enabled: false),
-      );
+      final effectiveRuntimeConfig = _useRealAiMode
+          ? _runtimeConfig
+          : _runtimeConfig.copyWith(enabled: false, assistantEnabled: false);
+      final result = _isAssistantMode
+          ? await aiService.processAssistantInput(
+              text,
+              runtimeOverride: effectiveRuntimeConfig,
+            )
+          : await aiService.processTransactionInput(
+              text,
+              runtimeOverride: effectiveRuntimeConfig,
+            );
       if (!mounted) return;
 
       setState(() {
@@ -1099,7 +1282,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         _messages.add(_buildAiMessage(result));
       });
       _persistChatHistory();
-      _scrollToBottom();
+      _focusLatestTransactionFlow();
     } catch (_) {
       if (!mounted) return;
 
@@ -1120,12 +1303,324 @@ class _AIInputScreenState extends State<AIInputScreen>
         );
       });
       _persistChatHistory();
-      _scrollToBottom();
+      _focusLatestTransactionFlow();
+    }
+  }
+
+  Future<void> _toggleVoiceCapture() async {
+    if (_isAssistantMode) return;
+    if (_isVoiceBusy) return;
+    if (_isListeningToVoice) {
+      await _stopVoiceCaptureAndProcess();
+      return;
+    }
+    await _startVoiceCapture();
+  }
+
+  Future<void> _startVoiceCapture() async {
+    if (_isProcessing || _isVoiceBusy) return;
+
+    final permissionState = await _speechCaptureService
+        .ensureMicrophonePermission();
+    if (!mounted) return;
+
+    if (permissionState != SpeechPermissionState.granted) {
+      final message = permissionState == SpeechPermissionState.permanentlyDenied
+          ? 'Quyền micro đang bị chặn. Bạn mở cài đặt ứng dụng để cấp lại giúp mình nhé.'
+          : 'Bạn cần cấp quyền micro để nhập giao dịch bằng giọng nói.';
+      setState(() {
+        _voiceStatusMessage = message;
+        _isListeningToVoice = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: permissionState == SpeechPermissionState.permanentlyDenied
+              ? SnackBarAction(label: 'Mở cài đặt', onPressed: openAppSettings)
+              : null,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _voiceStatusMessage =
+          'Đang nghe, bạn nói xong thì bấm mic lần nữa để chốt.';
+      _liveVoiceTranscript = '';
+      _lastStableVoiceTranscript = '';
+      _isVoiceBusy = false;
+    });
+
+    final started = await _speechCaptureService.startListening(
+      onTranscript: (update) {
+        if (!mounted) return;
+        setState(() {
+          _liveVoiceTranscript = update.transcript;
+          if (update.isFinal && update.transcript.trim().isNotEmpty) {
+            _lastStableVoiceTranscript = update.transcript.trim();
+          }
+        });
+      },
+      onError: (message) {
+        if (!mounted) return;
+        setState(() {
+          _voiceStatusMessage = message;
+          _isListeningToVoice = false;
+          _isVoiceBusy = false;
+        });
+      },
+      onStatusChanged: (isListening) {
+        if (!mounted) return;
+        setState(() {
+          _isListeningToVoice = isListening;
+          if (!isListening && _liveVoiceTranscript.trim().isEmpty) {
+            _voiceStatusMessage ??=
+                'Mình chưa nghe rõ nội dung nào. Bạn có thể thử lại ngay.';
+          }
+        });
+      },
+    );
+
+    if (!mounted) return;
+    if (!started) {
+      setState(() {
+        _isListeningToVoice = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isListeningToVoice = true;
+    });
+  }
+
+  Future<void> _stopVoiceCaptureAndProcess() async {
+    if (_isVoiceBusy) return;
+    setState(() {
+      _isVoiceBusy = true;
+      _voiceStatusMessage = 'Đang phân tích lời nói vừa nghe được...';
+    });
+
+    await _speechCaptureService.stopListening();
+    if (!mounted) return;
+
+    setState(() {
+      _isListeningToVoice = false;
+    });
+
+    final transcript = _lastStableVoiceTranscript.trim().isNotEmpty
+        ? _lastStableVoiceTranscript.trim()
+        : _liveVoiceTranscript.trim();
+    if (transcript.isEmpty) {
+      setState(() {
+        _isVoiceBusy = false;
+        _voiceStatusMessage =
+            'Mình chưa nghe đủ rõ để tạo bản nháp. Bạn thử nói lại giúp mình nhé.';
+        _liveVoiceTranscript = '';
+        _lastStableVoiceTranscript = '';
+      });
+      return;
+    }
+
+    await _processVoiceTranscript(transcript);
+  }
+
+  Future<void> _processVoiceTranscript(String transcript) async {
+    _focusLatestTransactionFlow(dismissKeyboard: true);
+
+    final userMessage = AIChatMessage(
+      id: _uuid.v4(),
+      sender: AIChatSender.user,
+      text: transcript,
+      timestamp: DateTime.now(),
+      status: 'user',
+      source: 'voice_capture',
+      responseKind: 'voice_transcript',
+    );
+
+    setState(() {
+      _messages.add(userMessage);
+    });
+    await _persistChatHistory();
+
+    try {
+      var categories = List<Map<String, dynamic>>.from(
+        _transactionCategoryOptions,
+      );
+      if (categories.isEmpty) {
+        categories = await _transactionCategoryOptionsFuture;
+      }
+      final interpretation = await _voiceInterpreter.interpret(
+        transcript: transcript,
+        availableCategories: categories,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(_buildVoiceAiMessage(interpretation));
+        _isVoiceBusy = false;
+        _voiceStatusMessage = null;
+        _liveVoiceTranscript = '';
+        _lastStableVoiceTranscript = '';
+      });
+      await _persistChatHistory();
+      _focusLatestTransactionFlow();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          AIChatMessage(
+            id: _uuid.v4(),
+            sender: AIChatSender.ai,
+            text:
+                'Mình bị khựng khi phân tích giọng nói. Bạn thử lại hoặc nhập tay giúp mình nhé.',
+            timestamp: DateTime.now(),
+            status: 'error',
+            source: 'voice_parse',
+            responseKind: 'voice_error',
+          ),
+        );
+        _isVoiceBusy = false;
+        _voiceStatusMessage =
+            'Mình chưa xử lý trọn lời nói vừa rồi. Bạn có thể thử lại ngay.';
+      });
+      await _persistChatHistory();
+      _focusLatestTransactionFlow();
+    }
+  }
+
+  AIChatMessage _buildVoiceAiMessage(
+    VoiceTransactionInterpretation interpretation,
+  ) {
+    final status = switch (interpretation.reviewStatus) {
+      VoiceReviewStatus.ready => 'success',
+      VoiceReviewStatus.error || VoiceReviewStatus.permissionDenied => 'error',
+      _ => 'clarification',
+    };
+
+    return AIChatMessage(
+      id: _uuid.v4(),
+      sender: AIChatSender.ai,
+      text: interpretation.message,
+      timestamp: DateTime.now(),
+      transactions: interpretation.reviewStatus == VoiceReviewStatus.ready
+          ? _normalizeTransactions(interpretation.draftTransactions)
+          : const <Map<String, dynamic>>[],
+      status: status,
+      source: 'voice_parse',
+      responseKind: interpretation.reviewStatus == VoiceReviewStatus.ready
+          ? 'voice_ready'
+          : interpretation.hasRecommendations
+          ? 'voice_review'
+          : 'voice_clarification',
+      voiceInterpretation: interpretation,
+    );
+  }
+
+  Future<void> _applyVoiceRecommendation(
+    AIChatMessage message,
+    VoiceRecommendationOption option,
+  ) async {
+    final messageIndex = _messages.indexWhere((item) => item.id == message.id);
+    if (messageIndex == -1) return;
+
+    if (option.transactions.isEmpty) {
+      final currentInterpretation = message.voiceInterpretation;
+      final updatedInterpretation = currentInterpretation?.copyWith(
+        recommendations: const <VoiceRecommendationOption>[],
+      );
+      setState(() {
+        _inputController.text =
+            message.voiceInterpretation?.rawTranscript ?? message.text;
+        _inputController.selection = TextSelection.collapsed(
+          offset: _inputController.text.length,
+        );
+        _messages[messageIndex] = message.copyWith(
+          voiceInterpretation: updatedInterpretation,
+        );
+        _clearVoiceSessionUi();
+      });
+      _focusLatestTransactionFlow();
+      return;
+    }
+
+    final normalizedTransactions = option.transactions
+        .map(_normalizeDraftTransaction)
+        .toList(growable: false);
+    final incompleteTransactions = normalizedTransactions
+        .where(_isIncompleteDraftTransaction)
+        .toList(growable: false);
+    final completeTransactions = normalizedTransactions
+        .where((tx) => !_isIncompleteDraftTransaction(tx))
+        .toList(growable: false);
+    final hasIncompleteTransactions = normalizedTransactions.any(
+      _isIncompleteDraftTransaction,
+    );
+    final shouldPushIncompleteToComposer =
+        option.id == 'split_guess' && incompleteTransactions.isNotEmpty;
+    final composerSeedText = shouldPushIncompleteToComposer
+        ? incompleteTransactions
+              .map((tx) => tx['note']?.toString().trim() ?? '')
+              .where((item) => item.isNotEmpty)
+              .join(' ')
+        : '';
+    final currentInterpretation = message.voiceInterpretation;
+    final updatedInterpretation = currentInterpretation?.copyWith(
+      reviewStatus: hasIncompleteTransactions
+          ? VoiceReviewStatus.needsReview
+          : VoiceReviewStatus.ready,
+      recommendations: const <VoiceRecommendationOption>[],
+      draftTransactions: shouldPushIncompleteToComposer
+          ? completeTransactions
+          : normalizedTransactions,
+      missingFields: hasIncompleteTransactions
+          ? const <String>['amount']
+          : const <String>[],
+      message: shouldPushIncompleteToComposer
+          ? 'Mình đã tách phần chắc chắn thành thẻ riêng. Phần còn thiếu mình đưa xuống ô nhập để bạn chỉnh tiếp nhé.'
+          : hasIncompleteTransactions
+          ? 'Mình đã tách các ý chính rồi. Bạn bổ sung phần còn thiếu trước khi lưu nhé.'
+          : option.requiresEdit
+          ? 'Mình đã áp dụng gợi ý gần đúng. Bạn chỉnh lại thẻ trước khi lưu nhé.'
+          : currentInterpretation.message,
+    );
+
+    setState(() {
+      if (shouldPushIncompleteToComposer && composerSeedText.isNotEmpty) {
+        _inputController.text = composerSeedText;
+        _inputController.selection = TextSelection.collapsed(
+          offset: _inputController.text.length,
+        );
+      }
+      _messages[messageIndex] = message.copyWith(
+        text: updatedInterpretation?.message ?? message.text,
+        transactions: shouldPushIncompleteToComposer
+            ? completeTransactions
+            : normalizedTransactions,
+        status: hasIncompleteTransactions ? 'clarification' : 'success',
+        responseKind: hasIncompleteTransactions
+            ? 'voice_review'
+            : 'voice_ready',
+        voiceInterpretation: updatedInterpretation,
+      );
+      _clearVoiceSessionUi();
+    });
+    await _persistChatHistory();
+    _focusLatestTransactionFlow();
+
+    if (!mounted || !option.requiresEdit || normalizedTransactions.isEmpty) {
+      return;
+    }
+
+    if (shouldPushIncompleteToComposer) {
+      return;
     }
   }
 
   Future<void> _applyQuickTemplate(QuickTemplate template) async {
     if (_isProcessing) return;
+
+    _focusLatestTransactionFlow(dismissKeyboard: true);
 
     final now = DateTime.now();
     Map<String, dynamic>? userData;
@@ -1185,12 +1680,13 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     if (!mounted) return;
     setState(() {
+      _clearVoiceSessionUi();
       _messages
         ..add(userMessage)
         ..add(aiMessage);
     });
     await _persistChatHistory();
-    _scrollToBottom();
+    _focusLatestTransactionFlow();
   }
 
   Future<QuickTemplate?> _showQuickTemplateForm({
@@ -1724,6 +2220,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   AIChatMessage _buildAiMessage(Map<String, dynamic> result) {
     final transactions = _normalizeTransactions(result['transactions']);
+    final assistantActions = _normalizeAssistantActions(result['suggestions']);
     final status =
         result['status']?.toString() ??
         (result['success'] == true
@@ -1751,17 +2248,26 @@ class _AIInputScreenState extends State<AIInputScreen>
       status: status,
       source: result['source']?.toString() ?? '',
       responseKind: result['responseKind']?.toString() ?? '',
+      assistantActions: assistantActions,
     );
   }
 
   String _sourceLabel(String source) {
     switch (source) {
+      case 'voice_capture':
+        return 'Giọng nói';
+      case 'voice_parse':
+        return 'Phân tích giọng nói';
       case 'remote_ai':
         return 'Trợ lý AI';
       case 'remote_ai_vision':
         return 'Trợ lý AI từ ảnh';
       case 'remote_ai_recovered':
         return 'Trợ lý AI hỗ trợ';
+      case 'remote_ai_assistant':
+        return 'AI hỗ trợ';
+      case 'assistant_local':
+        return 'Hỗ trợ cục bộ';
       case 'local_fast_path':
         return 'Trợ lý thông minh';
       case 'local_parse':
@@ -1773,12 +2279,26 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   String _responseKindLabel(String responseKind) {
     switch (responseKind) {
+      case 'voice_transcript':
+        return 'Lời đã nghe';
+      case 'voice_ready':
+        return 'Đã tạo thẻ từ giọng nói';
+      case 'voice_review':
+        return 'Giọng nói cần xem lại';
+      case 'voice_clarification':
+        return 'Giọng nói cần làm rõ';
+      case 'voice_error':
+        return 'Lỗi xử lý giọng nói';
       case 'card_ready':
         return 'Có thẻ';
       case 'clarification':
         return 'Làm rõ';
       case 'natural_reply':
         return 'Trả lời tự nhiên';
+      case 'assistant_reply':
+        return 'Trợ lý hỗ trợ';
+      case 'assistant_action_suggestion':
+        return 'Gợi ý thao tác';
       case 'error':
         return 'Lỗi';
       default:
@@ -1791,6 +2311,118 @@ class _AIInputScreenState extends State<AIInputScreen>
     return rawTransactions.whereType<Map>().map<Map<String, dynamic>>((item) {
       return Map<String, dynamic>.from(item);
     }).toList();
+  }
+
+  List<AssistantActionSuggestion> _normalizeAssistantActions(
+    dynamic rawActions,
+  ) {
+    if (rawActions is! List) {
+      return const <AssistantActionSuggestion>[];
+    }
+
+    return rawActions
+        .whereType<Map>()
+        .map<AssistantActionSuggestion>((item) {
+          return AssistantActionSuggestion.fromJson(
+            Map<String, dynamic>.from(item),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  int _normalizeDraftAmountValue(dynamic value) {
+    return TransactionSummaryHelper.normalizeAmount(value);
+  }
+
+  DateTime _resolveDraftDateTime(Map<String, dynamic> tx) {
+    final dateTimeRaw = tx['dateTime']?.toString().trim() ?? '';
+    if (dateTimeRaw.isNotEmpty) {
+      try {
+        return DateFormat('dd/MM/yyyy HH:mm').parseStrict(dateTimeRaw);
+      } catch (_) {}
+    }
+
+    final dateRaw = tx['date']?.toString().trim() ?? '';
+    if (dateRaw.isNotEmpty) {
+      try {
+        return DateFormat('dd/MM/yyyy').parseStrict(dateRaw);
+      } catch (_) {}
+    }
+
+    return DateTime.now();
+  }
+
+  String _effectiveTransactionCategory(Map<String, dynamic> tx) {
+    final bool isNewCat = tx['isNewCategory'] == true;
+    final bool confirmCreateCategory = tx['confirmCreateCategory'] ?? true;
+    final fallbackCategory = tx['fallbackCategory']?.toString().trim() ?? '';
+
+    if (isNewCat && !confirmCreateCategory && fallbackCategory.isNotEmpty) {
+      return fallbackCategory;
+    }
+
+    final category = tx['category']?.toString().trim() ?? '';
+    return category.isEmpty ? 'Khác' : category;
+  }
+
+  String _effectiveTransactionIconName(Map<String, dynamic> tx) {
+    final bool isNewCat = tx['isNewCategory'] == true;
+    final bool confirmCreateCategory = tx['confirmCreateCategory'] ?? true;
+    final fallbackIconName = tx['fallbackIconName']?.toString().trim() ?? '';
+
+    if (isNewCat && !confirmCreateCategory && fallbackIconName.isNotEmpty) {
+      return fallbackIconName;
+    }
+
+    final suggestedIcon = tx['suggestedIcon']?.toString().trim() ?? '';
+    if (suggestedIcon.isNotEmpty) {
+      return suggestedIcon;
+    }
+
+    return tx['type'] == 'credit' ? 'moneyBillWave' : 'cartShopping';
+  }
+
+  Map<String, dynamic> _normalizeDraftTransaction(Map<String, dynamic> tx) {
+    final normalized = Map<String, dynamic>.from(tx);
+    final resolvedDateTime = _resolveDraftDateTime(normalized);
+    final effectiveCategory = _effectiveTransactionCategory(normalized);
+    final effectiveIconName = _effectiveTransactionIconName(normalized);
+    final title = normalized['title']?.toString().trim() ?? '';
+    final note = normalized['note']?.toString().trim() ?? '';
+
+    normalized['title'] = title;
+    normalized['note'] = note;
+    normalized['amount'] = _normalizeDraftAmountValue(normalized['amount']);
+    normalized['type'] = normalized['type']?.toString() == 'credit'
+        ? 'credit'
+        : 'debit';
+    normalized['date'] = DateFormat('dd/MM/yyyy').format(resolvedDateTime);
+    normalized['time'] = DateFormat('HH:mm').format(resolvedDateTime);
+    normalized['dateTime'] = DateFormat(
+      'dd/MM/yyyy HH:mm',
+    ).format(resolvedDateTime);
+    normalized['selectedCategory'] = effectiveCategory;
+    normalized['selectedIconName'] = effectiveIconName;
+
+    if (normalized['isNewCategory'] == true &&
+        (normalized['confirmCreateCategory'] ?? true) == false) {
+      normalized['fallbackCategory'] = effectiveCategory;
+      normalized['fallbackIconName'] = effectiveIconName;
+    } else {
+      normalized['category'] = effectiveCategory;
+      normalized['suggestedIcon'] = effectiveIconName;
+      normalized['fallbackCategory'] = effectiveCategory;
+      normalized['fallbackIconName'] = effectiveIconName;
+    }
+
+    return normalized;
+  }
+
+  bool _isIncompleteDraftTransaction(Map<String, dynamic> tx) {
+    final amount = _normalizeDraftAmountValue(tx['amount']);
+    final title = tx['title']?.toString().trim() ?? '';
+    final category = _effectiveTransactionCategory(tx).trim();
+    return amount <= 0 || title.isEmpty || category.isEmpty;
   }
 
   void _updateTransactionField({
@@ -1824,11 +2456,153 @@ class _AIInputScreenState extends State<AIInputScreen>
     _persistChatHistory();
   }
 
+  Future<void> _replaceTransactionDraft({
+    required String messageId,
+    required int transactionIndex,
+    required Map<String, dynamic> transaction,
+  }) async {
+    final messageIndex = _messages.indexWhere(
+      (message) => message.id == messageId,
+    );
+    if (messageIndex == -1) return;
+
+    final message = _messages[messageIndex];
+    final updatedTransactions = message.transactions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    if (transactionIndex < 0 ||
+        transactionIndex >= updatedTransactions.length) {
+      return;
+    }
+
+    updatedTransactions[transactionIndex] = _normalizeDraftTransaction(
+      transaction,
+    );
+
+    setState(() {
+      _messages[messageIndex] = message.copyWith(
+        transactions: updatedTransactions,
+      );
+    });
+    await _persistChatHistory();
+  }
+
+  Future<void> _removeTransactionDraft({
+    required String messageId,
+    required int transactionIndex,
+  }) async {
+    final messageIndex = _messages.indexWhere(
+      (message) => message.id == messageId,
+    );
+    if (messageIndex == -1) return;
+
+    final message = _messages[messageIndex];
+    if (message.isSaved) return;
+
+    final updatedTransactions = message.transactions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    if (transactionIndex < 0 ||
+        transactionIndex >= updatedTransactions.length) {
+      return;
+    }
+
+    updatedTransactions.removeAt(transactionIndex);
+
+    setState(() {
+      _messages[messageIndex] = message.copyWith(
+        transactions: updatedTransactions,
+      );
+    });
+    await _persistChatHistory();
+  }
+
+  Future<void> _editTransactionDraft({
+    required AIChatMessage message,
+    required int transactionIndex,
+    required Map<String, dynamic> transaction,
+  }) async {
+    if (message.isSaved) return;
+
+    final normalized = _normalizeDraftTransaction(transaction);
+    final selectedCategory = normalized['selectedCategory']?.toString() ?? '';
+    final selectedIconName =
+        normalized['selectedIconName']?.toString() ?? 'cartShopping';
+    var categoryOptions = List<Map<String, dynamic>>.from(
+      _transactionCategoryOptions,
+    );
+    if (categoryOptions.isEmpty) {
+      try {
+        categoryOptions = await _transactionCategoryOptionsFuture.timeout(
+          const Duration(seconds: 3),
+        );
+      } catch (_) {
+        categoryOptions = const <Map<String, dynamic>>[];
+      }
+    }
+
+    if (!mounted) return;
+
+    final mergedCategoryOptions = <Map<String, dynamic>>[
+      ...categoryOptions,
+      if (selectedCategory.isNotEmpty)
+        <String, dynamic>{
+          'name': selectedCategory,
+          'iconName': selectedIconName,
+        },
+    ];
+
+    final edited = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AITransactionDraftEditor(
+        initialTransaction: normalized,
+        categoryOptions: mergedCategoryOptions,
+      ),
+    );
+
+    if (edited == null || !mounted) {
+      return;
+    }
+
+    await _replaceTransactionDraft(
+      messageId: message.id,
+      transactionIndex: transactionIndex,
+      transaction: edited,
+    );
+  }
+
   Future<void> _saveTransactionsForMessage(AIChatMessage message) async {
     if (message.transactions.isEmpty || message.isSaved) return;
     if (_savingMessageIds.contains(message.id)) return;
 
-    for (final tx in message.transactions) {
+    final normalizedTransactions = message.transactions
+        .map(_normalizeDraftTransaction)
+        .toList(growable: false);
+    if (normalizedTransactions.isEmpty) return;
+
+    for (final tx in normalizedTransactions) {
+      final title = tx['title']?.toString().trim() ?? '';
+      if (title.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bạn nhập giúp mình tiêu đề trước khi lưu nhé.'),
+          ),
+        );
+        return;
+      }
+
+      final amount = _normalizeDraftAmountValue(tx['amount']);
+      if (amount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Số tiền của giao dịch phải lớn hơn 0.'),
+          ),
+        );
+        return;
+      }
+
       if (tx['isNewCategory'] == true &&
           (tx['confirmCreateCategory'] ?? true) == false) {
         final fallbackCategory =
@@ -1877,7 +2651,7 @@ class _AIInputScreenState extends State<AIInputScreen>
           userSnapshot.data()?['customCategories'] ?? [],
         );
 
-        for (final tx in message.transactions) {
+        for (final tx in normalizedTransactions) {
           final int amount = TransactionSummaryHelper.normalizeAmount(
             tx['amount'],
           );
@@ -1962,7 +2736,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               id: _uuid.v4(),
               sender: AIChatSender.ai,
               text: AIResponseEnhancement.saveSuccessMessage(
-                message.transactions.length,
+                normalizedTransactions.length,
               ),
               timestamp: DateTime.now(),
               status: 'success',
@@ -2274,6 +3048,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
                 _useRealAiMode = false;
               }
+              _ensureAssistantModeStillAvailable();
               _hasReceivedRuntimeConfigSnapshot = true;
             });
 
@@ -2289,6 +3064,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               _runtimeConfig = config;
               _useRealAiMode = config.enabled && config.canUseRemoteAi;
               _isLoadingRuntimeConfig = false;
+              _ensureAssistantModeStillAvailable();
               _hasReceivedRuntimeConfigSnapshot = true;
             });
           },
@@ -2317,6 +3093,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     setState(() {
       _runtimeConfig = latestConfig;
       _isLoadingRuntimeConfig = false;
+      _ensureAssistantModeStillAvailable();
     });
 
     if (adminDisabled) {
@@ -2353,6 +3130,7 @@ class _AIInputScreenState extends State<AIInputScreen>
     if (!value) {
       setState(() {
         _useRealAiMode = false;
+        _ensureAssistantModeStillAvailable();
       });
       return;
     }
@@ -2364,6 +3142,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     setState(() {
       _useRealAiMode = allowed;
+      _ensureAssistantModeStillAvailable();
     });
   }
 
@@ -2477,127 +3256,343 @@ class _AIInputScreenState extends State<AIInputScreen>
     final compactWidth = _isCompactWidth(context);
     final isOnline = _useRealAiMode;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, compact ? 8 : 12, 16, 0),
+      padding: EdgeInsets.fromLTRB(16, compact ? 6 : 8, 16, 0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(compact ? 24 : 28),
+        borderRadius: BorderRadius.circular(compact ? 20 : 22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            padding: EdgeInsets.all(compact ? 14 : 18),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 14,
+              vertical: compact ? 8 : 10,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(compact ? 24 : 28),
+              borderRadius: BorderRadius.circular(compact ? 20 : 22),
               border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
-            child: Row(
-              crossAxisAlignment: compact
-                  ? CrossAxisAlignment.start
-                  : CrossAxisAlignment.center,
+            child: Column(
               children: [
-                ScaleTransition(
-                  scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
-                  child: Container(
-                    padding: EdgeInsets.all(compact ? 12 : 14),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.blue[400]!, Colors.purple[400]!],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withValues(alpha: 0.35),
-                          blurRadius: 26,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Hero(
-                      tag: 'ai_button',
-                      child: Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white,
-                        size: compact ? 24 : 30,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: compact ? 10 : 14),
-                Expanded(
-                  child: Column(
+                if (compactWidth) ...[
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "Trợ lý thông minh",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact ? 18 : 20,
-                          fontWeight: FontWeight.w700,
+                      _buildAiHeaderIcon(compact: compact),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Trợ lý thông minh",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isAssistantMode
+                                  ? "Hỗ trợ người dùng"
+                                  : "Tạo giao dịch",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.62),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      _buildAiModeSwitch(
+                        compact: compact,
+                        modeLabel: modeLabel,
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: _useRealAiMode,
-                          onChanged: _isLoadingRuntimeConfig
-                              ? null
-                              : (value) => _handleRealAiModeToggle(value),
-                          activeThumbColor: const Color(0xFF4ADE80),
-                        ),
-                        Text(
-                          modeLabel,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.88),
-                            fontSize: compact ? 11 : 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compact ? 2 : 4),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compactWidth ? 8 : 10,
-                        vertical: compact ? 5 : 6,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _useRealAiMode
+                            ? Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: [
+                                  _buildAiModeOption(
+                                    label: 'Giao dịch',
+                                    isSelected: !_isAssistantMode,
+                                    onTap: () => _setScreenMode(
+                                      _AiScreenMode.transaction,
+                                    ),
+                                  ),
+                                  _buildAiModeOption(
+                                    label: 'Hỗ trợ',
+                                    isSelected: _isAssistantMode,
+                                    isEnabled: _assistantModeAvailable,
+                                    onTap: () => _setScreenMode(
+                                      _AiScreenMode.assistant,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink(),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(999),
+                      const SizedBox(width: 8),
+                      _buildOnlineStatusBadge(
+                        compactWidth: compactWidth,
+                        isOnline: isOnline,
                       ),
-                      child: Row(
+                    ],
+                  ),
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _buildAiHeaderIcon(compact: compact),
+                      SizedBox(width: compact ? 8 : 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Trợ lý thông minh",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: compact ? 13 : 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isAssistantMode
+                                  ? "Hỗ trợ người dùng"
+                                  : "Tạo giao dịch",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.62),
+                                fontSize: compact ? 10 : 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: isOnline
-                                  ? const Color(0xFF4ADE80)
-                                  : Colors.white.withValues(alpha: 0.5),
-                              shape: BoxShape.circle,
-                            ),
+                          _buildAiModeSwitch(
+                            compact: compact,
+                            modeLabel: modeLabel,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isOnline ? "Online" : "Offline",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          const SizedBox(height: 3),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              if (_useRealAiMode)
+                                _buildAiModeOption(
+                                  label: 'Giao dịch',
+                                  isSelected: !_isAssistantMode,
+                                  onTap: () =>
+                                      _setScreenMode(_AiScreenMode.transaction),
+                                ),
+                              if (_useRealAiMode)
+                                _buildAiModeOption(
+                                  label: 'Hỗ trợ',
+                                  isSelected: _isAssistantMode,
+                                  isEnabled: _assistantModeAvailable,
+                                  onTap: () =>
+                                      _setScreenMode(_AiScreenMode.assistant),
+                                ),
+                              _buildOnlineStatusBadge(
+                                compactWidth: compactWidth,
+                                isOnline: isOnline,
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiHeaderIcon({required bool compact}) {
+    return ScaleTransition(
+      scale: Tween(begin: 1.0, end: 1.08).animate(_pulseController),
+      child: Container(
+        padding: EdgeInsets.all(compact ? 8 : 10),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Colors.blue[400]!, Colors.purple[400]!],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withValues(alpha: 0.28),
+              blurRadius: 18,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Hero(
+          tag: 'ai_button',
+          child: Icon(
+            Icons.auto_awesome,
+            color: Colors.white,
+            size: compact ? 16 : 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiModeSwitch({
+    required bool compact,
+    required String modeLabel,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Transform.scale(
+          scale: compact ? 0.66 : 0.8,
+          child: Switch(
+            value: _useRealAiMode,
+            onChanged: _isLoadingRuntimeConfig
+                ? null
+                : (value) => _handleRealAiModeToggle(value),
+            activeThumbColor: const Color(0xFF4ADE80),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        Text(
+          modeLabel,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.88),
+            fontSize: compact ? 9 : 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOnlineStatusBadge({
+    required bool compactWidth,
+    required bool isOnline,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compactWidth ? 6 : 8,
+        vertical: compactWidth ? 3 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isOnline
+                  ? const Color(0xFF4ADE80)
+                  : Colors.white.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isOnline ? "Online" : "Offline",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: compactWidth ? 9 : 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiModeOption({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isEnabled = true,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isEnabled ? onTap : _showAssistantModeDisabledMessage,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: !isEnabled
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.07),
+                      Colors.white.withValues(alpha: 0.04),
+                    ],
+                  )
+                : isSelected
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF1C84FF),
+                      Color(0xFF315EF6),
+                      Color(0xFF4C42D4),
+                    ],
+                  )
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.12),
+                      Colors.white.withValues(alpha: 0.06),
+                    ],
+                  ),
+            border: Border.all(
+              color: !isEnabled
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : isSelected
+                  ? Colors.white.withValues(alpha: 0.22)
+                  : Colors.white.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isEnabled
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.42),
+              fontWeight: FontWeight.w700,
+              fontSize: 10.5,
             ),
           ),
         ),
@@ -2646,7 +3641,9 @@ class _AIInputScreenState extends State<AIInputScreen>
             ),
             const SizedBox(height: 10),
             Text(
-              "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
+              _isAssistantMode
+                  ? "Hãy hỏi như: 'Quản lý danh mục ở đâu?', 'Xem báo cáo chỗ nào?', 'Bật thông báo ra sao?' hoặc 'Cách thêm giao dịch như thế nào?'"
+                  : "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
@@ -2695,12 +3692,19 @@ class _AIInputScreenState extends State<AIInputScreen>
   Widget _buildMessageBubble(AIChatMessage message) {
     final isUser = message.sender == AIChatSender.user;
     final tint = _statusTint(message.status);
+    final isCardReviewBubble =
+        !isUser && message.hasTransactions && message.status != 'error';
+    final bubblePadding = isCardReviewBubble
+        ? const EdgeInsets.symmetric(horizontal: 14, vertical: 12)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          maxWidth:
+              MediaQuery.of(context).size.width *
+              (isCardReviewBubble ? 0.74 : 0.78),
         ),
         child: Column(
           crossAxisAlignment: isUser
@@ -2708,7 +3712,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               : CrossAxisAlignment.start,
           children: [
             _buildGlassSurface(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: bubblePadding,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(22),
                 topRight: const Radius.circular(22),
@@ -2747,14 +3751,16 @@ class _AIInputScreenState extends State<AIInputScreen>
                 children: [
                   if (!isUser)
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         Container(
-                          margin: const EdgeInsets.only(bottom: 10),
+                          margin: EdgeInsets.only(
+                            bottom: isCardReviewBubble ? 6 : 10,
+                          ),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
+                            horizontal: 9,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: tint.withValues(alpha: 0.16),
@@ -2771,12 +3777,13 @@ class _AIInputScreenState extends State<AIInputScreen>
                                 : "Trợ lý AI",
                             style: TextStyle(
                               color: tint,
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        if (message.source.trim().isNotEmpty)
+                        if (!isCardReviewBubble &&
+                            message.source.trim().isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.symmetric(
@@ -2799,7 +3806,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                               ),
                             ),
                           ),
-                        if (message.responseKind.trim().isNotEmpty)
+                        if (!isCardReviewBubble &&
+                            message.responseKind.trim().isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.symmetric(
@@ -2828,10 +3836,12 @@ class _AIInputScreenState extends State<AIInputScreen>
                     _repairLegacyText(message.text),
                     style: TextStyle(
                       color: _surfaceInk,
-                      fontSize: 15,
-                      height: 1.45,
+                      fontSize: isCardReviewBubble ? 14 : 15,
+                      height: isCardReviewBubble ? 1.35 : 1.45,
                       fontWeight: isUser ? FontWeight.w500 : FontWeight.w400,
                     ),
+                    maxLines: isCardReviewBubble ? 3 : null,
+                    overflow: isCardReviewBubble ? TextOverflow.ellipsis : null,
                   ),
                   if (_shouldShowCategoryDecisionActions(message))
                     _buildCategoryDecisionActions(message),
@@ -2854,6 +3864,99 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
+  Future<void> _handleAssistantAction(AssistantActionSuggestion action) async {
+    switch (action.type) {
+      case AssistantActionType.openHome:
+        dashboardTabRequest.value = 0;
+        break;
+      case AssistantActionType.openBudget:
+        await _openReferenceScreen(const BudgetScreen());
+        break;
+      case AssistantActionType.openSavings:
+        await _openReferenceScreen(const SavingGoalsScreen());
+        break;
+      case AssistantActionType.openReport:
+        dashboardTabRequest.value = 3;
+        break;
+      case AssistantActionType.openSettings:
+        dashboardTabRequest.value = 4;
+        break;
+      case AssistantActionType.openCategoryManagement:
+        await _openReferenceScreen(const CategoryManagementScreen());
+        break;
+      case AssistantActionType.openNotifications:
+        await _openReferenceScreen(const NotificationsScreen());
+        break;
+      case AssistantActionType.openSearch:
+        await _openReferenceScreen(const SearchScreen());
+        break;
+      case AssistantActionType.openManualTransaction:
+        await _openReferenceScreen(const AddTransactionScreen());
+        break;
+      case AssistantActionType.switchToTransaction:
+        _setScreenMode(_AiScreenMode.transaction);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã chuyển sang AI thêm giao dịch.')),
+        );
+        break;
+      case AssistantActionType.openAddTransaction:
+        _setScreenMode(_AiScreenMode.transaction);
+        break;
+    }
+  }
+
+  Future<void> _openReferenceScreen(Widget screen) async {
+    if (!mounted) return;
+    await pushAdaptiveScreen(context, screen);
+  }
+
+  Widget _buildAssistantActionChips(AIChatMessage message) {
+    if (message.assistantActions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 2),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: message.assistantActions
+            .map((action) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => _handleAssistantAction(action),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Text(
+                      action.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+
   Widget _buildTransactionCard(
     AIChatMessage message,
     int index,
@@ -2863,16 +3966,19 @@ class _AIInputScreenState extends State<AIInputScreen>
     final bool createNewCategory = tx['confirmCreateCategory'] ?? true;
     final bool isCredit = tx['type'] == 'credit';
     final bool showTypeChoice = _isImageDerivedTransaction(tx);
+    final effectiveCategory = _effectiveTransactionCategory(tx);
+    final effectiveIconName = _effectiveTransactionIconName(tx);
+    final normalizedAmount = _normalizeDraftAmountValue(tx['amount']);
     final accent = isCredit ? const Color(0xFF7EE787) : const Color(0xFFFF8A8A);
     final amountColor = isCredit
         ? const Color(0xFFB8FFD0)
         : const Color(0xFFFFB7B7);
 
     return Container(
-      margin: const EdgeInsets.only(top: 12),
+      margin: const EdgeInsets.only(top: 8),
       child: _buildGlassSurface(
-        padding: const EdgeInsets.all(18),
-        borderRadius: BorderRadius.circular(24),
+        padding: const EdgeInsets.all(14),
+        borderRadius: BorderRadius.circular(22),
         gradient: _glassGradient(
           accent: accent,
           baseAlpha: 0.2,
@@ -2903,18 +4009,20 @@ class _AIInputScreenState extends State<AIInputScreen>
                         style: const TextStyle(
                           color: _surfaceInk,
                           fontWeight: FontWeight.w700,
-                          fontSize: 17,
+                          fontSize: 16,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 7,
+                              horizontal: 9,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.14),
@@ -2927,21 +4035,17 @@ class _AIInputScreenState extends State<AIInputScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  appIcons.getIconData(
-                                    tx['suggestedIcon'] ?? "cartShopping",
-                                  ),
+                                  appIcons.getIconData(effectiveIconName),
                                   size: 14,
                                   color: _accentCyan,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _repairLegacyText(
-                                    tx['category']?.toString() ?? "Khác",
-                                  ),
+                                  _repairLegacyText(effectiveCategory),
                                   style: const TextStyle(
                                     color: _surfaceInk,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 12,
+                                    fontSize: 11.5,
                                   ),
                                 ),
                               ],
@@ -2950,8 +4054,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                           if (isNewCat)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 7,
+                                horizontal: 9,
+                                vertical: 6,
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(
@@ -2969,7 +4073,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                 style: TextStyle(
                                   color: Color(0xFFFFE4A3),
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                 ),
                               ),
                             ),
@@ -2979,42 +4083,105 @@ class _AIInputScreenState extends State<AIInputScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  "${isCredit ? '+' : '-'}${currencyFormat.format(tx['amount'])} đ",
-                  style: TextStyle(
-                    color: amountColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (!message.isSaved)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCardActionIcon(
+                            icon: Icons.edit_outlined,
+                            tooltip: 'Sửa card',
+                            onTap: () {
+                              _editTransactionDraft(
+                                message: message,
+                                transactionIndex: index,
+                                transaction: tx,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          _buildCardActionIcon(
+                            icon: Icons.delete_outline_rounded,
+                            tooltip: 'Xóa card',
+                            color: const Color(0xFFFFC0C0),
+                            onTap: () async {
+                              final shouldDelete = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Xóa card?'),
+                                  content: const Text(
+                                    'Bạn có muốn xóa card này không?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Không'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (shouldDelete != true || !mounted) {
+                                return;
+                              }
+
+                              await _removeTransactionDraft(
+                                messageId: message.id,
+                                transactionIndex: index,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    if (!message.isSaved) const SizedBox(height: 12),
+                    Text(
+                      "${isCredit ? '+' : '-'}${currencyFormat.format(normalizedAmount)} đ",
+                      style: TextStyle(
+                        color: amountColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             if (tx['note'] != null && tx['note'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 14),
+                padding: const EdgeInsets.only(top: 10),
                 child: Text(
                   "Ghi chú: ${_repairLegacyText(tx['note'].toString())}",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 13,
-                    height: 1.35,
+                    fontSize: 12.5,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             if (tx['dateTime'] != null && tx['dateTime'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   "Thời gian: ${_repairLegacyText(tx['dateTime'].toString())}",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.64),
-                    fontSize: 13,
+                    fontSize: 12,
                   ),
                 ),
               ),
             if (showTypeChoice)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3069,7 +4236,7 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             if (isNewCat)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: 12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -3194,6 +4361,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                     return DropdownMenuItem<String>(
                                       value: name,
                                       child: Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
                                             appIcons.getIconData(iconName),
@@ -3203,7 +4371,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                             ),
                                           ),
                                           const SizedBox(width: 10),
-                                          Expanded(
+                                          Flexible(
                                             child: Text(
                                               name,
                                               overflow: TextOverflow.ellipsis,
@@ -3256,6 +4424,303 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
+  Widget _buildCardActionIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    Color color = Colors.white,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Tooltip(
+            message: tooltip,
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _hasTransactionCardsInConversation() {
+    return _messages.any((message) => message.hasTransactions);
+  }
+
+  bool _showCompactComposerLayout() {
+    return !_isAssistantMode && _hasTransactionCardsInConversation();
+  }
+
+  Future<void> _showQuickTemplateOrbitMenu() async {
+    if (_quickTemplates.isEmpty) {
+      await _openQuickTemplateManager();
+      return;
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierLabel: 'quick_templates',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final visibleTemplates = _quickTemplates
+            .take(6)
+            .toList(growable: false);
+        const radius = 108.0;
+        const itemWidth = 120.0;
+        const itemHeight = 44.0;
+        const centerSize = 68.0;
+
+        return SafeArea(
+          child: Material(
+            color: Colors.transparent,
+            child: Center(
+              child: SizedBox(
+                width: 320,
+                height: 320,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 256,
+                      height: 256,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.14),
+                            blurRadius: 28,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    for (var i = 0; i < visibleTemplates.length; i++)
+                      Builder(
+                        builder: (context) {
+                          final template = visibleTemplates[i];
+                          final angle =
+                              (-90 + ((360 / visibleTemplates.length) * i)) *
+                              (3.141592653589793 / 180);
+                          final dx = radius * cos(angle);
+                          final dy = radius * sin(angle);
+                          final accent = template.isCredit
+                              ? const Color(0xFF7EE787)
+                              : _suggestionAccents[i %
+                                    _suggestionAccents.length];
+
+                          return Transform.translate(
+                            offset: Offset(dx, dy),
+                            child: SizedBox(
+                              width: itemWidth,
+                              height: itemHeight,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(999),
+                                  onTap: () async {
+                                    Navigator.of(context).pop();
+                                    await _applyQuickTemplate(template);
+                                  },
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      gradient: _glassGradient(
+                                        accent: accent,
+                                        baseAlpha: 0.2,
+                                        accentAlpha: 0.16,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: accent.withValues(alpha: 0.26),
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            appIcons.getIconData(
+                                              template.iconName,
+                                            ),
+                                            size: 15,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              template.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    Container(
+                      width: centerSize,
+                      height: centerSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF1C84FF), Color(0xFF4C42D4)],
+                        ),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF315EF6,
+                            ).withValues(alpha: 0.28),
+                            blurRadius: 22,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        tooltip: 'Đóng',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+            ),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactReviewHint() {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: IconButton(
+            onPressed: _isProcessing ? null : _showQuickTemplateOrbitMenu,
+            icon: const Icon(
+              Icons.touch_app_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            tooltip: 'Chọn nhanh',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: IconButton(
+            onPressed: _openQuickTemplateManager,
+            icon: const Icon(Icons.tune_rounded, color: Colors.white, size: 19),
+            tooltip: 'Thiết lập Chọn nhanh',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Text(
+              'Đang tạo giao dịch',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: _isProcessing ? null : _showImageImportOptions,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: const Icon(
+              Icons.camera_alt_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAiMessageContent(AIChatMessage message) {
     final isSaving = _savingMessageIds.contains(message.id);
 
@@ -3277,14 +4742,22 @@ class _AIInputScreenState extends State<AIInputScreen>
                 message.transactions[index],
               ),
             ),
+            if (message.voiceInterpretation?.hasRecommendations == true)
+              AiVoiceRecommendationPanel(
+                interpretation: message.voiceInterpretation!,
+                onChooseOption: (option) =>
+                    _applyVoiceRecommendation(message, option),
+              ),
+            if (message.assistantActions.isNotEmpty)
+              _buildAssistantActionChips(message),
             if (message.hasTransactions)
               Padding(
-                padding: const EdgeInsets.only(top: 12, left: 4),
+                padding: const EdgeInsets.only(top: 8, left: 2),
                 child: message.isSaved
                     ? Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0x1A4ADE80),
@@ -3305,14 +4778,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
+                                fontSize: 13,
                               ),
                             ),
                           ],
                         ),
                       )
                     : SizedBox(
-                        width: 188,
-                        height: 48,
+                        width: 170,
+                        height: 42,
                         child: ElevatedButton(
                           onPressed: isSaving
                               ? null
@@ -3353,8 +4827,8 @@ class _AIInputScreenState extends State<AIInputScreen>
                             child: Center(
                               child: isSaving
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2.4,
                                         color: Colors.white,
@@ -3364,7 +4838,7 @@ class _AIInputScreenState extends State<AIInputScreen>
                                       "Xác nhận & Lưu",
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 15,
+                                        fontSize: 13.5,
                                       ),
                                     ),
                             ),
@@ -3380,7 +4854,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildChatItem(AIChatMessage message) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 10),
       child: message.sender == AIChatSender.user
           ? _buildMessageBubble(message)
           : _buildAiMessageContent(message),
@@ -3400,7 +4874,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       itemCount: _messages.length + (_isProcessing ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _messages.length) {
@@ -3414,6 +4888,27 @@ class _AIInputScreenState extends State<AIInputScreen>
   }
 
   Widget _buildSuggestionsSection() {
+    if (_isAssistantMode) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Text(
+          'Bạn có thể hỏi về cách dùng app, thu chi tháng này, ngân sách, hoặc mục tiêu tiết kiệm.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.82),
+            fontSize: 12,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
     final compact = _useCompactDensity(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3606,7 +5101,9 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
+    final canToggleVoice = !_isAssistantMode && !_isProcessing && !_isVoiceBusy;
     final compact = _useCompactDensity(context);
+    final compactReview = _showCompactComposerLayout();
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -3614,7 +5111,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         16,
         0,
         16,
-        keyboardInset > 0 ? 12 : (compact ? 12 : 20),
+        keyboardInset > 0 ? 10 : (compact ? 10 : 14),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(compact ? 24 : 30),
@@ -3623,9 +5120,9 @@ class _AIInputScreenState extends State<AIInputScreen>
           child: Container(
             padding: EdgeInsets.fromLTRB(
               compact ? 14 : 16,
-              compact ? 12 : 16,
+              compactReview ? 10 : (compact ? 12 : 16),
               compact ? 14 : 16,
-              compact ? 12 : 14,
+              compactReview ? 10 : (compact ? 12 : 14),
             ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
@@ -3635,8 +5132,22 @@ class _AIInputScreenState extends State<AIInputScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSuggestionsSection(),
-                SizedBox(height: compact ? 10 : 14),
+                if (!_isAssistantMode) ...[
+                  AiVoiceSessionPanel(
+                    isListening: _isListeningToVoice,
+                    transcript: _liveVoiceTranscript,
+                    statusMessage: _voiceStatusMessage,
+                  ),
+                  if (_isListeningToVoice ||
+                      _liveVoiceTranscript.trim().isNotEmpty ||
+                      (_voiceStatusMessage?.trim().isNotEmpty ?? false))
+                    SizedBox(height: compact ? 10 : 12),
+                ],
+                if (compactReview)
+                  _buildCompactReviewHint()
+                else
+                  _buildSuggestionsSection(),
+                SizedBox(height: compactReview ? 8 : (compact ? 10 : 14)),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -3664,19 +5175,74 @@ class _AIInputScreenState extends State<AIInputScreen>
                           onSubmitted: (_) => _submitInput(),
                           decoration: InputDecoration(
                             filled: false,
-                            hintText: "Nhắn khoản thu/chi của bạn...",
+                            hintText: _isAssistantMode
+                                ? "Hỏi về app, ngân sách, tiết kiệm..."
+                                : "Nhắn khoản thu/chi của bạn...",
                             hintStyle: TextStyle(
                               color: Colors.white.withValues(alpha: 0.62),
                             ),
                             border: InputBorder.none,
+                            suffixIcon: _inputController.text.trim().isEmpty
+                                ? null
+                                : IconButton(
+                                    splashRadius: 18,
+                                    tooltip: 'Xóa nội dung',
+                                    onPressed: () {
+                                      _inputController.clear();
+                                      setState(() {});
+                                    },
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
+                                      ),
+                                      size: compact ? 18 : 20,
+                                    ),
+                                  ),
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: compact ? 14 : 16,
-                              vertical: compact ? 12 : 14,
+                              vertical: compactReview
+                                  ? 10
+                                  : (compact ? 12 : 14),
                             ),
                           ),
                         ),
                       ),
                     ),
+                    if (!_isAssistantMode) ...[
+                      SizedBox(width: compact ? 10 : 12),
+                      SizedBox(
+                        width: compact ? 48 : 54,
+                        height: compact ? 48 : 54,
+                        child: ElevatedButton(
+                          onPressed: canToggleVoice
+                              ? _toggleVoiceCapture
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            backgroundColor: _isListeningToVoice
+                                ? const Color(0xFFB84B5F)
+                                : Colors.white.withValues(alpha: 0.12),
+                            disabledBackgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                compact ? 16 : 18,
+                              ),
+                            ),
+                          ),
+                          child: Icon(
+                            _isListeningToVoice
+                                ? Icons.stop_rounded
+                                : Icons.mic_none_rounded,
+                            color: Colors.white,
+                            size: compact ? 20 : 22,
+                          ),
+                        ),
+                      ),
+                    ],
                     SizedBox(width: compact ? 10 : 12),
                     SizedBox(
                       width: compact ? 48 : 54,
@@ -3743,7 +5309,9 @@ class _AIInputScreenState extends State<AIInputScreen>
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    _useRealAiMode
+                    _isAssistantMode
+                        ? "AI hỗ trợ giúp trả lời về cách dùng app, thu chi tháng này, ngân sách và tiết kiệm. Các nút gợi ý chỉ điều hướng khi bạn bấm vào."
+                        : _useRealAiMode
                         ? "Chế độ nâng cao: bạn có thể chat tự nhiên hơn, hỏi thêm ngữ cảnh và gửi ảnh để trợ lý hỗ trợ phân tích."
                         : "Chế độ bình thường: hãy nhập ngắn gọn kiểu như ăn sáng 30k, đổ xăng 100k để app tách giao dịch và lưu nhanh hơn.",
                   ),
@@ -3839,9 +5407,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                     child: Container(
                       margin: EdgeInsets.fromLTRB(
                         16,
-                        compact ? 12 : 16,
+                        compact ? 8 : 10,
                         16,
-                        shortHeight || largeText ? 8 : 12,
+                        shortHeight || largeText ? 6 : 8,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.04),

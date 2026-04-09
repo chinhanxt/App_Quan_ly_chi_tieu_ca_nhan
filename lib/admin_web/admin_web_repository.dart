@@ -4,6 +4,7 @@ import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/services/transaction_phrase_lexicon.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:app/services/transaction_summary_helper.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -198,6 +199,9 @@ class BroadcastRecord {
     required this.content,
     required this.type,
     required this.status,
+    required this.deliveryMode,
+    required this.autoStartAt,
+    required this.autoEndAt,
     required this.createdAt,
     required this.updatedAt,
     required this.createdByEmail,
@@ -208,9 +212,23 @@ class BroadcastRecord {
   final String content;
   final String type;
   final String status;
+  final String deliveryMode;
+  final Timestamp? autoStartAt;
+  final Timestamp? autoEndAt;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
   final String createdByEmail;
+
+  bool get isScheduled => deliveryMode == 'scheduled';
+
+  bool isVisibleAt(DateTime now) {
+    return isBroadcastVisible(<String, dynamic>{
+      'status': status,
+      'deliveryMode': deliveryMode,
+      'autoStartAt': autoStartAt,
+      'autoEndAt': autoEndAt,
+    }, now: now);
+  }
 
   factory BroadcastRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
@@ -220,6 +238,9 @@ class BroadcastRecord {
       content: data['content']?.toString() ?? '',
       type: data['type']?.toString() ?? 'info',
       status: data['status']?.toString() ?? 'inactive',
+      deliveryMode: data['deliveryMode']?.toString() ?? 'manual',
+      autoStartAt: _readTimestamp(data['autoStartAt']),
+      autoEndAt: _readTimestamp(data['autoEndAt']),
       createdAt: _readTimestamp(data['createdAt']),
       updatedAt: _readTimestamp(data['updatedAt']),
       createdByEmail: data['createdByEmail']?.toString() ?? '',
@@ -337,6 +358,40 @@ class AiLexiconState {
   final String sourceLabel;
   final String draftRaw;
   final int draftVersion;
+}
+
+class AiConfigVersionRecord {
+  const AiConfigVersionRecord({
+    required this.id,
+    required this.configKey,
+    required this.version,
+    required this.createdAt,
+    required this.adminEmail,
+    required this.snapshot,
+  });
+
+  final String id;
+  final String configKey;
+  final int version;
+  final Timestamp? createdAt;
+  final String adminEmail;
+  final Map<String, dynamic> snapshot;
+
+  factory AiConfigVersionRecord.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    return AiConfigVersionRecord(
+      id: doc.id,
+      configKey: data['configKey']?.toString() ?? '',
+      version: (data['version'] as num?)?.toInt() ?? 1,
+      createdAt: _readTimestamp(data['createdAt']),
+      adminEmail: data['adminEmail']?.toString() ?? '',
+      snapshot: Map<String, dynamic>.from(
+        data['snapshot'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+    );
+  }
 }
 
 class AdminCategorySummary {
@@ -572,6 +627,9 @@ class AdminWebRepository {
     required String content,
     required String type,
     required bool active,
+    String deliveryMode = 'manual',
+    DateTime? autoStartAt,
+    DateTime? autoEndAt,
     String? actorEmail,
   }) async {
     final payload = <String, dynamic>{
@@ -579,6 +637,9 @@ class AdminWebRepository {
       'content': content,
       'type': type,
       'status': active ? 'active' : 'inactive',
+      'deliveryMode': deliveryMode,
+      'autoStartAt': autoStartAt == null ? null : Timestamp.fromDate(autoStartAt),
+      'autoEndAt': autoEndAt == null ? null : Timestamp.fromDate(autoEndAt),
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -681,6 +742,31 @@ class AdminWebRepository {
     }
   }
 
+  Stream<AiLexiconState> watchAiLexiconState() async* {
+    final fallback = await rootBundle.loadString('data.text');
+    yield* _firestore.collection('system_configs').snapshots().map((snapshot) {
+      final publishedDoc = snapshot.docs.where((doc) => doc.id == 'ai_lexicon');
+      final draftDoc = snapshot.docs.where((doc) => doc.id == 'ai_lexicon_draft');
+      final published = publishedDoc.isNotEmpty
+          ? publishedDoc.first.data()
+          : const <String, dynamic>{};
+      final draft = draftDoc.isNotEmpty
+          ? draftDoc.first.data()
+          : const <String, dynamic>{};
+      final raw = published['raw_text']?.toString().trim() ?? '';
+      final draftRaw = draft['raw_text']?.toString().trim() ?? '';
+      return AiLexiconState(
+        raw: raw.isNotEmpty ? raw : fallback,
+        version: (published['version'] as num?)?.toInt() ?? 1,
+        sourceLabel: raw.isNotEmpty
+            ? 'Cấu hình đang áp dụng'
+            : 'Tệp hệ thống data.text',
+        draftRaw: draftRaw,
+        draftVersion: (draft['version'] as num?)?.toInt() ?? 1,
+      );
+    });
+  }
+
   Future<void> saveAiLexiconDraft({
     required String raw,
     required AdminProfile actor,
@@ -712,14 +798,32 @@ class AdminWebRepository {
     required AdminProfile actor,
     required int nextVersion,
   }) async {
-    await _firestore
-        .collection('system_configs')
-        .doc('ai_lexicon')
-        .set(<String, dynamic>{
-          'raw_text': raw,
-          'version': nextVersion,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    final payload = <String, dynamic>{
+      'raw_text': raw,
+      'version': nextVersion,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedByUid': actor.uid,
+      'updatedByEmail': actor.email,
+    };
+    final batch = _firestore.batch();
+    batch.set(
+      _firestore.collection('system_configs').doc('ai_lexicon'),
+      payload,
+      SetOptions(merge: true),
+    );
+    batch.set(
+      _firestore.collection('system_config_versions').doc('ai_lexicon_$nextVersion'),
+      <String, dynamic>{
+        'configKey': 'ai_lexicon',
+        'version': nextVersion,
+        'snapshot': <String, dynamic>{'raw_text': raw},
+        'createdAt': FieldValue.serverTimestamp(),
+        'adminUid': actor.uid,
+        'adminEmail': actor.email,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
 
     await _firestore.collection('admin_logs').add(<String, dynamic>{
       'action': 'publish_ai_lexicon',
@@ -775,6 +879,43 @@ class AdminWebRepository {
     }
   }
 
+  Stream<AiRuntimeConfigState> watchAiRuntimeConfigState() {
+    final defaults = AiRuntimeConfig.defaults();
+    return _firestore.collection('system_configs').snapshots().map((snapshot) {
+      final publishedDoc = snapshot.docs.where(
+        (doc) => doc.id == 'ai_runtime_config',
+      );
+      final draftDoc = snapshot.docs.where(
+        (doc) => doc.id == 'ai_runtime_config_draft',
+      );
+      final published = publishedDoc.isNotEmpty
+          ? publishedDoc.first.data()
+          : const <String, dynamic>{};
+      final draft = draftDoc.isNotEmpty
+          ? draftDoc.first.data()
+          : const <String, dynamic>{};
+      final hasPublished = published.isNotEmpty;
+      final hasDraft = draft.isNotEmpty;
+      final publishedConfig = hasPublished
+          ? AiRuntimeConfig.fromMap(published)
+          : defaults;
+      final draftConfig = hasDraft
+          ? AiRuntimeConfig.fromMap(draft)
+          : publishedConfig;
+      return AiRuntimeConfigState(
+        published: publishedConfig,
+        publishedVersion: (published['version'] as num?)?.toInt() ?? 1,
+        draft: draftConfig,
+        draftVersion: hasDraft
+            ? (draft['version'] as num?)?.toInt() ?? 1
+            : (published['version'] as num?)?.toInt() ?? 1,
+        sourceLabel: hasPublished
+            ? 'Cấu hình runtime đang áp dụng'
+            : 'Mặc định hệ thống',
+      );
+    });
+  }
+
   Future<void> saveAiRuntimeConfigDraft({
     required AiRuntimeConfig config,
     required AdminProfile actor,
@@ -806,16 +947,34 @@ class AdminWebRepository {
     required AdminProfile actor,
     required int nextVersion,
   }) async {
-    await _firestore
-        .collection('system_configs')
-        .doc('ai_runtime_config')
-        .set(<String, dynamic>{
-          ...config.toMap(),
-          'version': nextVersion,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedByUid': actor.uid,
-          'updatedByEmail': actor.email,
-        }, SetOptions(merge: true));
+    final payload = <String, dynamic>{
+      ...config.toMap(),
+      'version': nextVersion,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedByUid': actor.uid,
+      'updatedByEmail': actor.email,
+    };
+    final batch = _firestore.batch();
+    batch.set(
+      _firestore.collection('system_configs').doc('ai_runtime_config'),
+      payload,
+      SetOptions(merge: true),
+    );
+    batch.set(
+      _firestore
+          .collection('system_config_versions')
+          .doc('ai_runtime_config_$nextVersion'),
+      <String, dynamic>{
+        'configKey': 'ai_runtime_config',
+        'version': nextVersion,
+        'snapshot': config.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'adminUid': actor.uid,
+        'adminEmail': actor.email,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
 
     await _firestore.collection('admin_logs').add(<String, dynamic>{
       'action': 'publish_ai_runtime_config',
@@ -825,6 +984,273 @@ class AdminWebRepository {
       'adminEmail': actor.email,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Stream<List<AiConfigVersionRecord>> watchAiConfigVersionHistory(
+    String configKey, {
+    int limit = 20,
+  }) {
+    return _firestore
+        .collection('system_config_versions')
+        .where('configKey', isEqualTo: configKey)
+        .orderBy('version', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(AiConfigVersionRecord.fromDoc)
+              .toList(growable: false),
+        );
+  }
+
+  Future<void> rollbackAiLexiconVersion({
+    required AiConfigVersionRecord version,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    final raw = version.snapshot['raw_text']?.toString() ?? '';
+    await saveAiLexiconRaw(
+      raw: raw,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
+    await saveAiLexiconDraft(
+      raw: raw,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
+    await _firestore.collection('admin_logs').add(<String, dynamic>{
+      'action': 'rollback_ai_lexicon',
+      'target': 'system_configs/ai_lexicon',
+      'fromVersion': version.version,
+      'toVersion': nextVersion,
+      'adminUid': actor.uid,
+      'adminEmail': actor.email,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> rollbackAiRuntimeConfigVersion({
+    required AiConfigVersionRecord version,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    final config = AiRuntimeConfig.fromMap(version.snapshot);
+    await saveAiRuntimeConfigRaw(
+      config: config,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
+    await saveAiRuntimeConfigDraft(
+      config: config,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
+    await _firestore.collection('admin_logs').add(<String, dynamic>{
+      'action': 'rollback_ai_runtime_config',
+      'target': 'system_configs/ai_runtime_config',
+      'fromVersion': version.version,
+      'toVersion': nextVersion,
+      'adminUid': actor.uid,
+      'adminEmail': actor.email,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<AiRuntimeConfigState> loadAiAssistantRuntimeConfigState() async {
+    final defaults = AiRuntimeConfig.defaults();
+    try {
+      final snapshot = await _firestore
+          .collection('system_configs')
+          .doc('ai_runtime_assistant')
+          .get();
+      final draftSnapshot = await _firestore
+          .collection('system_configs')
+          .doc('ai_runtime_assistant_draft')
+          .get();
+      final legacySnapshot = await _firestore
+          .collection('system_configs')
+          .doc('ai_runtime_config')
+          .get();
+      final data = snapshot.data();
+      final draftData = draftSnapshot.data();
+      final legacy = legacySnapshot.data();
+      final fallback = AiRuntimeConfig.fromMap(legacy);
+      final published = data == null || data.isEmpty
+          ? fallback
+          : AiRuntimeConfig.fromMap(data);
+      final hasDraft = draftData != null && draftData.isNotEmpty;
+      final draft = hasDraft
+          ? AiRuntimeConfig.fromMap(draftData)
+          : published;
+      final publishedVersion = (data?['version'] as num?)?.toInt() ??
+          (legacy?['version'] as num?)?.toInt() ??
+          1;
+      final draftVersion = hasDraft
+          ? (draftData['version'] as num?)?.toInt() ?? publishedVersion
+          : publishedVersion;
+      return AiRuntimeConfigState(
+        published: published,
+        publishedVersion: publishedVersion,
+        draft: draft,
+        draftVersion: draftVersion,
+        sourceLabel: data == null || data.isEmpty
+            ? 'Kế thừa runtime cũ'
+            : 'Cấu hình AI hỗ trợ đang áp dụng',
+      );
+    } catch (_) {
+      return AiRuntimeConfigState(
+        published: defaults,
+        publishedVersion: 1,
+        draft: defaults,
+        draftVersion: 1,
+        sourceLabel: 'Mặc định hệ thống',
+      );
+    }
+  }
+
+  Stream<AiRuntimeConfigState> watchAiAssistantRuntimeConfigState() {
+    final defaults = AiRuntimeConfig.defaults();
+    return _firestore.collection('system_configs').snapshots().map((snapshot) {
+      final publishedDoc = snapshot.docs.where(
+        (doc) => doc.id == 'ai_runtime_assistant',
+      );
+      final draftDoc = snapshot.docs.where(
+        (doc) => doc.id == 'ai_runtime_assistant_draft',
+      );
+      final legacyDoc = snapshot.docs.where(
+        (doc) => doc.id == 'ai_runtime_config',
+      );
+      final published = publishedDoc.isNotEmpty
+          ? publishedDoc.first.data()
+          : const <String, dynamic>{};
+      final draft = draftDoc.isNotEmpty
+          ? draftDoc.first.data()
+          : const <String, dynamic>{};
+      final legacy = legacyDoc.isNotEmpty
+          ? legacyDoc.first.data()
+          : const <String, dynamic>{};
+      final fallback = legacy.isNotEmpty ? AiRuntimeConfig.fromMap(legacy) : defaults;
+      final publishedConfig = published.isNotEmpty
+          ? AiRuntimeConfig.fromMap(published)
+          : fallback;
+      final draftConfig = draft.isNotEmpty
+          ? AiRuntimeConfig.fromMap(draft)
+          : publishedConfig;
+      return AiRuntimeConfigState(
+        published: publishedConfig,
+        publishedVersion: (published['version'] as num?)?.toInt() ??
+            (legacy['version'] as num?)?.toInt() ??
+            1,
+        draft: draftConfig,
+        draftVersion: draft.isNotEmpty
+            ? (draft['version'] as num?)?.toInt() ?? 1
+            : ((published['version'] as num?)?.toInt() ??
+                (legacy['version'] as num?)?.toInt() ??
+                1),
+        sourceLabel: published.isNotEmpty
+            ? 'Cấu hình AI hỗ trợ đang áp dụng'
+            : 'Kế thừa runtime cũ',
+      );
+    });
+  }
+
+  Future<void> saveAiAssistantRuntimeConfigDraft({
+    required AiRuntimeConfig config,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    await _firestore
+        .collection('system_configs')
+        .doc('ai_runtime_assistant_draft')
+        .set(<String, dynamic>{
+          ...config.toMap(),
+          'version': nextVersion,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': actor.uid,
+          'updatedByEmail': actor.email,
+        }, SetOptions(merge: true));
+  }
+
+  Future<void> saveAiAssistantRuntimeConfigRaw({
+    required AiRuntimeConfig config,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    final batch = _firestore.batch();
+    batch.set(
+      _firestore.collection('system_configs').doc('ai_runtime_assistant'),
+      <String, dynamic>{
+        ...config.toMap(),
+        'version': nextVersion,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedByUid': actor.uid,
+        'updatedByEmail': actor.email,
+      },
+      SetOptions(merge: true),
+    );
+    batch.set(
+      _firestore
+          .collection('system_config_versions')
+          .doc('ai_runtime_assistant_$nextVersion'),
+      <String, dynamic>{
+        'configKey': 'ai_runtime_assistant',
+        'version': nextVersion,
+        'snapshot': config.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'adminUid': actor.uid,
+        'adminEmail': actor.email,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+
+    final transactionDoc = await _firestore
+        .collection('system_configs')
+        .doc('ai_runtime_config')
+        .get();
+    final merged = AiRuntimeConfig.fromMap(transactionDoc.data()).copyWith(
+      assistantEnabled: config.assistantEnabled,
+      assistantProvider: config.assistantProvider,
+      assistantModel: config.assistantModel,
+      assistantEndpoint: config.assistantEndpoint,
+      assistantRolePrompt: config.assistantRolePrompt,
+      assistantTaskPrompt: config.assistantTaskPrompt,
+      assistantConversationRulesPrompt: config.assistantConversationRulesPrompt,
+      assistantAbbreviationRulesPrompt: config.assistantAbbreviationRulesPrompt,
+      assistantAdvancedReasoningPrompt: config.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt: config.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt: config.assistantActionGuidePrompt,
+      assistantSystemContractPrompt: config.assistantSystemContractPrompt,
+      assistantApiKey: config.assistantApiKey,
+    );
+    await _firestore.collection('system_configs').doc('ai_runtime_config').set(
+      <String, dynamic>{
+        ...merged.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedByUid': actor.uid,
+        'updatedByEmail': actor.email,
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> rollbackAiAssistantRuntimeConfigVersion({
+    required AiConfigVersionRecord version,
+    required AdminProfile actor,
+    required int nextVersion,
+  }) async {
+    final config = AiRuntimeConfig.fromMap(version.snapshot);
+    await saveAiAssistantRuntimeConfigRaw(
+      config: config,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
+    await saveAiAssistantRuntimeConfigDraft(
+      config: config,
+      actor: actor,
+      nextVersion: nextVersion,
+    );
   }
 
   Stream<List<AdminTransactionRecord>> watchRecentTransactions({
@@ -943,10 +1369,14 @@ class AdminWebRepository {
     final categoriesSnapshot = await _firestore.collection('categories').get();
     final broadcastsSnapshot = await _firestore
         .collection('system_broadcasts')
-        .where('status', isEqualTo: 'active')
         .get();
 
     final users = usersSnapshot.docs.map(AdminUserRecord.fromDoc).toList();
+    final now = DateTime.now();
+    final activeBroadcasts = broadcastsSnapshot.docs
+        .map(BroadcastRecord.fromDoc)
+        .where((item) => item.isVisibleAt(now))
+        .length;
 
     return AdminOverviewStats(
       totalUsers: users.length,
@@ -954,7 +1384,7 @@ class AdminWebRepository {
       adminUsers: users.where((user) => user.role != 'user').length,
       lockedUsers: users.where((user) => user.status == 'locked').length,
       systemCategories: categoriesSnapshot.size,
-      activeBroadcasts: broadcastsSnapshot.size,
+      activeBroadcasts: activeBroadcasts,
       transactionsThisMonth: 0,
       totalCredit: users.fold<int>(
         0,
@@ -1013,9 +1443,7 @@ class AdminWebRepository {
       adminUsers: users.where((user) => user.role != 'user').length,
       lockedUsers: users.where((user) => user.status == 'locked').length,
       systemCategories: categoriesSnapshot.size,
-      activeBroadcasts: broadcasts
-          .where((item) => item.status == 'active')
-          .length,
+      activeBroadcasts: broadcasts.where((item) => item.isVisibleAt(now)).length,
       transactionsThisMonth: monthTransactions.length,
       totalCredit: users.fold<int>(
         0,

@@ -1,4 +1,5 @@
 import 'package:app/services/db.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:app/widgets/custom_alert_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -142,7 +143,7 @@ class AuthService {
           .doc('app_controls')
           .get();
       final appControls = appControlsDoc.data() ?? const <String, dynamic>{};
-      final maintenanceMode = appControls['maintenanceMode'] == true;
+      final maintenanceMode = isMaintenanceActive(appControls);
 
       if (maintenanceMode) {
         throw const AppAccessException(

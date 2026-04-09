@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:app/utils/app_colors.dart';
 
 class TimeLineMonth extends StatefulWidget {
-  const TimeLineMonth({super.key, required this.onChanges});
+  const TimeLineMonth({super.key, required this.onChanges, this.selectedMonth});
   final ValueChanged<String?> onChanges;
+  final String? selectedMonth;
 
   @override
   State<TimeLineMonth> createState() => _TimeLineMonthState();
@@ -26,10 +27,28 @@ class _TimeLineMonthState extends State<TimeLineMonth> {
       DateTime iter = DateTime(now.year, now.month + i, 1);
       months.add("${iter.month} ${iter.year}");
     }
-    currentMonth = "${now.month} ${now.year}";
+    currentMonth = widget.selectedMonth ?? "${now.month} ${now.year}";
     Future.delayed(Duration(seconds: 1), () {
       scrollToSelectedMonth();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TimeLineMonth oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextMonth = widget.selectedMonth;
+    if (nextMonth != null &&
+        nextMonth != currentMonth &&
+        months.contains(nextMonth)) {
+      setState(() {
+        currentMonth = nextMonth;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          scrollToSelectedMonth();
+        }
+      });
+    }
   }
 
   void scrollToSelectedMonth() {

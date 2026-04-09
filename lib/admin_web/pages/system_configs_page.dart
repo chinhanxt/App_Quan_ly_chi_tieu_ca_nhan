@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:app/admin_web/admin_web_repository.dart';
 import 'package:app/admin_web/admin_web_widgets.dart';
+import 'package:app/utils/runtime_schedule.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class SystemConfigsPage extends StatefulWidget {
   const SystemConfigsPage({super.key, required this.repository});
@@ -12,6 +16,41 @@ class SystemConfigsPage extends StatefulWidget {
 }
 
 class _SystemConfigsPageState extends State<SystemConfigsPage> {
+  Timer? _refreshTimer;
+  DateTime? _scheduledTick;
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleRealtimeRefresh(Map<String, dynamic> controlsData) {
+    final nextTick = nextMaintenanceTransitionAt(controlsData);
+    if (_scheduledTick == nextTick) {
+      return;
+    }
+
+    _refreshTimer?.cancel();
+    _scheduledTick = nextTick;
+    if (nextTick == null) {
+      return;
+    }
+
+    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    _refreshTimer = Timer(
+      delay.isNegative ? const Duration(seconds: 1) : delay,
+      () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _scheduledTick = null;
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -83,9 +122,24 @@ class _SystemConfigsPageState extends State<SystemConfigsPage> {
                 final SystemConfigRecord? appControls =
                     controlMatches.isEmpty ? null : controlMatches.first;
                 final controlsData = appControls?.data ?? const <String, dynamic>{};
-                final maintenanceMode = controlsData['maintenanceMode'] == true;
+                _scheduleRealtimeRefresh(controlsData);
+                final maintenanceMode =
+                    controlsData['maintenanceModeManual'] == true ||
+                    controlsData['maintenanceMode'] == true;
                 final allowRegistration =
                     controlsData['allowNewRegistration'] != false;
+                final maintenanceScheduleEnabled =
+                    controlsData['maintenanceScheduleEnabled'] == true;
+                final maintenanceStartAt =
+                    readRuntimeDateTime(controlsData['maintenanceStartAt']);
+                final maintenanceEndAt =
+                    readRuntimeDateTime(controlsData['maintenanceEndAt']);
+                final scheduledMaintenanceActive = isSingleWindowActive(
+                  enabled: maintenanceScheduleEnabled,
+                  now: DateTime.now(),
+                  startAt: maintenanceStartAt,
+                  endAt: maintenanceEndAt,
+                );
 
                 return ListView(
                   children: [
@@ -107,6 +161,7 @@ class _SystemConfigsPageState extends State<SystemConfigsPage> {
                                 <String, dynamic>{
                                   ...controlsData,
                                   'maintenanceMode': value,
+                                  'maintenanceModeManual': value,
                                   'allowNewRegistration': allowRegistration,
                                 },
                               );
@@ -119,6 +174,41 @@ class _SystemConfigsPageState extends State<SystemConfigsPage> {
                               'Khi bật, toàn bộ người dùng sẽ bị chặn vào ứng dụng cho tới khi tắt lại.',
                             ),
                           ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 4, bottom: 12),
+                              child: Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    maintenanceScheduleEnabled &&
+                                            maintenanceStartAt != null &&
+                                            maintenanceEndAt != null
+                                        ? 'Lịch bảo trì: ${_formatWindow(maintenanceStartAt, maintenanceEndAt)}'
+                                        : 'Chưa đặt lịch bảo trì tự động',
+                                    style: const TextStyle(
+                                      color: Color(0xFF475467),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (scheduledMaintenanceActive)
+                                    const AdminRolePill(label: 'ĐANG HIỆU LỰC'),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _showMaintenanceScheduleDialog(
+                                      context,
+                                      controlsData: controlsData,
+                                      allowRegistration: allowRegistration,
+                                    ),
+                                    icon: const Icon(Icons.schedule_rounded, size: 18),
+                                    label: const Text('Thiết lập giờ bật/tắt'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           const Divider(height: 28),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
@@ -129,6 +219,7 @@ class _SystemConfigsPageState extends State<SystemConfigsPage> {
                                 <String, dynamic>{
                                   ...controlsData,
                                   'maintenanceMode': maintenanceMode,
+                                  'maintenanceModeManual': maintenanceMode,
                                   'allowNewRegistration': value,
                                 },
                               );
@@ -212,6 +303,206 @@ class _SystemConfigsPageState extends State<SystemConfigsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  String _formatWindow(DateTime startAt, DateTime endAt) {
+    return '${DateFormat('HH:mm dd/MM/yyyy').format(startAt)} -> ${DateFormat('HH:mm dd/MM/yyyy').format(endAt)}';
+  }
+
+  Future<DateTime?> _pickDateTime(
+    BuildContext context, {
+    required DateTime initialValue,
+    required String helpText,
+  }) async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialValue,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+      locale: const Locale('vi', 'VN'),
+      helpText: helpText,
+    );
+    if (pickedDate == null || !context.mounted) {
+      return null;
+    }
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialValue),
+      helpText: helpText,
+    );
+    if (pickedTime == null) {
+      return null;
+    }
+
+    return DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+  }
+
+  Future<void> _showMaintenanceScheduleDialog(
+    BuildContext context, {
+    required Map<String, dynamic> controlsData,
+    required bool allowRegistration,
+  }) async {
+    var scheduleEnabled = controlsData['maintenanceScheduleEnabled'] == true;
+    DateTime? startAt = readRuntimeDateTime(controlsData['maintenanceStartAt']);
+    DateTime? endAt = readRuntimeDateTime(controlsData['maintenanceEndAt']);
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.schedule_rounded, color: Colors.orange),
+                  SizedBox(width: 12),
+                  Text('Thiết lập lịch bảo trì'),
+                ],
+              ),
+              content: SizedBox(
+                width: 560,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: scheduleEnabled,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          scheduleEnabled = value;
+                          errorText = null;
+                        });
+                      },
+                      title: const Text('Bật lịch bảo trì tự động'),
+                      subtitle: const Text(
+                        'Trong khoảng đã cài, người dùng sẽ tự động bị chặn truy cập.',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await _pickDateTime(
+                                dialogContext,
+                                initialValue: startAt ?? DateTime.now(),
+                                helpText: 'Chọn thời điểm bắt đầu',
+                              );
+                              if (picked == null) return;
+                              setDialogState(() {
+                                startAt = picked;
+                                errorText = null;
+                              });
+                            },
+                            icon: const Icon(Icons.play_circle_outline_rounded),
+                            label: Text(
+                              startAt == null
+                                  ? 'Chọn giờ bắt đầu'
+                                  : DateFormat('HH:mm dd/MM/yyyy').format(startAt!),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await _pickDateTime(
+                                dialogContext,
+                                initialValue:
+                                    endAt ??
+                                    (startAt ?? DateTime.now()).add(
+                                      const Duration(hours: 1),
+                                    ),
+                                helpText: 'Chọn thời điểm kết thúc',
+                              );
+                              if (picked == null) return;
+                              setDialogState(() {
+                                endAt = picked;
+                                errorText = null;
+                              });
+                            },
+                            icon: const Icon(Icons.stop_circle_outlined),
+                            label: Text(
+                              endAt == null
+                                  ? 'Chọn giờ kết thúc'
+                                  : DateFormat('HH:mm dd/MM/yyyy').format(endAt!),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Color(0xFFD92D20),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Hủy'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (scheduleEnabled) {
+                      if (startAt == null || endAt == null) {
+                        setDialogState(() {
+                          errorText = 'Cần chọn đủ giờ bắt đầu và kết thúc.';
+                        });
+                        return;
+                      }
+                      if (!endAt!.isAfter(startAt!)) {
+                        setDialogState(() {
+                          errorText = 'Giờ kết thúc phải sau giờ bắt đầu.';
+                        });
+                        return;
+                      }
+                    }
+
+                    await widget.repository.saveSystemConfig(
+                      'app_controls',
+                      <String, dynamic>{
+                        ...controlsData,
+                        'maintenanceMode':
+                            controlsData['maintenanceModeManual'] == true ||
+                                controlsData['maintenanceMode'] == true,
+                        'maintenanceModeManual':
+                            controlsData['maintenanceModeManual'] == true ||
+                                controlsData['maintenanceMode'] == true,
+                        'allowNewRegistration': allowRegistration,
+                        'maintenanceScheduleEnabled': scheduleEnabled,
+                        'maintenanceStartAt': scheduleEnabled ? startAt : null,
+                        'maintenanceEndAt': scheduleEnabled ? endAt : null,
+                      },
+                    );
+                    if (!dialogContext.mounted) return;
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Lưu lịch'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

@@ -83,7 +83,7 @@ class TopSavingGoalsWidget extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 160,
+            height: 132,
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
@@ -144,9 +144,9 @@ class TopSavingGoalsWidget extends StatelessWidget {
                         );
                       },
                       child: Container(
-                        width: 200,
+                        width: 180,
                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
@@ -158,7 +158,7 @@ class TopSavingGoalsWidget extends StatelessWidget {
                               ).withValues(alpha: 0.12),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: AppColors.primary.withValues(alpha: 0.06),
                           ),
@@ -177,46 +177,50 @@ class TopSavingGoalsWidget extends StatelessWidget {
                               children: [
                                 Icon(
                                   _getIconData(goal.icon),
-                                  size: 20,
+                                  size: 18,
                                   color: AppColors.accentStrong,
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
                                     goal.name,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 13.5,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 10),
                             const Spacer(),
-                            Text(
-                              "Còn thiếu ${currencyFormat.format(goal.remainingToSave)} VND",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(999),
                               child: LinearProgressIndicator(
                                 value: goal.progress,
-                                minHeight: 6,
+                                minHeight: 5,
                                 backgroundColor: Colors.grey[100],
                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                   AppColors.accentStrong,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 5),
+                            Text(
+                              "Còn thiếu ${currencyFormat.format(goal.remainingToSave)} VND",
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
                             Text(
                               "${(goal.progress * 100).toStringAsFixed(0)}%",
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

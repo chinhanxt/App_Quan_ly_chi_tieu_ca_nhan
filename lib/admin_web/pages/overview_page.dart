@@ -210,9 +210,11 @@ class _OverviewPageState extends State<OverviewPage> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     subtitle: Text(
-                                      item.status == 'active'
+                                      item.isVisibleAt(DateTime.now())
                                           ? 'Đang hiển thị'
-                                          : 'Đang tạm ẩn',
+                                          : (item.isScheduled
+                                                ? 'Đang chờ lịch hoặc đã hết lịch'
+                                                : 'Đang tạm ẩn'),
                                     ),
                                   ),
                                 )

@@ -1,7 +1,11 @@
 import 'dart:ui';
 
+import 'package:app/screens/notifications_screen.dart';
+import 'package:app/services/notification_service.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -21,16 +25,90 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedAppBar = _decorateAppBar(context, appBar);
     return Scaffold(
       extendBody: extendBody,
       backgroundColor: AppColors.background,
-      appBar: appBar,
+      appBar: resolvedAppBar,
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomNavigationBar,
       body: Stack(
         children: [
           const Positioned.fill(child: AppBackdrop()),
           SafeArea(child: child),
+        ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget? _decorateAppBar(
+    BuildContext context,
+    PreferredSizeWidget? original,
+  ) {
+    if (original is! AppBar) return original;
+
+    return AppBar(
+      leading: original.leading,
+      automaticallyImplyLeading: original.automaticallyImplyLeading,
+      title: original.title,
+      actions: [...?original.actions, const _NotificationAppBarButton()],
+      bottom: original.bottom,
+      flexibleSpace: original.flexibleSpace,
+      backgroundColor: original.backgroundColor,
+      foregroundColor: original.foregroundColor,
+      elevation: original.elevation,
+      centerTitle: original.centerTitle,
+      scrolledUnderElevation: original.scrolledUnderElevation,
+      shadowColor: original.shadowColor,
+      surfaceTintColor: original.surfaceTintColor,
+      shape: original.shape,
+      iconTheme: original.iconTheme,
+      actionsIconTheme: original.actionsIconTheme,
+      primary: original.primary,
+      titleSpacing: original.titleSpacing,
+      toolbarHeight: original.toolbarHeight,
+      toolbarTextStyle: original.toolbarTextStyle,
+      titleTextStyle: original.titleTextStyle,
+      systemOverlayStyle: original.systemOverlayStyle,
+    );
+  }
+}
+
+class _NotificationAppBarButton extends StatelessWidget {
+  const _NotificationAppBarButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUnread = context.select<NotificationService, bool>(
+      (service) => service.hasUnread,
+    );
+
+    return IconButton(
+      tooltip: 'Thông báo',
+      onPressed: () {
+        pushAdaptiveScreen(context, const NotificationsScreen());
+      },
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            Icons.notifications_none_rounded,
+            color: AppColors.textPrimary.withValues(alpha: 0.88),
+          ),
+          if (hasUnread)
+            Positioned(
+              right: -1,
+              top: -1,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.4),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -179,7 +257,7 @@ class AppSectionTitle extends StatelessWidget {
             ],
           ),
         ),
-        if (action != null) action!,
+        ...?action == null ? null : [action!],
       ],
     );
   }
@@ -239,7 +317,7 @@ class AppHeroHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) ...[const SizedBox(width: 16), trailing!],
+          ...?trailing == null ? null : [const SizedBox(width: 16), trailing!],
         ],
       ),
     );

@@ -1,11 +1,13 @@
 import 'package:app/widgets/transaction_card.dart';
 import 'package:app/widgets/app_chrome.dart';
 import 'package:app/widgets/hero_card.dart';
+import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class TransactionsCard extends StatelessWidget {
+class TransactionsCard extends StatefulWidget {
   const TransactionsCard({
     super.key,
     required this.filterMode,
@@ -16,18 +18,38 @@ class TransactionsCard extends StatelessWidget {
   final DateTime selectedPeriod;
 
   @override
+  State<TransactionsCard> createState() => _TransactionsCardState();
+}
+
+class _TransactionsCardState extends State<TransactionsCard> {
+  bool _showAll = false;
+
+  @override
   Widget build(BuildContext context) {
     return AppPanel(
       child: Column(
         children: [
-          const AppSectionTitle(
+          AppSectionTitle(
             title: "Giao dịch gần đây",
             subtitle: "Cập nhật nhanh các biến động mới nhất trong ví của bạn.",
+            action: TextButton(
+              onPressed: () {
+                setState(() {
+                  _showAll = !_showAll;
+                });
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              child: Text(_showAll ? 'Thu gọn' : 'Xem tất cả'),
+            ),
           ),
           const SizedBox(height: 10),
           RecentTransactionsList(
-            filterMode: filterMode,
-            selectedPeriod: selectedPeriod,
+            filterMode: widget.filterMode,
+            selectedPeriod: widget.selectedPeriod,
+            showAll: _showAll,
           ),
         ],
       ),
@@ -40,10 +62,13 @@ class RecentTransactionsList extends StatelessWidget {
     super.key,
     required this.filterMode,
     required this.selectedPeriod,
+    required this.showAll,
   });
 
   final HeroFilterMode filterMode;
   final DateTime selectedPeriod;
+  final bool showAll;
+  static const int _recentFetchLimit = 50;
 
   bool _matchesFilter(DateTime date) {
     switch (filterMode) {
@@ -73,6 +98,7 @@ class RecentTransactionsList extends StatelessWidget {
           .doc(userId)
           .collection('transactions')
           .orderBy('timestamp', descending: true)
+          .limit(_recentFetchLimit)
           .snapshots(),
       builder:
           (
@@ -102,7 +128,6 @@ class RecentTransactionsList extends StatelessWidget {
                   final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
                   return _matchesFilter(date);
                 })
-                .take(20)
                 .toList(growable: false);
 
             if (filteredDocs.isEmpty) {
@@ -112,15 +137,41 @@ class RecentTransactionsList extends StatelessWidget {
               );
             }
 
+            final visibleDocs = showAll
+                ? filteredDocs
+                : filteredDocs.take(5).toList(growable: false);
+
             return ListView.builder(
               shrinkWrap: true,
-              itemCount: filteredDocs.length,
+              itemCount: visibleDocs.length,
               physics: const NeverScrollableScrollPhysics(),
               itemBuilder: (context, index) {
-                final carData = filteredDocs[index].data();
-                final docId = filteredDocs[index].id;
+                final cardData = visibleDocs[index].data();
+                final docId = visibleDocs[index].id;
+                final rawTimestamp = cardData['timestamp'];
+                final timestamp = rawTimestamp is num
+                    ? rawTimestamp.toInt()
+                    : int.tryParse(rawTimestamp?.toString() ?? '');
 
-                return TransactionCard(data: carData, docId: docId);
+                return InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: timestamp == null
+                      ? null
+                      : () {
+                          final date = DateTime.fromMillisecondsSinceEpoch(
+                            timestamp,
+                          );
+                          dashboardTransactionTargetRequest
+                              .value = DashboardTransactionTarget(
+                            monthYear: "${date.month} ${date.year}",
+                            category:
+                                cardData['category']?.toString() ?? 'Tất cả',
+                            type: cardData['type']?.toString() ?? 'debit',
+                          );
+                          dashboardTabRequest.value = 1;
+                        },
+                  child: TransactionCard(data: cardData, docId: docId),
+                );
               },
             );
           },
