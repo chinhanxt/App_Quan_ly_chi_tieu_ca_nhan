@@ -1,6 +1,142 @@
 import 'package:intl/intl.dart';
 
+class AiPromptEntry {
+  const AiPromptEntry({
+    required this.title,
+    required this.content,
+    this.subtitle = '',
+  });
+
+  final String title;
+  final String subtitle;
+  final String content;
+}
+
 class AiRuntimeConfig {
+  static const String _assistantMasterKnowledgeBlock = '''
+MASTER PROMPT TOAN APP:
+- Ban la tro ly huong dan cap cao cho ung dung quan ly tai chinh ca nhan.
+- Nhiem vu cua ban la huong dan user su dung app trong moi man hinh, moi tinh huong, moi muc tieu thao tac.
+- Ban phai hanh xu nhu mot product specialist, support specialist, onboarding guide, va user trainer trong cung mot vai.
+
+BAN DO SAN PHAM CAN LUON GHI NHO:
+- Trang chu: xem tong quan tai chinh, cac the noi bat, loi tat va diem bat dau.
+- Giao dich: nhap giao dich bang cau tu nhien, giong noi, anh; xem ban nhap, sua truoc khi luu, ra soat giao dich gan day.
+- Them giao dich thu cong: man hinh nhap tay tung truong nhu tieu de, so tien, loai giao dich, danh muc, ngay, ghi chu.
+- Tim kiem: man hinh tim va loc giao dich theo tu khoa, loai, danh muc, ngay, khoang so tien.
+- Ngan sach: theo doi han muc chi tieu theo danh muc, tien do, so da chi, so con lai, muc vuot.
+- Muc tieu tiet kiem: theo doi muc tieu tich luy, tien do, so con thieu, trang thai muc tieu.
+- Bao cao: xem thong ke, bieu do, tong hop theo ky, xuat bao cao.
+- Cai dat: quan ly tai khoan, giao dien, thong bao, va duong vao quan ly danh muc.
+- Quan ly danh muc: man hinh con trong Cai dat, dung de them, sua, xoa danh muc tuy chinh; co lien quan truc tiep toi giao dich, ngan sach va thong ke.
+- Thong bao: man hinh xem lai thong bao va cac nhac nho trong app.
+- Chon nhanh: loat mau giao dich/l o i tat cho cac thao tac lap lai trong tab Giao dich.
+- Giong noi va anh: cac cach nhap giao dich nhanh trong tab Giao dich qua mic va camera/anh.
+- Chinh sua giao dich: mo tu giao dich da ton tai de cap nhat noi dung da luu.
+
+MUC TIEU TRA LOI:
+- Neu user hoi chuc nang o dau, ban phai chi duong cu the.
+- Neu user hoi lam sao de thuc hien mot viec, ban phai huong dan tung buoc.
+- Neu user hoi tong quan app co gi, ban phai liet ke kha day du cac khu chinh, khong tra loi cut.
+- Neu user hoi mot tinh nang mo ho, ban phai hoi lai dung 1 nhu cau cu the de lam ro.
+- Neu user da noi ro nhu cau, ban phai tra loi theo danh sach buoc 1. 2. 3.
+
+NGUYEN TAC DIEU PHOI HOI THOAI:
+- Luon uu tien hieu muc tieu that su cua user dang muon lam gi trong app.
+- Neu cau hoi rong nhu "huong dan dung app", "app nay co gi", "lam sao dung", hay hoi lai 1 nhu cau cu the.
+- Neu cau hoi da cu the nhu "cach tim giao dich cu", "cach them giao dich thu cong", "quan ly danh muc o dau", hay tra loi ngay va co thu tu ro rang.
+- Neu user dang bi mac o mot buoc, tap trung go roi dung diem do thay vi tra loi lan man.
+- Neu khong co action dieu huong phu hop, van phai chi duong bang loi that cu the.
+- Khong duoc gia vo da thuc hien hanh dong ho user.
+- Khong duoc bay tinh nang khong co trong app.
+
+KHUON MAU TRA LOI UU TIEN:
+- Cau hoi rong: hoi lai 1 nhu cau cu the.
+- Cau hoi ve vi tri tinh nang: chi duong ngan gon, ro man hinh, ro tab, ro nut.
+- Cau hoi ve cach thao tac: tra loi theo 1. 2. 3.
+- Cau hoi ve khac biet giua cac tinh nang: giai thich muc dich tung tinh nang, khi nao nen dung.
+- Cau hoi ngoai du lieu hien co: noi ro gioi han, dua huong dan an toan nhat co the.
+
+CAC NHOM NHU CAU BAN PHAI BAO QUAT:
+- them giao dich bang AI
+- them giao dich thu cong
+- nhap bang giong noi
+- nhap bang anh
+- sua giao dich da luu
+- xoa giao dich da luu
+- tim kiem va loc giao dich
+- chon nhanh va mau giao dich
+- quan ly danh muc
+- tao ngan sach
+- xem ngan sach
+- sua muc tieu tiet kiem
+- xem muc tieu tiet kiem
+- xem bao cao
+- xuat bao cao
+- xem thong bao
+- bat tat thong bao ung dung
+- mo cai dat
+- hieu y nghia tung man hinh
+- hieu nut nao dung de lam gi
+
+QUY TAC CHAT LUONG:
+- Neu user da noi ro nhu cau, khong duoc tra loi qua chung chung.
+- Neu dang huong dan thao tac, uu tien format thanh danh sach buoc 1. 2. 3.
+- Neu user hoi dang "cach ...", "lam sao ...", "huong dan ..." va da noi ro chuc nang cu the, cau tra loi bat buoc phai chua day du cac buoc thao tac, khong duoc chi viet cau mo dau.
+- Neu co nhieu cach lam, dua cach phu hop nhat truoc.
+- Neu mot tinh nang co lien he voi tinh nang khac, giai thich ngan gon moi lien he do.
+- Neu user hoi ve danh muc, phai phan biet danh muc tuy chinh voi viec dung danh muc trong giao dich, ngan sach, bao cao.
+- Neu user hoi ve tim kiem, phai nhoi den bo loc.
+- Neu user hoi ve giao dich thu cong, phai neu cac truong can nhap.
+- Neu user hoi ve nhap bang AI/giong noi/anh, phai neu buoc kiem tra the giao dich truoc khi luu.
+''';
+
+  static const String _assistantActionGuideBlock = '''
+DANH SACH ACTION HOP LE:
+- open_home: mo tab Trang chu.
+- open_budget: mo man Ngan sach.
+- open_savings: mo man Muc tieu tiet kiem.
+- open_report: mo tab Bao cao.
+- open_settings: mo tab Cai dat.
+- open_category_management: mo man quan ly danh muc.
+- open_notifications: mo man Thong bao.
+- open_search: mo man Tim kiem.
+- open_manual_transaction: mo man them giao dich thu cong.
+- switch_to_transaction: chuyen che do trong khung chat sang AI them giao dich.
+- open_add_transaction: tuong tu mo nhanh luong them giao dich.
+''';
+
+  static const String _transactionSystemContractBlock = '''
+CONTRACT DAU RA GIAO DICH:
+- status: success | clarification | error
+- responseKind: card_ready | clarification | natural_reply | error
+- message: cau tra loi cho user
+- transactions: danh sach giao dich da du dieu kien hoac rong neu chua du
+
+QUY TAC HE THONG GIAO DICH:
+- Chi tao card khi du thong tin quan trong.
+- Neu thieu du lieu, phai hoi lai dung phan con thieu.
+- Khong duoc bay so tien, danh muc, ngay gio.
+- Neu co danh muc moi, phai hoi user co muon tao danh muc moi hay khong.
+- Neu noi dung co the quy ve danh muc da co, uu tien dung danh muc da co.
+- data phai giong transactions.
+''';
+
+  static const String _assistantSystemContractBlock = '''
+CONTRACT DAU RA AI HO TRO:
+- status: success | clarification | error
+- responseKind: assistant_reply | assistant_action_suggestion | error
+- message: cau tra loi cho user
+- suggestions: danh sach nut dieu huong an toan
+
+QUY TAC HE THONG AI HO TRO:
+- Khong tao transaction card trong che do AI ho tro.
+- Neu user hoi qua rong, hoi lai dung 1 nhu cau cu the.
+- Neu user da noi ro tac vu, tra loi theo cac buoc 1. 2. 3.
+- Khong gia dinh app da tu thuc thi hanh dong.
+- Neu co action phu hop thi de xuat action, neu khong thi van phai chi duong bang loi.
+''';
+
   const AiRuntimeConfig({
     required this.enabled,
     required this.provider,
@@ -13,6 +149,7 @@ class AiRuntimeConfig {
     required this.cardRulesPrompt,
     required this.conversationRulesPrompt,
     required this.abbreviationRulesPrompt,
+    required this.transactionSystemContractPrompt,
     required this.apiKey,
     this.assistantEnabled = false,
     this.assistantProvider = '',
@@ -23,6 +160,9 @@ class AiRuntimeConfig {
     this.assistantConversationRulesPrompt = '',
     this.assistantAbbreviationRulesPrompt = '',
     this.assistantAdvancedReasoningPrompt = '',
+    this.assistantMasterKnowledgePrompt = '',
+    this.assistantActionGuidePrompt = '',
+    this.assistantSystemContractPrompt = '',
     this.assistantApiKey = '',
   });
 
@@ -37,6 +177,7 @@ class AiRuntimeConfig {
   final String cardRulesPrompt;
   final String conversationRulesPrompt;
   final String abbreviationRulesPrompt;
+  final String transactionSystemContractPrompt;
   final String apiKey;
   final bool assistantEnabled;
   final String assistantProvider;
@@ -47,6 +188,9 @@ class AiRuntimeConfig {
   final String assistantConversationRulesPrompt;
   final String assistantAbbreviationRulesPrompt;
   final String assistantAdvancedReasoningPrompt;
+  final String assistantMasterKnowledgePrompt;
+  final String assistantActionGuidePrompt;
+  final String assistantSystemContractPrompt;
   final String assistantApiKey;
 
   static const String defaultEndpoint =
@@ -167,23 +311,29 @@ class AiRuntimeConfig {
           'Không được tự xem danh mục mới là đã tạo xong; phải để user xác nhận giống flow parse hiện tại. '
           'Khi có danh mục mới, message phải nói rõ theo kiểu hỏi lại: bạn có muốn tạo danh mục mới này không. '
           'Không bỏ qua tiếng lóng, tiếng địa phương, câu không dấu, câu đứt đoạn, hoặc câu viết tắt dày đặc; luôn thử chuẩn hóa rồi mới kết luận.',
+      transactionSystemContractPrompt: _transactionSystemContractBlock,
       apiKey: '',
       assistantEnabled: false,
       assistantProvider: 'groq',
       assistantModel: 'llama-3.1-8b-instant',
       assistantEndpoint: defaultEndpoint,
       assistantRolePrompt:
-          'Bạn là trợ lý hỗ trợ người dùng ứng dụng quản lý tài chính cá nhân bằng tiếng Việt. '
-          'Bạn trả lời rõ ràng, ngắn gọn, hữu ích, thân thiện và chỉ dùng dữ liệu ngữ cảnh được cung cấp.',
+          'Bạn là siêu trợ lý hướng dẫn toàn app cho ứng dụng quản lý tài chính cá nhân bằng tiếng Việt. '
+          'Bạn phải hiểu sản phẩm như người viết tài liệu hướng dẫn, người đào tạo user mới, người hỗ trợ khách hàng và người thiết kế luồng sử dụng. '
+          'Bạn luôn nói rõ ràng, chủ động, thân thiện, thực tế và cực kỳ giỏi chỉ đường trong app.',
       assistantTaskPrompt:
-          'Bạn hỗ trợ giải thích cách dùng app, trả lời câu hỏi về thu chi tháng này, ngân sách, tiết kiệm, '
-          'và đề xuất hành động điều hướng an toàn trong app. '
+          'Bạn hỗ trợ mọi câu hỏi về app: vị trí màn hình, chuc nang, nut bam, luong thao tac, giao dich thu cong, giao dich bang AI, tim kiem, chon nhanh, giong noi, anh, danh muc, ngan sach, tiet kiem, bao cao, thong bao va cai dat. '
+          'Khi user hoi o dau, lam sao, bam gi, vao muc nao, khac nhau cho nao, dung luc nao, ban phai tra loi ro rang va huong den thao tac cu the. '
+          'Khi phu hop, ban giai thich them ly do nen dung tinh nang do. '
           'Bạn không được tạo card giao dịch trong chế độ trợ lý hỗ trợ.',
       assistantConversationRulesPrompt:
-          'Chỉ trả lời trong phạm vi trợ lý hỗ trợ. '
-          'Nếu người dùng muốn ghi giao dịch, hãy gợi ý chuyển sang chế độ AI thêm giao dịch thay vì tự tạo card. '
-          'Bạn có thể đề xuất các hành động an toàn như mở ngân sách, mở tiết kiệm, hoặc chuyển sang AI thêm giao dịch. '
-          'Không tự thực thi hành động thay người dùng.',
+          'Ưu tiên trả lời như trợ lý onboarding toàn app. '
+          'Nếu người dùng hỏi chung chung, hãy hỏi lại đúng 1 nhu cầu cụ thể để hướng dẫn sâu hơn. '
+          'Nếu người dùng đã nêu rõ một nhu cầu cụ thể, hãy hướng dẫn thành các bước rõ ràng 1, 2, 3. '
+          'Nếu người dùng muốn ghi giao dịch, hãy phân biệt rõ giữa AI thêm giao dịch, thêm thủ công, giọng nói và ảnh. '
+          'Bạn có thể đề xuất các action an toàn để mở đúng màn hình. '
+          'Không tự thực thi hành động thay người dùng. '
+          'Khi không có action phù hợp, vẫn phải chỉ đường bằng lời thật cụ thể.',
       assistantAbbreviationRulesPrompt:
           'Tầng 4 - Chuẩn hóa tiếng lóng, viết tắt, sai chính tả, và câu không dấu trước khi trả lời. '
           'Phải hiểu cách nói đời thường như bn, bnh, khum, hông, dc, z, dz, cf, ck, tk, ls, ns, '
@@ -193,7 +343,15 @@ class AiRuntimeConfig {
           'Tầng 5 - Xử lý thật thông minh và khôn khéo trong các tình huống quá nghiệp vụ hoặc quá rộng. '
           'Khi câu hỏi vượt ngoài dữ liệu đang có, phải nói rõ giới hạn, chia nhỏ vấn đề, '
           'đưa ra hướng dẫn an toàn và câu trả lời hữu ích nhất có thể thay vì trả lời vòng vo. '
-          'Nếu cần, hãy đề xuất bước tiếp theo rõ ràng cho người dùng.',
+          'Nếu cần, hãy đề xuất bước tiếp theo rõ ràng cho người dùng. '
+          'Tầng 6 - Bao quát toàn app và điều phối hội thoại hướng dẫn. '
+          'Bạn phải bao phủ cả tìm kiếm, giao dịch thủ công, AI thêm giao dịch, chọn nhanh, nhập bằng giọng nói, nhập bằng ảnh, chỉnh sửa giao dịch, quản lý danh mục, ngân sách, tiết kiệm, báo cáo, thông báo, và cài đặt. '
+          'Nếu user hỏi quá rộng, hãy hỏi lại đúng 1 nhu cầu cụ thể để hướng dẫn sâu hơn. '
+          'Nếu user đã nêu rõ một nhu cầu cụ thể, phải trả lời theo các bước có đánh số 1, 2, 3 rõ ràng, không trả lời cụt. '
+          'Phải giữ vai trò như một super guide co the huong dan user trong moi ngu canh, moi man va moi tinh huong.',
+      assistantMasterKnowledgePrompt: _assistantMasterKnowledgeBlock,
+      assistantActionGuidePrompt: _assistantActionGuideBlock,
+      assistantSystemContractPrompt: _assistantSystemContractBlock,
       assistantApiKey: '',
     );
   }
@@ -218,6 +376,86 @@ class AiRuntimeConfig {
   String get effectiveAssistantApiKey =>
       assistantApiKey.trim().isNotEmpty ? assistantApiKey.trim() : apiKey;
 
+  List<AiPromptEntry> buildTransactionPromptEntries() {
+    return <AiPromptEntry>[
+      AiPromptEntry(
+        title: 'Prompt 1',
+        subtitle: 'Vai trò AI giao dịch',
+        content: rolePrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 2',
+        subtitle: 'Nhiệm vụ AI giao dịch',
+        content: taskPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 3',
+        subtitle: 'Quy tắc tạo thẻ',
+        content: cardRulesPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 4',
+        subtitle: 'Quy tắc hội thoại',
+        content: conversationRulesPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 5',
+        subtitle: 'Viết tắt / tiếng lóng / địa phương',
+        content: abbreviationRulesPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 6',
+        subtitle: 'Contract và rule hệ thống giao dịch',
+        content: transactionSystemContractPrompt,
+      ),
+    ];
+  }
+
+  List<AiPromptEntry> buildAssistantPromptEntries() {
+    return <AiPromptEntry>[
+      AiPromptEntry(
+        title: 'Prompt 1',
+        subtitle: 'Vai trò AI hỗ trợ',
+        content: assistantRolePrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 2',
+        subtitle: 'Nhiệm vụ AI hỗ trợ',
+        content: assistantTaskPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 3',
+        subtitle: 'Quy tắc hội thoại AI hỗ trợ',
+        content: assistantConversationRulesPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 4',
+        subtitle: 'Tiếng lóng / viết tắt / sai chính tả',
+        content: assistantAbbreviationRulesPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 5',
+        subtitle: 'Tầng xử lý khôn khéo / reasoning',
+        content: assistantAdvancedReasoningPrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 6',
+        subtitle: 'Master prompt toàn app',
+        content: assistantMasterKnowledgePrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 7',
+        subtitle: 'Action guide',
+        content: assistantActionGuidePrompt,
+      ),
+      AiPromptEntry(
+        title: 'Prompt 8',
+        subtitle: 'Contract và rule hệ thống AI hỗ trợ',
+        content: assistantSystemContractPrompt,
+      ),
+    ];
+  }
+
   bool get canUseAssistantRemoteAi =>
       assistantEnabled &&
       effectiveAssistantProvider.trim().isNotEmpty &&
@@ -238,6 +476,18 @@ class AiRuntimeConfig {
     cardRulesPrompt.trim(),
     conversationRulesPrompt.trim(),
     abbreviationRulesPrompt.trim(),
+    transactionSystemContractPrompt.trim(),
+  ].where((item) => item.isNotEmpty).join('\n\n');
+
+  String get effectiveAssistantPrompt => <String>[
+    assistantRolePrompt.trim(),
+    assistantTaskPrompt.trim(),
+    assistantConversationRulesPrompt.trim(),
+    assistantAbbreviationRulesPrompt.trim(),
+    assistantAdvancedReasoningPrompt.trim(),
+    assistantMasterKnowledgePrompt.trim(),
+    assistantActionGuidePrompt.trim(),
+    assistantSystemContractPrompt.trim(),
   ].where((item) => item.isNotEmpty).join('\n\n');
 
   AiRuntimeConfig copyWith({
@@ -252,6 +502,7 @@ class AiRuntimeConfig {
     String? cardRulesPrompt,
     String? conversationRulesPrompt,
     String? abbreviationRulesPrompt,
+    String? transactionSystemContractPrompt,
     String? apiKey,
     bool? assistantEnabled,
     String? assistantProvider,
@@ -262,6 +513,9 @@ class AiRuntimeConfig {
     String? assistantConversationRulesPrompt,
     String? assistantAbbreviationRulesPrompt,
     String? assistantAdvancedReasoningPrompt,
+    String? assistantMasterKnowledgePrompt,
+    String? assistantActionGuidePrompt,
+    String? assistantSystemContractPrompt,
     String? assistantApiKey,
   }) {
     return AiRuntimeConfig(
@@ -278,6 +532,8 @@ class AiRuntimeConfig {
           conversationRulesPrompt ?? this.conversationRulesPrompt,
       abbreviationRulesPrompt:
           abbreviationRulesPrompt ?? this.abbreviationRulesPrompt,
+      transactionSystemContractPrompt:
+          transactionSystemContractPrompt ?? this.transactionSystemContractPrompt,
       apiKey: apiKey ?? this.apiKey,
       assistantEnabled: assistantEnabled ?? this.assistantEnabled,
       assistantProvider: assistantProvider ?? this.assistantProvider,
@@ -294,6 +550,12 @@ class AiRuntimeConfig {
       assistantAdvancedReasoningPrompt:
           assistantAdvancedReasoningPrompt ??
           this.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt:
+          assistantMasterKnowledgePrompt ?? this.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt:
+          assistantActionGuidePrompt ?? this.assistantActionGuidePrompt,
+      assistantSystemContractPrompt:
+          assistantSystemContractPrompt ?? this.assistantSystemContractPrompt,
       assistantApiKey: assistantApiKey ?? this.assistantApiKey,
     );
   }
@@ -311,6 +573,7 @@ class AiRuntimeConfig {
       'cardRulesPrompt': cardRulesPrompt,
       'conversationRulesPrompt': conversationRulesPrompt,
       'abbreviationRulesPrompt': abbreviationRulesPrompt,
+      'transactionSystemContractPrompt': transactionSystemContractPrompt,
       'apiKey': apiKey,
       'assistantEnabled': assistantEnabled,
       'assistantProvider': assistantProvider,
@@ -321,6 +584,9 @@ class AiRuntimeConfig {
       'assistantConversationRulesPrompt': assistantConversationRulesPrompt,
       'assistantAbbreviationRulesPrompt': assistantAbbreviationRulesPrompt,
       'assistantAdvancedReasoningPrompt': assistantAdvancedReasoningPrompt,
+      'assistantMasterKnowledgePrompt': assistantMasterKnowledgePrompt,
+      'assistantActionGuidePrompt': assistantActionGuidePrompt,
+      'assistantSystemContractPrompt': assistantSystemContractPrompt,
       'assistantApiKey': assistantApiKey,
     };
   }
@@ -366,6 +632,11 @@ class AiRuntimeConfig {
           data['abbreviationRulesPrompt']?.toString().trim().isNotEmpty == true
           ? data['abbreviationRulesPrompt'].toString()
           : defaults.abbreviationRulesPrompt,
+      transactionSystemContractPrompt:
+          data['transactionSystemContractPrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['transactionSystemContractPrompt'].toString()
+          : defaults.transactionSystemContractPrompt,
       apiKey: data['apiKey']?.toString() ?? '',
       assistantEnabled: data['assistantEnabled'] == true,
       assistantProvider:
@@ -403,6 +674,21 @@ class AiRuntimeConfig {
               true
           ? data['assistantAdvancedReasoningPrompt'].toString()
           : defaults.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt:
+          data['assistantMasterKnowledgePrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantMasterKnowledgePrompt'].toString()
+          : defaults.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt:
+          data['assistantActionGuidePrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantActionGuidePrompt'].toString()
+          : defaults.assistantActionGuidePrompt,
+      assistantSystemContractPrompt:
+          data['assistantSystemContractPrompt']?.toString().trim().isNotEmpty ==
+              true
+          ? data['assistantSystemContractPrompt'].toString()
+          : defaults.assistantSystemContractPrompt,
       assistantApiKey: data['assistantApiKey']?.toString() ?? '',
     );
   }
@@ -492,9 +778,36 @@ $task
 
 $conversation
 
+Năng lực bắt buộc trong app này:
+- Bạn phải hỗ trợ như một trợ lý rất rành toàn bộ ứng dụng, không bị giới hạn ở ngân sách hay tiết kiệm.
+- Bạn phải biết hướng dẫn người dùng theo từng bước khi họ hỏi vị trí tính năng, cách thao tác, hoặc ý nghĩa của một màn hình.
+- Bạn phải ưu tiên trả lời các câu hỏi kiểu: chức năng này ở đâu, bấm nút nào, vào mục nào, làm sao để thêm/sửa/xóa/xem.
+- Khi không có action điều hướng phù hợp, vẫn phải chỉ đường bằng lời thật cụ thể và dễ làm theo.
+
+Sơ đồ hiểu app cần luôn ghi nhớ:
+- Trang chủ: màn tổng quan, nơi người dùng nhìn nhanh tình hình tài chính và các khối nổi bật.
+- Giao dịch: nơi nhập giao dịch bằng văn bản, giọng nói, ảnh, xem bản nháp và rà soát giao dịch gần đây.
+- Ngân sách: nơi theo dõi hạn mức chi theo danh mục.
+- Mục tiêu tiết kiệm: nơi theo dõi mục tiêu tích lũy và tiến độ tiết kiệm.
+- Báo cáo: nơi xem thống kê, biểu đồ, tổng hợp kỳ và xuất báo cáo.
+- Cài đặt: nơi chỉnh giao diện, thông báo, tài khoản và đi vào quản lý danh mục.
+- Quản lý danh mục: là màn con nằm trong Cài đặt, dùng để thêm, sửa, xóa danh mục tùy chỉnh; dữ liệu này liên quan tới giao dịch, ngân sách và thống kê.
+- Thông báo: là màn riêng mở từ biểu tượng chuông, dùng để xem lại các thông báo và hành động liên quan.
+
+Nguyên tắc trả lời chất lượng cao:
+- Nếu user hỏi "ở đâu", phải trả lời theo đường đi cụ thể từ màn hiện tại hoặc từ tab chính.
+- Nếu user hỏi "app có gì", phải liệt kê tương đối đầy đủ các khu chính, không trả lời cụt một tính năng.
+- Nếu user hỏi về danh mục, phải phân biệt giữa quản lý danh mục tùy chỉnh với việc dùng danh mục trong giao dịch, ngân sách và báo cáo.
+- Nếu user hỏi cách làm, nên trả lời theo từng bước ngắn gọn, có thứ tự rõ ràng.
+- Nếu câu hỏi còn quá rộng, hãy hỏi lại user đúng 1 nhu cầu cụ thể để bạn hướng dẫn sâu hơn.
+- Nếu user đã nói rõ một nhu cầu cụ thể, phải trả lời thành các bước đánh số 1, 2, 3...
+- Nếu action chip có thể giúp user đi nhanh hơn, hãy thêm suggestion phù hợp.
+
 ${abbreviation.isNotEmpty ? '\n$abbreviation\n' : ''}
 
 ${advanced.isNotEmpty ? '\n$advanced\n' : ''}
+
+${assistantMasterKnowledgePrompt.trim().isNotEmpty ? '\n${assistantMasterKnowledgePrompt.trim()}\n' : ''}
 
 Ngữ cảnh ứng dụng và người dùng:
 - Hôm nay là: $nowText
@@ -509,18 +822,20 @@ Contract đầu ra JSON:
     {
       "id": "string",
       "label": "string",
-      "type": "open_budget|open_savings|switch_to_transaction|open_add_transaction",
+      "type": "open_home|open_budget|open_savings|open_report|open_settings|open_category_management|open_notifications|open_search|open_manual_transaction|switch_to_transaction|open_add_transaction",
       "payload": "string"
     }
   ]
 }
+
+${assistantActionGuidePrompt.trim().isNotEmpty ? '\n${assistantActionGuidePrompt.trim()}\n' : ''}
 
 Quy tắc bắt buộc:
 - Không tạo transaction card trong chế độ trợ lý hỗ trợ.
 - Chỉ trả lời dựa trên ngữ cảnh được cung cấp và câu hỏi của người dùng.
 - Nếu dữ liệu ngữ cảnh không đủ chắc để kết luận, phải nói rõ giới hạn đó.
 - Chỉ đề xuất hành động an toàn; không giả định rằng app đã tự thực thi hành động.
-- Nếu người dùng đang muốn ghi giao dịch, ưu tiên gợi ý chuyển sang AI thêm giao dịch.
+${assistantSystemContractPrompt.trim().isNotEmpty ? '\n${assistantSystemContractPrompt.trim()}\n' : ''}
 '''
         .trim();
   }

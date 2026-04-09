@@ -47,6 +47,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
       TextEditingController();
   final TextEditingController _abbreviationRulesPromptController =
       TextEditingController();
+  final TextEditingController _transactionSystemContractPromptController =
+      TextEditingController();
   final TextEditingController _assistantProviderController =
       TextEditingController();
   final TextEditingController _assistantModelController = TextEditingController();
@@ -63,6 +65,12 @@ class _AiConfigPageState extends State<AiConfigPage> {
   final TextEditingController _assistantAbbreviationRulesPromptController =
       TextEditingController();
   final TextEditingController _assistantAdvancedReasoningPromptController =
+      TextEditingController();
+  final TextEditingController _assistantMasterKnowledgePromptController =
+      TextEditingController();
+  final TextEditingController _assistantActionGuidePromptController =
+      TextEditingController();
+  final TextEditingController _assistantSystemContractPromptController =
       TextEditingController();
 
   List<_LexiconSection> _sections = <_LexiconSection>[];
@@ -160,6 +168,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
     _cardRulesPromptController.dispose();
     _conversationRulesPromptController.dispose();
     _abbreviationRulesPromptController.dispose();
+    _transactionSystemContractPromptController.dispose();
     _assistantProviderController.dispose();
     _assistantModelController.dispose();
     _assistantEndpointController.dispose();
@@ -169,6 +178,9 @@ class _AiConfigPageState extends State<AiConfigPage> {
     _assistantConversationRulesPromptController.dispose();
     _assistantAbbreviationRulesPromptController.dispose();
     _assistantAdvancedReasoningPromptController.dispose();
+    _assistantMasterKnowledgePromptController.dispose();
+    _assistantActionGuidePromptController.dispose();
+    _assistantSystemContractPromptController.dispose();
     super.dispose();
   }
 
@@ -185,24 +197,50 @@ class _AiConfigPageState extends State<AiConfigPage> {
     final editableRaw = lexiconState.draftRaw.trim().isNotEmpty
         ? lexiconState.draftRaw
         : lexiconState.raw;
-
-    _syncRuntimeEditors(
-      runtimeState.draft.copyWith(
-        assistantEnabled: assistantRuntimeState.draft.assistantEnabled,
-        assistantProvider: assistantRuntimeState.draft.assistantProvider,
-        assistantModel: assistantRuntimeState.draft.assistantModel,
-        assistantEndpoint: assistantRuntimeState.draft.assistantEndpoint,
-        assistantRolePrompt: assistantRuntimeState.draft.assistantRolePrompt,
-        assistantTaskPrompt: assistantRuntimeState.draft.assistantTaskPrompt,
-        assistantConversationRulesPrompt:
-            assistantRuntimeState.draft.assistantConversationRulesPrompt,
-        assistantAbbreviationRulesPrompt:
-            assistantRuntimeState.draft.assistantAbbreviationRulesPrompt,
-        assistantAdvancedReasoningPrompt:
-            assistantRuntimeState.draft.assistantAdvancedReasoningPrompt,
-        assistantApiKey: assistantRuntimeState.draft.assistantApiKey,
-      ),
+    final mergedDraftRuntime = runtimeState.draft.copyWith(
+      assistantEnabled: assistantRuntimeState.draft.assistantEnabled,
+      assistantProvider: assistantRuntimeState.draft.assistantProvider,
+      assistantModel: assistantRuntimeState.draft.assistantModel,
+      assistantEndpoint: assistantRuntimeState.draft.assistantEndpoint,
+      assistantRolePrompt: assistantRuntimeState.draft.assistantRolePrompt,
+      assistantTaskPrompt: assistantRuntimeState.draft.assistantTaskPrompt,
+      assistantConversationRulesPrompt:
+          assistantRuntimeState.draft.assistantConversationRulesPrompt,
+      assistantAbbreviationRulesPrompt:
+          assistantRuntimeState.draft.assistantAbbreviationRulesPrompt,
+      assistantAdvancedReasoningPrompt:
+          assistantRuntimeState.draft.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt:
+          assistantRuntimeState.draft.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt:
+          assistantRuntimeState.draft.assistantActionGuidePrompt,
+      assistantSystemContractPrompt:
+          assistantRuntimeState.draft.assistantSystemContractPrompt,
+      assistantApiKey: assistantRuntimeState.draft.assistantApiKey,
     );
+    final mergedPublishedRuntime = runtimeState.published.copyWith(
+      assistantEnabled: assistantRuntimeState.published.assistantEnabled,
+      assistantProvider: assistantRuntimeState.published.assistantProvider,
+      assistantModel: assistantRuntimeState.published.assistantModel,
+      assistantEndpoint: assistantRuntimeState.published.assistantEndpoint,
+      assistantRolePrompt: assistantRuntimeState.published.assistantRolePrompt,
+      assistantTaskPrompt: assistantRuntimeState.published.assistantTaskPrompt,
+      assistantConversationRulesPrompt:
+          assistantRuntimeState.published.assistantConversationRulesPrompt,
+      assistantAbbreviationRulesPrompt:
+          assistantRuntimeState.published.assistantAbbreviationRulesPrompt,
+      assistantAdvancedReasoningPrompt:
+          assistantRuntimeState.published.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt:
+          assistantRuntimeState.published.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt:
+          assistantRuntimeState.published.assistantActionGuidePrompt,
+      assistantSystemContractPrompt:
+          assistantRuntimeState.published.assistantSystemContractPrompt,
+      assistantApiKey: assistantRuntimeState.published.assistantApiKey,
+    );
+
+    _syncRuntimeEditors(mergedDraftRuntime);
 
     if (!mounted) return;
     setState(() {
@@ -213,8 +251,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
           : lexiconState.version;
       _source = lexiconState.sourceLabel;
       _sections = _parseSections(editableRaw);
-      _publishedRuntimeConfig = runtimeState.published;
-      _draftRuntimeConfig = runtimeState.draft;
+      _publishedRuntimeConfig = mergedPublishedRuntime;
+      _draftRuntimeConfig = mergedDraftRuntime;
       _publishedRuntimeVersion = runtimeState.publishedVersion;
       _draftRuntimeVersion = runtimeState.draftVersion;
       _publishedAssistantRuntimeVersion = assistantRuntimeState.publishedVersion;
@@ -288,11 +326,53 @@ class _AiConfigPageState extends State<AiConfigPage> {
         .listen((state) {
           if (!mounted) return;
           setState(() {
+            _publishedRuntimeConfig = _publishedRuntimeConfig.copyWith(
+              assistantEnabled: state.published.assistantEnabled,
+              assistantProvider: state.published.assistantProvider,
+              assistantModel: state.published.assistantModel,
+              assistantEndpoint: state.published.assistantEndpoint,
+              assistantRolePrompt: state.published.assistantRolePrompt,
+              assistantTaskPrompt: state.published.assistantTaskPrompt,
+              assistantConversationRulesPrompt:
+                  state.published.assistantConversationRulesPrompt,
+              assistantAbbreviationRulesPrompt:
+                  state.published.assistantAbbreviationRulesPrompt,
+              assistantAdvancedReasoningPrompt:
+                  state.published.assistantAdvancedReasoningPrompt,
+              assistantMasterKnowledgePrompt:
+                  state.published.assistantMasterKnowledgePrompt,
+              assistantActionGuidePrompt:
+                  state.published.assistantActionGuidePrompt,
+              assistantSystemContractPrompt:
+                  state.published.assistantSystemContractPrompt,
+              assistantApiKey: state.published.assistantApiKey,
+            );
             _publishedAssistantRuntimeVersion = state.publishedVersion;
             if (!_runtimeHasUnsavedChanges &&
                 !_savingRuntimeDraft &&
                 !_pushingRuntime &&
                 !_syncingRuntimeEnabled) {
+              _draftRuntimeConfig = _draftRuntimeConfig.copyWith(
+                assistantEnabled: state.draft.assistantEnabled,
+                assistantProvider: state.draft.assistantProvider,
+                assistantModel: state.draft.assistantModel,
+                assistantEndpoint: state.draft.assistantEndpoint,
+                assistantRolePrompt: state.draft.assistantRolePrompt,
+                assistantTaskPrompt: state.draft.assistantTaskPrompt,
+                assistantConversationRulesPrompt:
+                    state.draft.assistantConversationRulesPrompt,
+                assistantAbbreviationRulesPrompt:
+                    state.draft.assistantAbbreviationRulesPrompt,
+                assistantAdvancedReasoningPrompt:
+                    state.draft.assistantAdvancedReasoningPrompt,
+                assistantMasterKnowledgePrompt:
+                    state.draft.assistantMasterKnowledgePrompt,
+                assistantActionGuidePrompt:
+                    state.draft.assistantActionGuidePrompt,
+                assistantSystemContractPrompt:
+                    state.draft.assistantSystemContractPrompt,
+                assistantApiKey: state.draft.assistantApiKey,
+              );
               _assistantRuntimeEnabled = state.draft.assistantEnabled;
               _assistantProviderController.text = state.draft.assistantProvider
                   .trim()
@@ -322,6 +402,12 @@ class _AiConfigPageState extends State<AiConfigPage> {
                   state.draft.assistantAbbreviationRulesPrompt;
               _assistantAdvancedReasoningPromptController.text =
                   state.draft.assistantAdvancedReasoningPrompt;
+              _assistantMasterKnowledgePromptController.text =
+                  state.draft.assistantMasterKnowledgePrompt;
+              _assistantActionGuidePromptController.text =
+                  state.draft.assistantActionGuidePrompt;
+              _assistantSystemContractPromptController.text =
+                  state.draft.assistantSystemContractPrompt;
               _draftAssistantRuntimeVersion = state.draftVersion;
             }
           });
@@ -360,6 +446,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
     _cardRulesPromptController.text = config.cardRulesPrompt;
     _conversationRulesPromptController.text = config.conversationRulesPrompt;
     _abbreviationRulesPromptController.text = config.abbreviationRulesPrompt;
+    _transactionSystemContractPromptController.text =
+        config.transactionSystemContractPrompt;
     _assistantProviderController.text = config.assistantProvider.trim().isNotEmpty
         ? config.assistantProvider
         : config.provider;
@@ -390,6 +478,11 @@ class _AiConfigPageState extends State<AiConfigPage> {
         : config.abbreviationRulesPrompt;
     _assistantAdvancedReasoningPromptController.text =
         config.assistantAdvancedReasoningPrompt;
+    _assistantMasterKnowledgePromptController.text =
+        config.assistantMasterKnowledgePrompt;
+    _assistantActionGuidePromptController.text = config.assistantActionGuidePrompt;
+    _assistantSystemContractPromptController.text =
+        config.assistantSystemContractPrompt;
   }
 
   AiRuntimeConfig _buildDraftRuntimeConfig() {
@@ -405,6 +498,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
       cardRulesPrompt: _cardRulesPromptController.text.trim(),
       conversationRulesPrompt: _conversationRulesPromptController.text.trim(),
       abbreviationRulesPrompt: _abbreviationRulesPromptController.text.trim(),
+      transactionSystemContractPrompt:
+          _transactionSystemContractPromptController.text.trim(),
       apiKey: _apiKeyController.text.trim(),
       assistantEnabled: _assistantRuntimeEnabled,
       assistantProvider: _assistantProviderController.text.trim(),
@@ -418,6 +513,12 @@ class _AiConfigPageState extends State<AiConfigPage> {
           _assistantAbbreviationRulesPromptController.text.trim(),
       assistantAdvancedReasoningPrompt:
           _assistantAdvancedReasoningPromptController.text.trim(),
+      assistantMasterKnowledgePrompt:
+          _assistantMasterKnowledgePromptController.text.trim(),
+      assistantActionGuidePrompt:
+          _assistantActionGuidePromptController.text.trim(),
+      assistantSystemContractPrompt:
+          _assistantSystemContractPromptController.text.trim(),
       assistantApiKey: _assistantApiKeyController.text.trim(),
     );
   }
@@ -756,6 +857,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
 
       if (!mounted) return;
       setState(() {
+        _draftRuntimeConfig = nextDraft;
+        _publishedRuntimeConfig = nextPublished;
         _draftAssistantRuntimeVersion += 1;
         _publishedAssistantRuntimeVersion += 1;
         _assistantRuntimeMessage = value
@@ -797,6 +900,8 @@ class _AiConfigPageState extends State<AiConfigPage> {
       );
       if (!mounted) return;
       setState(() {
+        _draftRuntimeConfig = next;
+        _publishedRuntimeConfig = next;
         _draftAssistantRuntimeVersion = nextVersion;
         _publishedAssistantRuntimeVersion = nextVersion;
         _editingAssistantRuntime = false;
@@ -1125,8 +1230,12 @@ class _AiConfigPageState extends State<AiConfigPage> {
 
     final raw = _buildRaw();
     final lexicon = TransactionPhraseLexicon.parseRaw(raw);
-    final groups = _buildSummaryGroups(lexicon);
     final runtimeDraft = _buildDraftRuntimeConfig();
+    final groups = _buildSummaryGroups(
+      lexicon: lexicon,
+      runtimeDraft: runtimeDraft,
+      publishedRuntime: _publishedRuntimeConfig,
+    );
 
     return ListView(
       children: [
@@ -1186,13 +1295,44 @@ class _AiConfigPageState extends State<AiConfigPage> {
               if (_selectedTabIndex == 0) ...[
                 _buildRuntimeConfigPanel(runtimeDraft),
                 const SizedBox(height: 18),
+                _buildCompiledPromptPanel(
+                  title: 'Prompt tổng hợp cuối cùng',
+                  subtitle:
+                      'Bản prompt runtime cuối cùng đang được ghép từ 6 tầng draft hiện tại của AI thêm giao dịch.',
+                  prompt: runtimeDraft.buildSystemPrompt(
+                    categories: const <Map<String, dynamic>>[],
+                    now: DateTime.now(),
+                  ),
+                  accent: const Color(0xFF155EEF),
+                ),
+                const SizedBox(height: 18),
                 _buildRuntimePreviewPanel(),
               ] else if (_selectedTabIndex == 1) ...[
                 _buildAssistantRuntimePanel(runtimeDraft),
                 const SizedBox(height: 18),
+                _buildCompiledPromptPanel(
+                  title: 'Prompt tổng hợp cuối cùng',
+                  subtitle:
+                      'Bản prompt runtime cuối cùng đang được ghép từ 8 tầng draft hiện tại của AI hỗ trợ.',
+                  prompt: runtimeDraft.buildAssistantSystemPrompt(
+                    contextSummary:
+                        '- Đây là bản xem tổng hợp từ admin, chưa gắn với một câu hỏi cụ thể của user.\n- Khi publish, app sẽ dùng prompt này cùng context runtime thật.',
+                    now: DateTime.now(),
+                  ),
+                  accent: const Color(0xFF087C6C),
+                ),
+                const SizedBox(height: 18),
                 _buildAssistantPreviewPanel(),
               ] else ...[
                 _buildLexiconPanel(),
+                const SizedBox(height: 18),
+                _buildCompiledPromptPanel(
+                  title: 'Khung tổng hợp Local Parse',
+                  subtitle:
+                      'Bản từ điển Local Parse đang được ghép từ toàn bộ nhóm dữ liệu hiện tại của bản nháp.',
+                  prompt: raw,
+                  accent: const Color(0xFF7A5AF8),
+                ),
                 const SizedBox(height: 18),
                 _buildLocalPreviewPanel(),
                 const SizedBox(height: 18),
@@ -1347,6 +1487,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                       child: TextField(
                         controller: _providerController,
                         enabled: _editingTransactionRuntime,
+                        onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
                           labelText: 'Nhà cung cấp',
                         ),
@@ -1357,6 +1498,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                       child: TextField(
                         controller: _modelController,
                         enabled: _editingTransactionRuntime,
+                        onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(labelText: 'Mô hình'),
                       ),
                     ),
@@ -1366,6 +1508,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 TextField(
                   controller: _endpointController,
                   enabled: _editingTransactionRuntime,
+                  onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(labelText: 'Điểm cuối API'),
                 ),
                 const SizedBox(height: 12),
@@ -1434,6 +1577,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 TextField(
                   controller: _apiKeyController,
                   enabled: _editingTransactionRuntime,
+                  onChanged: (_) => setState(() {}),
                   obscureText: !_showApiKey,
                   decoration: InputDecoration(
                     labelText: 'Khóa API Groq',
@@ -1480,6 +1624,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Bản sắc chuyên môn và giọng nói của AI.',
             controller: _rolePromptController,
             enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1487,6 +1632,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Nhiệm vụ và cách phân loại ý định.',
             controller: _taskPromptController,
             enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1494,6 +1640,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Khi nào được tạo thẻ, khi nào phải hỏi lại.',
             controller: _cardRulesPromptController,
             enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1501,6 +1648,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Quy tắc trả lời tự nhiên cho ngữ cảnh rộng.',
             controller: _conversationRulesPromptController,
             enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1509,6 +1657,16 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 'Chuan hoa viet tat, slang, cach noi doi thuong, va bien the dia phuong truoc khi suy luan nghiep vu.',
             controller: _abbreviationRulesPromptController,
             enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          _PromptEditorCard(
+            title: 'Tầng 6: Contract và rule hệ thống',
+            subtitle:
+                'Định nghĩa hợp đồng đầu ra JSON và các quy tắc hệ thống bắt buộc của AI giao dịch.',
+            controller: _transactionSystemContractPromptController,
+            enabled: _editingTransactionRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -1625,6 +1783,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                       child: TextField(
                         controller: _assistantProviderController,
                         enabled: _editingAssistantRuntime,
+                        onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
                           labelText: 'Nhà cung cấp',
                         ),
@@ -1635,6 +1794,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                       child: TextField(
                         controller: _assistantModelController,
                         enabled: _editingAssistantRuntime,
+                        onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(labelText: 'Mô hình'),
                       ),
                     ),
@@ -1644,12 +1804,14 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 TextField(
                   controller: _assistantEndpointController,
                   enabled: _editingAssistantRuntime,
+                  onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(labelText: 'Điểm cuối API'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _assistantApiKeyController,
                   enabled: _editingAssistantRuntime,
+                  onChanged: (_) => setState(() {}),
                   obscureText: !_showAssistantApiKey,
                   decoration: InputDecoration(
                     labelText: 'Khóa API AI hỗ trợ',
@@ -1696,6 +1858,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Giọng điệu và phạm vi hỗ trợ cho người dùng.',
             controller: _assistantRolePromptController,
             enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1703,6 +1866,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Các loại câu hỏi AI hỗ trợ được phép trả lời.',
             controller: _assistantTaskPromptController,
             enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1710,6 +1874,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Giới hạn trả lời, hành động an toàn và cách gợi ý điều hướng.',
             controller: _assistantConversationRulesPromptController,
             enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1717,6 +1882,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Giúp AI hiểu cách nói đời thường trước khi tạo câu trả lời.',
             controller: _assistantAbbreviationRulesPromptController,
             enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
           _PromptEditorCard(
@@ -1724,6 +1890,34 @@ class _AiConfigPageState extends State<AiConfigPage> {
             subtitle: 'Dạy AI trả lời thông minh, mềm và rõ ràng khi câu hỏi quá rộng hoặc quá nghiệp vụ.',
             controller: _assistantAdvancedReasoningPromptController,
             enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          _PromptEditorCard(
+            title: 'Tầng 6: Master prompt toàn app',
+            subtitle:
+                'Bản đồ sản phẩm và năng lực bao quát toàn app của AI hỗ trợ.',
+            controller: _assistantMasterKnowledgePromptController,
+            enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          _PromptEditorCard(
+            title: 'Tầng 7: Action guide',
+            subtitle:
+                'Danh sách action hợp lệ để AI gợi ý điều hướng đúng màn hình.',
+            controller: _assistantActionGuidePromptController,
+            enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          _PromptEditorCard(
+            title: 'Tầng 8: Contract và rule hệ thống',
+            subtitle:
+                'Hợp đồng đầu ra JSON và các quy tắc bắt buộc riêng của AI hỗ trợ.',
+            controller: _assistantSystemContractPromptController,
+            enabled: _editingAssistantRuntime,
+            onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -2262,46 +2456,174 @@ class _AiConfigPageState extends State<AiConfigPage> {
         );
   }
 
-  List<_SummaryGroup> _buildSummaryGroups(TransactionPhraseLexicon lexicon) {
+  List<_SummaryGroup> _buildSummaryGroups({
+    required TransactionPhraseLexicon lexicon,
+    required AiRuntimeConfig runtimeDraft,
+    required AiRuntimeConfig publishedRuntime,
+  }) {
+    final activeKeys = <bool>[
+      runtimeDraft.hasApiKey,
+      runtimeDraft.effectiveAssistantApiKey.trim().isNotEmpty,
+    ].where((value) => value).length;
+    final liveAis = <bool>[
+      publishedRuntime.enabled,
+      publishedRuntime.assistantEnabled,
+    ].where((value) => value).length;
+
     return <_SummaryGroup>[
       _SummaryGroup(
-        label: 'Nhom danh muc',
-        value: '${lexicon.categoryPhrases.length}',
-        note: 'so nhom danh muc',
-        tint: const Color(0xFF7A5AF8),
-      ),
-      _SummaryGroup(
-        label: 'Tu khoa thu',
-        value: '${lexicon.creditPhrases.length}',
-        note: 'cum tu thu nhap',
-        tint: const Color(0xFF039855),
-      ),
-      _SummaryGroup(
-        label: 'Tu khoa chi',
-        value: '${lexicon.debitPhrases.length}',
-        note: 'cum tu chi tieu',
-        tint: const Color(0xFFD92D20),
-      ),
-      _SummaryGroup(
-        label: 'Quy tac uu tien',
-        value: '${lexicon.prioritySections.length}',
-        note: 'tu khoa -> danh muc',
+        label: 'AI giao dịch',
+        value: '6',
+        badge: publishedRuntime.enabled ? 'dang bat' : 'dang tat',
+        note:
+            'Key ${runtimeDraft.hasApiKey ? 'san sang' : 'chua co'} · ${publishedRuntime.canUseRemoteAi ? 'AI that san sang' : 'can bo sung cau hinh'}',
         tint: const Color(0xFF155EEF),
+        icon: Icons.receipt_long_rounded,
       ),
       _SummaryGroup(
-        label: 'Phu dinh',
-        value: '${lexicon.negationPhrases.length}',
-        note: 'bo loc huy',
+        label: 'AI hỗ trợ',
+        value: '8',
+        badge: publishedRuntime.assistantEnabled ? 'dang bat' : 'dang tat',
+        note:
+            'Key ${runtimeDraft.effectiveAssistantApiKey.trim().isNotEmpty ? 'san sang' : 'chua co'} · ${publishedRuntime.canUseAssistantRemoteAi ? 'sẵn sàng hỗ trợ' : 'can bo sung cau hinh'}',
+        tint: const Color(0xFF087C6C),
+        icon: Icons.support_agent_rounded,
+      ),
+      _SummaryGroup(
+        label: 'AI parse',
+        value: '${_sections.length}',
+        badge: _editingParse ? 'dang sua' : 'dang xem',
+        note:
+            '${lexicon.categoryPhrases.length} nhom danh muc · ${_hasUnsavedChanges ? 'co thay doi chua luu' : 'ban nhap da dong bo'}',
+        tint: const Color(0xFF7A5AF8),
+        icon: Icons.rule_folder_outlined,
+      ),
+      _SummaryGroup(
+        label: 'API key đang có',
+        value: '$activeKeys/2',
+        badge: activeKeys == 2 ? 'day du' : 'can bo sung',
+        note:
+            'Giao dịch ${runtimeDraft.hasApiKey ? 'co' : 'thieu'} · Hỗ trợ ${runtimeDraft.effectiveAssistantApiKey.trim().isNotEmpty ? 'co' : 'thieu'}',
+        tint: const Color(0xFF344054),
+        icon: Icons.key_rounded,
+      ),
+      _SummaryGroup(
+        label: 'AI đang hoạt động',
+        value: '$liveAis/2',
+        badge: liveAis == 2 ? 'online' : 'mot phan',
+        note:
+            'Giao dịch ${publishedRuntime.enabled ? 'bat' : 'tat'} · Hỗ trợ ${publishedRuntime.assistantEnabled ? 'bat' : 'tat'}',
         tint: const Color(0xFFDC6803),
+        icon: Icons.toggle_on_rounded,
       ),
       _SummaryGroup(
-        label: 'Tuong lai / Cong no',
-        value:
-            '${lexicon.futureIntentPhrases.length + lexicon.debtIntentPhrases.length}',
-        note: 'y dinh va cong no',
-        tint: const Color(0xFF1E3A37),
+        label: 'Bao phủ cấu hình',
+        value: '14',
+        badge: 'tong so tang',
+        note:
+            '6 tầng AI giao dịch · 8 tầng AI hỗ trợ · ${lexicon.prioritySections.length} rule ưu tiên parse',
+        tint: const Color(0xFF6941C6),
+        icon: Icons.layers_rounded,
       ),
     ];
+  }
+
+  Widget _buildCompiledPromptPanel({
+    required String title,
+    required String subtitle,
+    required String prompt,
+    required Color accent,
+  }) {
+    return AdminPanel(
+      title: title,
+      isExpanded: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: Color(0xFF667085),
+              fontWeight: FontWeight.w600,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: accent.withValues(alpha: 0.18)),
+            ),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                collapsedShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.keyboard_arrow_down_rounded, color: accent),
+                ),
+                title: const Text(
+                  'Xem nội dung tổng hợp',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+                subtitle: Text(
+                  prompt.trim().isEmpty
+                      ? 'Chưa có nội dung.'
+                      : '${prompt.trim().length} ký tự',
+                  style: const TextStyle(
+                    color: Color(0xFF667085),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFE4E7EC)),
+                    ),
+                    child: SelectableText(
+                      prompt.trim().isEmpty ? 'Chưa có nội dung.' : prompt,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.55,
+                        color: Color(0xFF101828),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2311,48 +2633,79 @@ class _PromptEditorCard extends StatelessWidget {
     required this.subtitle,
     required this.controller,
     this.enabled = true,
+    this.onChanged,
   });
 
   final String title;
   final String subtitle;
   final TextEditingController controller;
   final bool enabled;
+  final VoidCallback? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4E7EC)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          collapsedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF155EEF).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Color(0xFF155EEF),
+            ),
+          ),
+          title: Text(
             title,
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: Color(0xFF667085),
-              fontWeight: FontWeight.w600,
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              subtitle,
+              style: const TextStyle(
+                color: Color(0xFF667085),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            enabled: enabled,
-            minLines: 5,
-            maxLines: 9,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              alignLabelWithHint: true,
+          children: [
+            TextField(
+              controller: controller,
+              enabled: enabled,
+              onChanged: (_) => onChanged?.call(),
+              minLines: 5,
+              maxLines: 9,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2372,61 +2725,94 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4E7EC)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  section.key,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              _CountPill(label: '${section.values.length} từ'),
-              const SizedBox(width: 8),
-              OutlinedButton(onPressed: onEdit, child: const Text('Sửa')),
-              const SizedBox(width: 8),
-              FilledButton.tonal(onPressed: onDelete, child: const Text('Xóa')),
-            ],
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          collapsedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: section.values
-                .take(24)
-                .map(
-                  (value) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF7A5AF8).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Color(0xFF7A5AF8),
+            ),
+          ),
+          title: Text(
+            section.key,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '${section.values.length} từ trong nhóm này',
+              style: const TextStyle(
+                color: Color(0xFF667085),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          trailing: _CountPill(label: '${section.values.length} từ'),
+          children: [
+            Row(
+              children: [
+                OutlinedButton(onPressed: onEdit, child: const Text('Sửa')),
+                const SizedBox(width: 8),
+                FilledButton.tonal(onPressed: onDelete, child: const Text('Xóa')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: section.values
+                  .map(
+                    (value) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2662,27 +3048,87 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          colors: [
+            Colors.white,
+            group.tint.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: group.tint.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: group.tint.withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: group.tint.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(group.icon, color: group.tint, size: 22),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: group.tint.withValues(alpha: 0.18)),
+                ),
+                child: Text(
+                  group.badge,
+                  style: TextStyle(
+                    color: group.tint,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           Text(
             group.value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: 34,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              color: group.tint,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
           Text(
             group.label,
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              color: Color(0xFF101828),
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             group.note,
             style: const TextStyle(
               color: Color(0xFF667085),
               fontWeight: FontWeight.w600,
+              height: 1.4,
             ),
           ),
         ],
@@ -2720,14 +3166,18 @@ class _SummaryGroup {
   const _SummaryGroup({
     required this.label,
     required this.value,
+    required this.badge,
     required this.note,
     required this.tint,
+    required this.icon,
   });
 
   final String label;
   final String value;
+  final String badge;
   final String note;
   final Color tint;
+  final IconData icon;
 }
 
 class _LexiconSection {

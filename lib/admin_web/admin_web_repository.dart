@@ -1219,6 +1219,9 @@ class AdminWebRepository {
       assistantConversationRulesPrompt: config.assistantConversationRulesPrompt,
       assistantAbbreviationRulesPrompt: config.assistantAbbreviationRulesPrompt,
       assistantAdvancedReasoningPrompt: config.assistantAdvancedReasoningPrompt,
+      assistantMasterKnowledgePrompt: config.assistantMasterKnowledgePrompt,
+      assistantActionGuidePrompt: config.assistantActionGuidePrompt,
+      assistantSystemContractPrompt: config.assistantSystemContractPrompt,
       assistantApiKey: config.assistantApiKey,
     );
     await _firestore.collection('system_configs').doc('ai_runtime_config').set(

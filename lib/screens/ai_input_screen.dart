@@ -7,8 +7,12 @@ import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
+import 'package:app/screens/add_transaction_screen.dart';
 import 'package:app/screens/budget_screen.dart';
+import 'package:app/screens/category_management_screen.dart';
+import 'package:app/screens/notifications_screen.dart';
 import 'package:app/screens/saving_goals_screen.dart';
+import 'package:app/screens/search_screen.dart';
 import 'package:app/models/voice_transaction_interpretation.dart';
 import 'package:app/services/ai_response_enhancement.dart';
 import 'package:app/services/ai_service.dart';
@@ -3314,25 +3318,29 @@ class _AIInputScreenState extends State<AIInputScreen>
                   Row(
                     children: [
                       Expanded(
-                        child: Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: [
-                            _buildAiModeOption(
-                              label: 'Giao dịch',
-                              isSelected: !_isAssistantMode,
-                              onTap: () =>
-                                  _setScreenMode(_AiScreenMode.transaction),
-                            ),
-                            _buildAiModeOption(
-                              label: 'Hỗ trợ',
-                              isSelected: _isAssistantMode,
-                              isEnabled: _assistantModeAvailable,
-                              onTap: () =>
-                                  _setScreenMode(_AiScreenMode.assistant),
-                            ),
-                          ],
-                        ),
+                        child: _useRealAiMode
+                            ? Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: [
+                                  _buildAiModeOption(
+                                    label: 'Giao dịch',
+                                    isSelected: !_isAssistantMode,
+                                    onTap: () => _setScreenMode(
+                                      _AiScreenMode.transaction,
+                                    ),
+                                  ),
+                                  _buildAiModeOption(
+                                    label: 'Hỗ trợ',
+                                    isSelected: _isAssistantMode,
+                                    isEnabled: _assistantModeAvailable,
+                                    onTap: () => _setScreenMode(
+                                      _AiScreenMode.assistant,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink(),
                       ),
                       const SizedBox(width: 8),
                       _buildOnlineStatusBadge(
@@ -3393,19 +3401,21 @@ class _AIInputScreenState extends State<AIInputScreen>
                             spacing: 4,
                             runSpacing: 4,
                             children: [
-                              _buildAiModeOption(
-                                label: 'Giao dịch',
-                                isSelected: !_isAssistantMode,
-                                onTap: () =>
-                                    _setScreenMode(_AiScreenMode.transaction),
-                              ),
-                              _buildAiModeOption(
-                                label: 'Hỗ trợ',
-                                isSelected: _isAssistantMode,
-                                isEnabled: _assistantModeAvailable,
-                                onTap: () =>
-                                    _setScreenMode(_AiScreenMode.assistant),
-                              ),
+                              if (_useRealAiMode)
+                                _buildAiModeOption(
+                                  label: 'Giao dịch',
+                                  isSelected: !_isAssistantMode,
+                                  onTap: () =>
+                                      _setScreenMode(_AiScreenMode.transaction),
+                                ),
+                              if (_useRealAiMode)
+                                _buildAiModeOption(
+                                  label: 'Hỗ trợ',
+                                  isSelected: _isAssistantMode,
+                                  isEnabled: _assistantModeAvailable,
+                                  onTap: () =>
+                                      _setScreenMode(_AiScreenMode.assistant),
+                                ),
                               _buildOnlineStatusBadge(
                                 compactWidth: compactWidth,
                                 isOnline: isOnline,
@@ -3632,7 +3642,7 @@ class _AIInputScreenState extends State<AIInputScreen>
             const SizedBox(height: 10),
             Text(
               _isAssistantMode
-                  ? "Hãy hỏi như: 'Tháng này mình chi bao nhiêu?', 'Ngân sách đang thế nào?' hoặc 'Cách thêm giao dịch ra sao?'"
+                  ? "Hãy hỏi như: 'Quản lý danh mục ở đâu?', 'Xem báo cáo chỗ nào?', 'Bật thông báo ra sao?' hoặc 'Cách thêm giao dịch như thế nào?'"
                   : "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -3856,11 +3866,32 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Future<void> _handleAssistantAction(AssistantActionSuggestion action) async {
     switch (action.type) {
+      case AssistantActionType.openHome:
+        dashboardTabRequest.value = 0;
+        break;
       case AssistantActionType.openBudget:
         await _openReferenceScreen(const BudgetScreen());
         break;
       case AssistantActionType.openSavings:
         await _openReferenceScreen(const SavingGoalsScreen());
+        break;
+      case AssistantActionType.openReport:
+        dashboardTabRequest.value = 3;
+        break;
+      case AssistantActionType.openSettings:
+        dashboardTabRequest.value = 4;
+        break;
+      case AssistantActionType.openCategoryManagement:
+        await _openReferenceScreen(const CategoryManagementScreen());
+        break;
+      case AssistantActionType.openNotifications:
+        await _openReferenceScreen(const NotificationsScreen());
+        break;
+      case AssistantActionType.openSearch:
+        await _openReferenceScreen(const SearchScreen());
+        break;
+      case AssistantActionType.openManualTransaction:
+        await _openReferenceScreen(const AddTransactionScreen());
         break;
       case AssistantActionType.switchToTransaction:
         _setScreenMode(_AiScreenMode.transaction);
