@@ -62,10 +62,7 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
     final minY = padding.top + 12;
     final maxY = size.height - _buttonSize - padding.bottom - 14;
 
-    return Offset(
-      desired.dx.clamp(minX, maxX),
-      desired.dy.clamp(minY, maxY),
-    );
+    return Offset(desired.dx.clamp(minX, maxX), desired.dy.clamp(minY, maxY));
   }
 
   void _setPressed(bool value) {
@@ -87,7 +84,7 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
     });
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
-    await navigator.push(MaterialPageRoute(builder: (_) => screen));
+    await pushAdaptiveScreenWithNavigator(navigator, screen);
   }
 
   Future<void> _openDashboardTab(int index) async {
@@ -97,7 +94,8 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
     });
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
-    await navigator.push(MaterialPageRoute(builder: (_) => Dashboard(initialIndex: index)));
+    dashboardTabRequest.value = index;
+    navigator.popUntil((route) => route.isFirst);
   }
 
   List<_AssistiveAction> _actions() {
@@ -253,7 +251,9 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                       ),
                       child: Icon(
                         action.icon,
-                        color: Colors.white.withValues(alpha: isActive ? 1 : 0.96),
+                        color: Colors.white.withValues(
+                          alpha: isActive ? 1 : 0.96,
+                        ),
                         size: isActive ? 29 : 27,
                         shadows: [
                           Shadow(
@@ -312,7 +312,9 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                     ],
                     stops: const [0, 0.5, 1],
                   ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.white.withValues(alpha: 0.05),
@@ -523,9 +525,9 @@ class _GlobalAssistiveTouchState extends State<GlobalAssistiveTouch>
                         height: _buttonSize,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF17332D).withValues(
-                            alpha: activeOpacity,
-                          ),
+                          color: const Color(
+                            0xFF17332D,
+                          ).withValues(alpha: activeOpacity),
                           border: Border.all(
                             color: Colors.white.withValues(
                               alpha: 0.10 + (_glowController.value * 0.10),

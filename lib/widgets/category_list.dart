@@ -6,8 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class CategoryList extends StatefulWidget {
-  const CategoryList({super.key, required this.onChanges});
+  const CategoryList({
+    super.key,
+    required this.onChanges,
+    this.selectedCategory,
+  });
   final ValueChanged<String?> onChanges;
+  final String? selectedCategory;
 
   @override
   State<CategoryList> createState() => _CategoryListState();
@@ -18,13 +23,27 @@ class _CategoryListState extends State<CategoryList> {
   static const Color _unselectedCategoryText = Color(0xFF4F8C79);
 
   String currentCategory = "Tất cả";
+  String? _lastAutoScrolledCategory;
   List<Map<String, dynamic>> categoryList = [];
+  final Map<String, GlobalKey> _itemKeys = <String, GlobalKey>{};
 
   final scrollController = ScrollController();
   final appIcons = AppIcons();
   final addCat = {"name": "Tất cả", "icon": FontAwesomeIcons.cartPlus};
 
   void scrollToSelectedCategory() {
+    final itemKey = _itemKeys[currentCategory];
+    final itemContext = itemKey?.currentContext;
+    if (itemContext != null && scrollController.hasClients) {
+      Scrollable.ensureVisible(
+        itemContext,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+
     final selectedCategoryIndex = categoryList.indexWhere(
       (cat) => cat['name'] == currentCategory,
     );
@@ -42,6 +61,19 @@ class _CategoryListState extends State<CategoryList> {
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );
+    }
+  }
+
+  GlobalKey _keyForCategory(String name) {
+    return _itemKeys.putIfAbsent(name, GlobalKey.new);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final requestedCategory = widget.selectedCategory;
+    if (requestedCategory != null && requestedCategory.trim().isNotEmpty) {
+      currentCategory = requestedCategory;
     }
   }
 
@@ -121,6 +153,24 @@ class _CategoryListState extends State<CategoryList> {
                 ...loadedCustomCategories,
               ];
 
+              final requestedCategory = widget.selectedCategory;
+              if (requestedCategory != null &&
+                  categoryList.any(
+                    (item) => item['name'] == requestedCategory,
+                  )) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  if (requestedCategory != currentCategory) {
+                    setState(() {
+                      currentCategory = requestedCategory;
+                    });
+                  }
+                  if (_lastAutoScrolledCategory == requestedCategory) return;
+                  _lastAutoScrolledCategory = requestedCategory;
+                  scrollToSelectedCategory();
+                });
+              }
+
               return ListView.builder(
                 controller: scrollController,
                 itemCount: categoryList.length,
@@ -137,6 +187,7 @@ class _CategoryListState extends State<CategoryList> {
                       scrollToSelectedCategory();
                     },
                     child: Container(
+                      key: _keyForCategory(data['name'] as String),
                       margin: const EdgeInsets.all(6),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(

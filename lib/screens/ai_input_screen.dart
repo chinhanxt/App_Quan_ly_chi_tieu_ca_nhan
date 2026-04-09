@@ -7,7 +7,7 @@ import 'package:app/models/assistant_action_suggestion.dart';
 import 'package:app/models/ai_chat_message.dart';
 import 'package:app/models/ai_runtime_config.dart';
 import 'package:app/models/quick_template.dart';
-import 'package:app/screens/dashboard.dart';
+import 'package:app/screens/budget_screen.dart';
 import 'package:app/screens/saving_goals_screen.dart';
 import 'package:app/models/voice_transaction_interpretation.dart';
 import 'package:app/services/ai_response_enhancement.dart';
@@ -17,6 +17,7 @@ import 'package:app/services/transaction_amount_parser.dart';
 import 'package:app/services/transaction_summary_helper.dart';
 import 'package:app/services/voice_transaction_interpreter.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:app/utils/icon_list.dart';
 import 'package:app/utils/mobile_adaptive.dart';
 import 'package:app/utils/ocr_helper.dart';
@@ -187,7 +188,9 @@ class _AIInputScreenState extends State<AIInputScreen>
 
     return interpretation.copyWith(
       rawTranscript: _repairLegacyText(interpretation.rawTranscript),
-      normalizedTranscript: _repairLegacyText(interpretation.normalizedTranscript),
+      normalizedTranscript: _repairLegacyText(
+        interpretation.normalizedTranscript,
+      ),
       message: _repairLegacyText(interpretation.message),
       draftTransactions: repairedDrafts,
       recommendations: repairedRecommendations,
@@ -1313,12 +1316,12 @@ class _AIInputScreenState extends State<AIInputScreen>
   Future<void> _startVoiceCapture() async {
     if (_isProcessing || _isVoiceBusy) return;
 
-    final permissionState = await _speechCaptureService.ensureMicrophonePermission();
+    final permissionState = await _speechCaptureService
+        .ensureMicrophonePermission();
     if (!mounted) return;
 
     if (permissionState != SpeechPermissionState.granted) {
-      final message =
-          permissionState == SpeechPermissionState.permanentlyDenied
+      final message = permissionState == SpeechPermissionState.permanentlyDenied
           ? 'Quyền micro đang bị chặn. Bạn mở cài đặt ứng dụng để cấp lại giúp mình nhé.'
           : 'Bạn cần cấp quyền micro để nhập giao dịch bằng giọng nói.';
       setState(() {
@@ -1329,10 +1332,7 @@ class _AIInputScreenState extends State<AIInputScreen>
         SnackBar(
           content: Text(message),
           action: permissionState == SpeechPermissionState.permanentlyDenied
-              ? SnackBarAction(
-                  label: 'Mở cài đặt',
-                  onPressed: openAppSettings,
-                )
+              ? SnackBarAction(label: 'Mở cài đặt', onPressed: openAppSettings)
               : null,
         ),
       );
@@ -1340,7 +1340,8 @@ class _AIInputScreenState extends State<AIInputScreen>
     }
 
     setState(() {
-      _voiceStatusMessage = 'Đang nghe, bạn nói xong thì bấm mic lần nữa để chốt.';
+      _voiceStatusMessage =
+          'Đang nghe, bạn nói xong thì bấm mic lần nữa để chốt.';
       _liveVoiceTranscript = '';
       _lastStableVoiceTranscript = '';
       _isVoiceBusy = false;
@@ -1439,7 +1440,9 @@ class _AIInputScreenState extends State<AIInputScreen>
     await _persistChatHistory();
 
     try {
-      var categories = List<Map<String, dynamic>>.from(_transactionCategoryOptions);
+      var categories = List<Map<String, dynamic>>.from(
+        _transactionCategoryOptions,
+      );
       if (categories.isEmpty) {
         categories = await _transactionCategoryOptionsFuture;
       }
@@ -1591,7 +1594,9 @@ class _AIInputScreenState extends State<AIInputScreen>
             ? completeTransactions
             : normalizedTransactions,
         status: hasIncompleteTransactions ? 'clarification' : 'success',
-        responseKind: hasIncompleteTransactions ? 'voice_review' : 'voice_ready',
+        responseKind: hasIncompleteTransactions
+            ? 'voice_review'
+            : 'voice_ready',
         voiceInterpretation: updatedInterpretation,
       );
       _clearVoiceSessionUi();
@@ -2304,16 +2309,21 @@ class _AIInputScreenState extends State<AIInputScreen>
     }).toList();
   }
 
-  List<AssistantActionSuggestion> _normalizeAssistantActions(dynamic rawActions) {
+  List<AssistantActionSuggestion> _normalizeAssistantActions(
+    dynamic rawActions,
+  ) {
     if (rawActions is! List) {
       return const <AssistantActionSuggestion>[];
     }
 
-    return rawActions.whereType<Map>().map<AssistantActionSuggestion>((item) {
-      return AssistantActionSuggestion.fromJson(
-        Map<String, dynamic>.from(item),
-      );
-    }).toList(growable: false);
+    return rawActions
+        .whereType<Map>()
+        .map<AssistantActionSuggestion>((item) {
+          return AssistantActionSuggestion.fromJson(
+            Map<String, dynamic>.from(item),
+          );
+        })
+        .toList(growable: false);
   }
 
   int _normalizeDraftAmountValue(dynamic value) {
@@ -2379,8 +2389,9 @@ class _AIInputScreenState extends State<AIInputScreen>
     normalized['title'] = title;
     normalized['note'] = note;
     normalized['amount'] = _normalizeDraftAmountValue(normalized['amount']);
-    normalized['type'] =
-        normalized['type']?.toString() == 'credit' ? 'credit' : 'debit';
+    normalized['type'] = normalized['type']?.toString() == 'credit'
+        ? 'credit'
+        : 'debit';
     normalized['date'] = DateFormat('dd/MM/yyyy').format(resolvedDateTime);
     normalized['time'] = DateFormat('HH:mm').format(resolvedDateTime);
     normalized['dateTime'] = DateFormat(
@@ -3027,15 +3038,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                 previousConfig.enabled &&
                 !nextConfig.enabled;
 
-              setState(() {
-                _runtimeConfig = nextConfig;
-                _isLoadingRuntimeConfig = false;
-                if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
-                  _useRealAiMode = false;
-                }
-                _ensureAssistantModeStillAvailable();
-                _hasReceivedRuntimeConfigSnapshot = true;
-              });
+            setState(() {
+              _runtimeConfig = nextConfig;
+              _isLoadingRuntimeConfig = false;
+              if (!nextConfig.enabled || !nextConfig.canUseRemoteAi) {
+                _useRealAiMode = false;
+              }
+              _ensureAssistantModeStillAvailable();
+              _hasReceivedRuntimeConfigSnapshot = true;
+            });
 
             if ((justLockedByAdmin || wasUsingAdvanced) &&
                 !nextConfig.enabled) {
@@ -3045,13 +3056,13 @@ class _AIInputScreenState extends State<AIInputScreen>
           onError: (_) async {
             final config = await aiService.loadPublishedRuntimeConfig();
             if (!mounted) return;
-              setState(() {
-                _runtimeConfig = config;
-                _useRealAiMode = config.enabled && config.canUseRemoteAi;
-                _isLoadingRuntimeConfig = false;
-                _ensureAssistantModeStillAvailable();
-                _hasReceivedRuntimeConfigSnapshot = true;
-              });
+            setState(() {
+              _runtimeConfig = config;
+              _useRealAiMode = config.enabled && config.canUseRemoteAi;
+              _isLoadingRuntimeConfig = false;
+              _ensureAssistantModeStillAvailable();
+              _hasReceivedRuntimeConfigSnapshot = true;
+            });
           },
         );
   }
@@ -3310,13 +3321,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                             _buildAiModeOption(
                               label: 'Giao dịch',
                               isSelected: !_isAssistantMode,
-                              onTap: () => _setScreenMode(_AiScreenMode.transaction),
+                              onTap: () =>
+                                  _setScreenMode(_AiScreenMode.transaction),
                             ),
                             _buildAiModeOption(
                               label: 'Hỗ trợ',
                               isSelected: _isAssistantMode,
                               isEnabled: _assistantModeAvailable,
-                              onTap: () => _setScreenMode(_AiScreenMode.assistant),
+                              onTap: () =>
+                                  _setScreenMode(_AiScreenMode.assistant),
                             ),
                           ],
                         ),
@@ -3383,13 +3396,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                               _buildAiModeOption(
                                 label: 'Giao dịch',
                                 isSelected: !_isAssistantMode,
-                                onTap: () => _setScreenMode(_AiScreenMode.transaction),
+                                onTap: () =>
+                                    _setScreenMode(_AiScreenMode.transaction),
                               ),
                               _buildAiModeOption(
                                 label: 'Hỗ trợ',
                                 isSelected: _isAssistantMode,
                                 isEnabled: _assistantModeAvailable,
-                                onTap: () => _setScreenMode(_AiScreenMode.assistant),
+                                onTap: () =>
+                                    _setScreenMode(_AiScreenMode.assistant),
                               ),
                               _buildOnlineStatusBadge(
                                 compactWidth: compactWidth,
@@ -3615,11 +3630,11 @@ class _AIInputScreenState extends State<AIInputScreen>
               ),
             ),
             const SizedBox(height: 10),
-              Text(
-                _isAssistantMode
-                    ? "Hãy hỏi như: 'Tháng này mình chi bao nhiêu?', 'Ngân sách đang thế nào?' hoặc 'Cách thêm giao dịch ra sao?'"
-                    : "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
-                textAlign: TextAlign.center,
+            Text(
+              _isAssistantMode
+                  ? "Hãy hỏi như: 'Tháng này mình chi bao nhiêu?', 'Ngân sách đang thế nào?' hoặc 'Cách thêm giao dịch ra sao?'"
+                  : "Hãy nhắn nội dung như: 'Ăn sáng 30k' hoặc 'Lương về 10tr'...",
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 14,
@@ -3677,7 +3692,8 @@ class _AIInputScreenState extends State<AIInputScreen>
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width *
+          maxWidth:
+              MediaQuery.of(context).size.width *
               (isCardReviewBubble ? 0.74 : 0.78),
         ),
         child: Column(
@@ -3838,15 +3854,13 @@ class _AIInputScreenState extends State<AIInputScreen>
     );
   }
 
-  Future<void> _handleAssistantAction(
-    AssistantActionSuggestion action,
-  ) async {
+  Future<void> _handleAssistantAction(AssistantActionSuggestion action) async {
     switch (action.type) {
       case AssistantActionType.openBudget:
-        await _replaceWithDashboardTab(2);
+        await _openReferenceScreen(const BudgetScreen());
         break;
       case AssistantActionType.openSavings:
-        await _replaceWithScreen(const SavingGoalsScreen());
+        await _openReferenceScreen(const SavingGoalsScreen());
         break;
       case AssistantActionType.switchToTransaction:
         _setScreenMode(_AiScreenMode.transaction);
@@ -3861,18 +3875,9 @@ class _AIInputScreenState extends State<AIInputScreen>
     }
   }
 
-  Future<void> _replaceWithScreen(Widget screen) async {
+  Future<void> _openReferenceScreen(Widget screen) async {
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => screen));
-  }
-
-  Future<void> _replaceWithDashboardTab(int index) async {
-    if (!mounted) return;
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => Dashboard(initialIndex: index)),
-    );
+    await pushAdaptiveScreen(context, screen);
   }
 
   Widget _buildAssistantActionChips(AIChatMessage message) {
@@ -3885,36 +3890,38 @@ class _AIInputScreenState extends State<AIInputScreen>
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: message.assistantActions.map((action) {
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: () => _handleAssistantAction(action),
-              child: Ink(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
+        children: message.assistantActions
+            .map((action) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.12),
+                  onTap: () => _handleAssistantAction(action),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Text(
+                      action.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
                   ),
                 ),
-                child: Text(
-                  action.label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(growable: false),
+              );
+            })
+            .toList(growable: false),
       ),
     );
   }
@@ -4435,7 +4442,9 @@ class _AIInputScreenState extends State<AIInputScreen>
       barrierColor: Colors.black.withValues(alpha: 0.28),
       transitionDuration: const Duration(milliseconds: 180),
       pageBuilder: (context, animation, secondaryAnimation) {
-        final visibleTemplates = _quickTemplates.take(6).toList(growable: false);
+        final visibleTemplates = _quickTemplates
+            .take(6)
+            .toList(growable: false);
         const radius = 108.0;
         const itemWidth = 120.0;
         const itemHeight = 44.0;
@@ -4473,13 +4482,15 @@ class _AIInputScreenState extends State<AIInputScreen>
                       Builder(
                         builder: (context) {
                           final template = visibleTemplates[i];
-                          final angle = (-90 + ((360 / visibleTemplates.length) * i)) *
+                          final angle =
+                              (-90 + ((360 / visibleTemplates.length) * i)) *
                               (3.141592653589793 / 180);
                           final dx = radius * cos(angle);
                           final dy = radius * sin(angle);
                           final accent = template.isCredit
                               ? const Color(0xFF7EE787)
-                              : _suggestionAccents[i % _suggestionAccents.length];
+                              : _suggestionAccents[i %
+                                    _suggestionAccents.length];
 
                           return Transform.translate(
                             offset: Offset(dx, dy),
@@ -4512,10 +4523,13 @@ class _AIInputScreenState extends State<AIInputScreen>
                                         vertical: 8,
                                       ),
                                       child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Icon(
-                                            appIcons.getIconData(template.iconName),
+                                            appIcons.getIconData(
+                                              template.iconName,
+                                            ),
                                             size: 15,
                                             color: Colors.white,
                                           ),
@@ -4558,7 +4572,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF315EF6).withValues(alpha: 0.28),
+                            color: const Color(
+                              0xFF315EF6,
+                            ).withValues(alpha: 0.28),
                             blurRadius: 22,
                             offset: const Offset(0, 10),
                           ),
@@ -4585,10 +4601,9 @@ class _AIInputScreenState extends State<AIInputScreen>
         return FadeTransition(
           opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
           child: ScaleTransition(
-            scale: Tween<double>(
-              begin: 0.92,
-              end: 1,
-            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutBack)),
+            scale: Tween<double>(begin: 0.92, end: 1).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+            ),
             child: child,
           ),
         );
@@ -4609,7 +4624,11 @@ class _AIInputScreenState extends State<AIInputScreen>
           ),
           child: IconButton(
             onPressed: _isProcessing ? null : _showQuickTemplateOrbitMenu,
-            icon: const Icon(Icons.touch_app_rounded, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.touch_app_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
             tooltip: 'Chọn nhanh',
           ),
         ),
@@ -5051,8 +5070,7 @@ class _AIInputScreenState extends State<AIInputScreen>
 
   Widget _buildComposer() {
     final canSend = !_isProcessing && _inputController.text.trim().isNotEmpty;
-    final canToggleVoice =
-        !_isAssistantMode && !_isProcessing && !_isVoiceBusy;
+    final canToggleVoice = !_isAssistantMode && !_isProcessing && !_isVoiceBusy;
     final compact = _useCompactDensity(context);
     final compactReview = _showCompactComposerLayout();
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
@@ -5080,9 +5098,9 @@ class _AIInputScreenState extends State<AIInputScreen>
               borderRadius: BorderRadius.circular(compact ? 24 : 30),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 if (!_isAssistantMode) ...[
                   AiVoiceSessionPanel(
                     isListening: _isListeningToVoice,
@@ -5094,7 +5112,10 @@ class _AIInputScreenState extends State<AIInputScreen>
                       (_voiceStatusMessage?.trim().isNotEmpty ?? false))
                     SizedBox(height: compact ? 10 : 12),
                 ],
-                if (compactReview) _buildCompactReviewHint() else _buildSuggestionsSection(),
+                if (compactReview)
+                  _buildCompactReviewHint()
+                else
+                  _buildSuggestionsSection(),
                 SizedBox(height: compactReview ? 8 : (compact ? 10 : 14)),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -5141,13 +5162,17 @@ class _AIInputScreenState extends State<AIInputScreen>
                                     },
                                     icon: Icon(
                                       Icons.close_rounded,
-                                      color: Colors.white.withValues(alpha: 0.72),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
+                                      ),
                                       size: compact ? 18 : 20,
                                     ),
                                   ),
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: compact ? 14 : 16,
-                              vertical: compactReview ? 10 : (compact ? 12 : 14),
+                              vertical: compactReview
+                                  ? 10
+                                  : (compact ? 12 : 14),
                             ),
                           ),
                         ),
@@ -5159,7 +5184,9 @@ class _AIInputScreenState extends State<AIInputScreen>
                         width: compact ? 48 : 54,
                         height: compact ? 48 : 54,
                         child: ElevatedButton(
-                          onPressed: canToggleVoice ? _toggleVoiceCapture : null,
+                          onPressed: canToggleVoice
+                              ? _toggleVoiceCapture
+                              : null,
                           style: ElevatedButton.styleFrom(
                             padding: EdgeInsets.zero,
                             backgroundColor: _isListeningToVoice

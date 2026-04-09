@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:app/screens/notifications_screen.dart';
 import 'package:app/services/notification_service.dart';
 import 'package:app/utils/app_colors.dart';
+import 'package:app/utils/app_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -50,10 +51,7 @@ class AppScaffold extends StatelessWidget {
       leading: original.leading,
       automaticallyImplyLeading: original.automaticallyImplyLeading,
       title: original.title,
-      actions: [
-        ...?original.actions,
-        const _NotificationAppBarButton(),
-      ],
+      actions: [...?original.actions, const _NotificationAppBarButton()],
       bottom: original.bottom,
       flexibleSpace: original.flexibleSpace,
       backgroundColor: original.backgroundColor,
@@ -88,9 +86,7 @@ class _NotificationAppBarButton extends StatelessWidget {
     return IconButton(
       tooltip: 'Thông báo',
       onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-        );
+        pushAdaptiveScreen(context, const NotificationsScreen());
       },
       icon: Stack(
         clipBehavior: Clip.none,

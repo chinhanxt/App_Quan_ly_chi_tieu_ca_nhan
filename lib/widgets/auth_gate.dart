@@ -40,7 +40,8 @@ class _AuthGateState extends State<AuthGate> {
       return;
     }
 
-    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    final delay =
+        nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
     _maintenanceRefreshTimer = Timer(
       delay.isNegative ? const Duration(seconds: 1) : delay,
       () {

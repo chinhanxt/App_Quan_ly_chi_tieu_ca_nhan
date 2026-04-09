@@ -16,11 +16,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
   static const Duration _headsUpVisibleDuration = Duration(milliseconds: 2500);
   static const Duration _headsUpGapDuration = Duration(milliseconds: 2500);
 
-  NotificationService({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  }) : _auth = auth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance {
+  NotificationService({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance {
     WidgetsBinding.instance.addObserver(this);
     _authSubscription = _auth.authStateChanges().listen(_handleAuthChanged);
     _handleAuthChanged(_auth.currentUser);
@@ -30,12 +28,16 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
   final FirebaseFirestore _firestore;
 
   StreamSubscription<User?>? _authSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notificationSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _notificationSubscription;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _broadcastSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _broadcastSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _budgetSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _transactionSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _savingGoalSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _transactionSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _savingGoalSubscription;
   Timer? _syncDebounceTimer;
   Timer? _broadcastTransitionTimer;
   Timer? _headsUpTimer;
@@ -53,8 +55,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
   List<AppNotification> get notifications => _notifications;
   AppNotification? get currentHeadsUp => _currentHeadsUp;
-  bool get hasUnread =>
-      _notifications.any((item) => item.isUnread && _isNotificationVisible(item));
+  bool get hasUnread => _notifications.any(
+    (item) => item.isUnread && _isNotificationVisible(item),
+  );
   bool get isSignedIn => _currentUserId != null;
   bool get appNotificationsEnabled => _appNotificationsEnabled;
 
@@ -72,12 +75,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     await syncNow();
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
-    await navigator.push(
-      MaterialPageRoute(
-        builder: (_) => NotificationsScreen(
-          initialNotificationId: initialNotificationId,
-        ),
-      ),
+    await pushAdaptiveScreenWithNavigator(
+      navigator,
+      NotificationsScreen(initialNotificationId: initialNotificationId),
     );
   }
 
@@ -127,7 +127,7 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
 
     final navigator = appNavigatorKey.currentState;
     if (screen == null || navigator == null) return;
-    await navigator.push(MaterialPageRoute(builder: (_) => screen!));
+    await pushAdaptiveScreenWithNavigator(navigator, screen);
   }
 
   Future<void> syncNow() async {
@@ -264,7 +264,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  void _handleNotificationSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+  void _handleNotificationSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
     final items = snapshot.docs
         .map((doc) => AppNotification.fromFirestore(doc.id, doc.data()))
         .toList(growable: false);
@@ -350,11 +352,18 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     }, SetOptions(merge: true));
   }
 
-  CollectionReference<Map<String, dynamic>> _notificationsCollection(String userId) {
-    return _firestore.collection('users').doc(userId).collection('notifications');
+  CollectionReference<Map<String, dynamic>> _notificationsCollection(
+    String userId,
+  ) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications');
   }
 
-  DocumentReference<Map<String, dynamic>>? _notificationDoc(String notificationId) {
+  DocumentReference<Map<String, dynamic>>? _notificationDoc(
+    String notificationId,
+  ) {
     final userId = _currentUserId;
     if (userId == null) return null;
     return _notificationsCollection(userId).doc(notificationId);
@@ -402,7 +411,8 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     final staleSystemNotifications = _notifications.where(
-      (item) => item.isSystemNotification && !activeNotificationIds.contains(item.id),
+      (item) =>
+          item.isSystemNotification && !activeNotificationIds.contains(item.id),
     );
     for (final item in staleSystemNotifications) {
       await _hideNotification(userId, item.id);
@@ -435,7 +445,11 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
       final data = doc.data();
       final category = data['category']?.toString() ?? 'Khác';
       final amount = (data['amount'] as num?)?.toInt() ?? 0;
-      spentByCategory.update(category, (value) => value + amount, ifAbsent: () => amount);
+      spentByCategory.update(
+        category,
+        (value) => value + amount,
+        ifAbsent: () => amount,
+      );
     }
 
     for (final doc in budgetsSnapshot.docs) {
@@ -522,7 +536,8 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
           sourceType: AppNotificationSourceType.dailyTransactionReminder,
           shortTitle: 'Thông báo từ ứng dụng',
           detailTitle: 'Hôm nay bạn chưa nhập giao dịch',
-          body: 'Hãy ghi lại ít nhất một giao dịch để số liệu hôm nay luôn đầy đủ.',
+          body:
+              'Hãy ghi lại ít nhất một giao dịch để số liệu hôm nay luôn đầy đủ.',
           severity: AppNotificationSeverity.info,
           createdAt: now,
           actionType: AppNotificationActionType.addTransaction,
@@ -539,10 +554,12 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
         .doc(userId)
         .collection('saving_goals')
         .get();
-    final activeGoals = savingGoalsSnapshot.docs.where((doc) {
-      final status = doc.data()['status']?.toString() ?? 'active';
-      return status == 'active';
-    }).toList(growable: false);
+    final activeGoals = savingGoalsSnapshot.docs
+        .where((doc) {
+          final status = doc.data()['status']?.toString() ?? 'active';
+          return status == 'active';
+        })
+        .toList(growable: false);
 
     final savingsReminderId =
         'daily_savings_${startOfDay.toIso8601String().substring(0, 10)}';
@@ -574,7 +591,8 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
           sourceType: AppNotificationSourceType.savingsReminder,
           shortTitle: 'Thông báo từ ứng dụng',
           detailTitle: 'Hôm nay bạn chưa nạp tiền tiết kiệm',
-          body: 'Bạn đang có mục tiêu tiết kiệm hoạt động. Hãy góp thêm để giữ tiến độ.',
+          body:
+              'Bạn đang có mục tiêu tiết kiệm hoạt động. Hãy góp thêm để giữ tiến độ.',
           severity: AppNotificationSeverity.info,
           createdAt: now,
           actionType: AppNotificationActionType.savings,
@@ -610,8 +628,13 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _expireNotificationById(String userId, String notificationId) async {
-    final doc = await _notificationsCollection(userId).doc(notificationId).get();
+  Future<void> _expireNotificationById(
+    String userId,
+    String notificationId,
+  ) async {
+    final doc = await _notificationsCollection(
+      userId,
+    ).doc(notificationId).get();
     if (!doc.exists) return;
     final now = DateTime.now();
     await doc.reference.set(<String, dynamic>{
@@ -624,7 +647,9 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _hideNotification(String userId, String notificationId) async {
-    final doc = await _notificationsCollection(userId).doc(notificationId).get();
+    final doc = await _notificationsCollection(
+      userId,
+    ).doc(notificationId).get();
     if (!doc.exists) return;
     final now = DateTime.now();
     await doc.reference.set(<String, dynamic>{
@@ -633,10 +658,7 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     }, SetOptions(merge: true));
     _updateLocalNotification(
       notificationId,
-      (current) => current.copyWith(
-        deletedAt: now,
-        expiresAt: now,
-      ),
+      (current) => current.copyWith(deletedAt: now, expiresAt: now),
     );
   }
 
@@ -653,7 +675,10 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     DateTime? createdAt = notification.createdAt;
     DateTime? suppressedUntil;
     if (existingDoc.exists) {
-      final existing = AppNotification.fromFirestore(notification.id, existingDoc.data()!);
+      final existing = AppNotification.fromFirestore(
+        notification.id,
+        existingDoc.data()!,
+      );
       readAt = existing.readAt;
       deletedAt = notification.isSystemNotification ? existing.deletedAt : null;
       headsUpShownAt = existing.headsUpShownAt;
@@ -661,16 +686,15 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
       suppressedUntil = existing.suppressedUntil;
     }
 
-    final mergedNotification = notification
-        .copyWith(
-          createdAt: createdAt,
-          readAt: readAt,
-          deletedAt: deletedAt,
-          headsUpShownAt: headsUpShownAt,
-          suppressedUntil: suppressedUntil,
-          clearDeletedAt: !notification.isSystemNotification,
-          clearExpiresAt: true,
-        );
+    final mergedNotification = notification.copyWith(
+      createdAt: createdAt,
+      readAt: readAt,
+      deletedAt: deletedAt,
+      headsUpShownAt: headsUpShownAt,
+      suppressedUntil: suppressedUntil,
+      clearDeletedAt: !notification.isSystemNotification,
+      clearExpiresAt: true,
+    );
     await docRef.set(mergedNotification.toFirestore(), SetOptions(merge: true));
     _upsertLocalNotification(mergedNotification);
   }
@@ -692,26 +716,27 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     if (existing.sourceEventKey == notification.sourceEventKey) {
-      final mergedNotification = notification
-          .copyWith(
-            createdAt: existing.createdAt,
-            readAt: existing.readAt,
-            deletedAt: existing.deletedAt,
-            headsUpShownAt: existing.headsUpShownAt,
-            suppressedUntil: existing.suppressedUntil,
-          );
-      await docRef.set(mergedNotification.toFirestore(), SetOptions(merge: true));
+      final mergedNotification = notification.copyWith(
+        createdAt: existing.createdAt,
+        readAt: existing.readAt,
+        deletedAt: existing.deletedAt,
+        headsUpShownAt: existing.headsUpShownAt,
+        suppressedUntil: existing.suppressedUntil,
+      );
+      await docRef.set(
+        mergedNotification.toFirestore(),
+        SetOptions(merge: true),
+      );
       _upsertLocalNotification(mergedNotification);
       return;
     }
 
-    final mergedNotification = notification
-        .copyWith(
-          clearReadAt: true,
-          clearDeletedAt: true,
-          clearHeadsUpShownAt: true,
-          clearSuppressedUntil: true,
-        );
+    final mergedNotification = notification.copyWith(
+      clearReadAt: true,
+      clearDeletedAt: true,
+      clearHeadsUpShownAt: true,
+      clearSuppressedUntil: true,
+    );
     await docRef.set(mergedNotification.toFirestore(), SetOptions(merge: true));
     _upsertLocalNotification(mergedNotification);
   }
@@ -816,7 +841,8 @@ class NotificationService extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    final delay = nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
+    final delay =
+        nextTick.difference(DateTime.now()) + const Duration(seconds: 1);
     _broadcastTransitionTimer = Timer(
       delay.isNegative ? const Duration(seconds: 1) : delay,
       () => unawaited(syncNow()),
