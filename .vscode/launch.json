@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter: Máy ảo Android (Pixel 7)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554"
+    },
+    {
+      "name": "Flutter: Tự động nhận diện thiết bị (Default)",
+      "request": "launch",
+      "type": "dart"
+    },
+    {
+      "name": "Flutter: Trình duyệt Web (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome"
+    }
+  ]
+}

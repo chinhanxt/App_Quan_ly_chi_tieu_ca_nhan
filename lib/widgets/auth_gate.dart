@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:app/screens/admin/admin_dashboard.dart';
 import 'package:app/screens/admin/mobile_admin_redirect.dart';
 import 'package:app/screens/dashboard.dart';
 import 'package:app/screens/login_screen.dart';
@@ -8,7 +7,6 @@ import 'package:app/screens/system_access_blocked_screen.dart';
 import 'package:app/utils/runtime_schedule.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AuthGate extends StatefulWidget {
@@ -136,11 +134,7 @@ class _AuthGateState extends State<AuthGate> {
                     if (role == 'admin' ||
                         role == 'super_admin' ||
                         email.toLowerCase() == 'admin@gmail.com') {
-                      if (kIsWeb) {
-                        return const AdminDashboard();
-                      } else {
-                        return const MobileAdminRedirect();
-                      }
+                      return const MobileAdminRedirect();
                     }
                   }
                 }

@@ -49,3 +49,4 @@ app.*.map.json
 
 # Firebase Functions
 functions/node_modules/
+backup_all_data.json

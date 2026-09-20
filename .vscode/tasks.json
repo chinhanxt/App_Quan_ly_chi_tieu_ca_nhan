@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Bật máy ảo Android (Pixel 7)",
+      "type": "shell",
+      "command": "/home/chinhan/development/flutter/bin/flutter emulators --launch Pixel_7_API_34",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Tắt máy ảo Android",
+      "type": "shell",
+      "command": "/home/chinhan/Android/Sdk/platform-tools/adb emu kill",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}
